@@ -1,0 +1,474 @@
+// Central domain definitions: roles, application state machine, form fields, doc types.
+
+export type Role = "learner" | "ac" | "ops" | "admin";
+
+export function roleHome(role: Role): string {
+  return { learner: "/learner", ac: "/ac", ops: "/ops", admin: "/admin" }[role];
+}
+
+export const ROLE_LABELS: Record<Role, string> = {
+  learner: "Learner",
+  ac: "Academic Counsellor",
+  ops: "Ops Team",
+  admin: "Admin",
+};
+
+// Application (eligibility form) state machine.
+// draft        -> AC is filling the form on the call (Stage 1)
+// under_review -> AC submitted; it is in Ops' vetting queue (Stage 2)
+//                 There is no separate "submitted" state: submitting IS
+//                 handing it to Ops, and nothing happens in between.
+// reviewed     -> Ops finished vetting and attached programmes + forms (Stage 3)
+// shortlisted  -> AC sent shortlisted programme(s) to the learner (Stage 4)
+// completed    -> Learner certified, Ops released the offer letter (Stage 4)
+//
+// The path is one-way. Exactly one role owns the details at a time — the
+// counsellor until they submit, then Ops. There is no loop back to an earlier
+// status, because a form that can bounce between two editors bounces forever.
+export type AppStatus =
+  | "draft"
+  | "under_review"
+  | "reviewed"
+  | "shortlisted"
+  | "completed";
+
+/** The forward path. */
+export const STATUS_FLOW: AppStatus[] = [
+  "draft",
+  "under_review",
+  "reviewed",
+  "shortlisted",
+  "completed",
+];
+
+/** Every status — for filters and badges. Same as the flow now. */
+export const ALL_STATUSES: AppStatus[] = [...STATUS_FLOW];
+
+export function stageIndex(status: AppStatus): number {
+  return STATUS_FLOW.indexOf(status);
+}
+
+/**
+ * What the learner sees instead of the five internal statuses. Whether the
+ * form is sitting with Ops or back with the counsellor is upGrad's business —
+ * to the learner it is one span of "we're working on it", and surfacing the
+ * internal handoffs only invites "why is it still with Ops?".
+ */
+export const LEARNER_STAGES = [
+  { label: "In progress", hint: "We're preparing your options" },
+  { label: "Programmes ready", hint: "Review, sign and certify" },
+  { label: "Offer letter", hint: "Issued" },
+] as const;
+
+export function learnerStage(status: AppStatus): number {
+  if (status === "completed") return 2;
+  if (status === "shortlisted") return 1;
+  return 0;
+}
+
+/** The status badge as the learner should read it. */
+export function learnerStatus(
+  status: AppStatus,
+  certified = false
+): { label: string; className: string } {
+  if (status === "completed")
+    return { label: "Completed", className: STATUS_COLORS.completed };
+  if (status === "shortlisted")
+    return certified
+      ? { label: "With upGrad", className: STATUS_COLORS.reviewed }
+      : { label: "Action needed", className: STATUS_COLORS.under_review };
+  return { label: "In progress", className: STATUS_COLORS.draft };
+}
+
+export const STATUS_LABELS: Record<AppStatus, string> = {
+  draft: "Draft",
+  under_review: "Under Vetting",
+  reviewed: "Reviewed by Ops",
+  shortlisted: "Shortlisted",
+  completed: "Completed",
+};
+
+export const STATUS_COLORS: Record<AppStatus, string> = {
+  draft: "bg-cream text-body border border-cream-line",
+  under_review: "bg-[#f6efdd] text-[#8a6d2f] border border-[#ecdfc0]",
+  reviewed: "bg-[#efe9f6] text-[#6b4d8f] border border-[#e1d5ee]",
+  shortlisted: "bg-[#e8f2e9] text-[#3f6c45] border border-[#d5e6d8]",
+  completed: "bg-[#e2eee5] text-[#2f5e38] border border-[#cde1d2]",
+};
+
+// Who is allowed to move an application from -> to.
+export const TRANSITIONS: { from: AppStatus; to: AppStatus; by: Role }[] = [
+  // Submitting hands it straight to Ops — there is no waiting room.
+  { from: "draft", to: "under_review", by: "ac" },
+  // Ops finished vetting: corrections made, programmes and undertakings attached.
+  { from: "under_review", to: "reviewed", by: "ops" },
+  { from: "reviewed", to: "shortlisted", by: "ac" },
+  // Only once the learner has certified their details.
+  { from: "shortlisted", to: "completed", by: "ops" },
+];
+
+export function canTransition(from: AppStatus, to: AppStatus, by: Role): boolean {
+  return TRANSITIONS.some((t) => t.from === from && t.to === to && t.by === by);
+}
+
+/**
+ * Who holds the application right now, and what that entitles them to.
+ *
+ * `draft` → the counsellor, who is filling the form on the call and is the
+ * only role that ever writes the learner's answers.
+ *
+ * `under_review` → Ops. Holding it means reviewing: they comment on fields and
+ * verify documents. They do **not** change the answers — a reviewer who edits
+ * the thing under review leaves no record of what the learner actually said.
+ *
+ * After that, nobody holds it.
+ *
+ * The learner is separate: they always own their own details (see
+ * `updateLearnerDetails`), which is a different thing from vetting the form.
+ */
+export function editorOf(status: AppStatus): Role | null {
+  if (status === "draft") return "ac";
+  if (status === "under_review") return "ops";
+  return null;
+}
+
+export function canEditDetails(status: AppStatus, role: Role): boolean {
+  return editorOf(status) === role;
+}
+
+// Eligibility form definitions — mirrors the product spec sheet.
+// The AC call-form wizard hardcodes the conditional flow; these flat lists are
+// the single source of truth for labels/sections used by the Ops vetting view
+// and the learner's read-only view (both render generically from FORM_FIELDS).
+export interface FieldDef {
+  key: string;
+  label: string;
+  type:
+    | "text"
+    | "date"
+    | "email"
+    | "tel"
+    | "number"
+    | "select"
+    | "textarea"
+    | "month"
+    | "file";
+  section: string;
+  options?: string[];
+  required?: boolean;
+  /** Fields Ops derives from uploaded documents during vetting. */
+  filledBy?: "ops";
+  /** Numeric bounds, enforced in the input AND in the save action —
+   *  a percentage can't be 104 no matter which screen typed it. */
+  min?: number;
+  max?: number;
+}
+
+export const FORM_SECTIONS = [
+  "Profile Data",
+  "Academic Data",
+  "Financing",
+] as const;
+
+export const COUNTRIES = [
+  "Australia",
+  "Germany",
+  "France",
+  "Finland",
+  "Other Europe",
+  "USA",
+] as const;
+
+export const COUNTRY_FLAGS: Record<string, string> = {
+  Australia: "\u{1F1E6}\u{1F1FA}",
+  Germany: "\u{1F1E9}\u{1F1EA}",
+  France: "\u{1F1EB}\u{1F1F7}",
+  Finland: "\u{1F1EB}\u{1F1EE}",
+  "Other Europe": "\u{1F1EA}\u{1F1FA}",
+  USA: "\u{1F1FA}\u{1F1F8}",
+};
+
+export const DEGREE_LEVELS = ["Masters", "Bachelors", "Profile Building"] as const;
+
+// Undertaking / acknowledgement clauses from the spec, triggered by answers.
+export interface ClauseDef {
+  id: string;
+  title: string;
+}
+
+export const CLAUSES: Record<string, ClauseDef> = {
+  "CON-Parents-01": {
+    id: "CON-Parents-01",
+    title: "Parent / legal-guardian consent — learner is under 18",
+  },
+  "ACK-Age/Visa-01": {
+    id: "ACK-Age/Visa-01",
+    title: "Visa-age acknowledgement (>30 Bachelors / >45 Masters)",
+  },
+  "UT-uG Doc-01": {
+    id: "UT-uG Doc-01",
+    title: "Class 12 pursuing — completion undertaking",
+  },
+  "UT-uG Doc/Result-03": {
+    id: "UT-uG Doc/Result-03",
+    title: "Class 12 marksheet to be submitted later",
+  },
+  "UT-PG Doc-02": {
+    id: "UT-PG Doc-02",
+    title: "Bachelor's / postgraduate documents pending undertaking",
+  },
+  "UT-PG Doc/Result-04": {
+    id: "UT-PG Doc/Result-04",
+    title: "Bachelor's marksheets incomplete — submission undertaking",
+  },
+  "UT-Backlog-01": {
+    id: "UT-Backlog-01",
+    title: "Backlog / ATKT declaration",
+  },
+  "UT/ACK-Loan-01": {
+    id: "UT/ACK-Loan-01",
+    title: "Financing undertaking (loan / self-funded)",
+  },
+};
+
+// Generic undertakings appended by degree tag (Section D of the spec).
+export const GENERIC_CLAUSES: { title: string; appliesTo: string[] }[] = [
+  { title: "YLP programme clause", appliesTo: ["Profile Building"] },
+  { title: "Loan & financing terms", appliesTo: ["Masters", "Bachelors", "Profile Building"] },
+  { title: "Visa, exams & others", appliesTo: ["Masters", "Bachelors"] },
+];
+
+export const FORM_FIELDS: FieldDef[] = [
+  // ── Section A — Profile Data ─────────────────────────────────────────────
+  { key: "full_name", label: "Learner Name", type: "text", section: "Profile Data", required: true },
+  { key: "mobile", label: "Learner Mobile Number", type: "tel", section: "Profile Data", required: true },
+  { key: "gender", label: "Learner Gender", type: "select", section: "Profile Data", options: ["Male", "Female", "Others"], required: true },
+  { key: "dob", label: "Learner Date of Birth", type: "date", section: "Profile Data", required: true },
+  { key: "guardian_name", label: "Parent / Legal Guardian Name", type: "text", section: "Profile Data" },
+  { key: "guardian_email", label: "Parent / Legal Guardian Email", type: "email", section: "Profile Data" },
+  { key: "guardian_phone", label: "Parent / Legal Guardian Phone", type: "tel", section: "Profile Data" },
+  { key: "degree_level", label: "Degree to Pursue", type: "select", section: "Profile Data", options: [...DEGREE_LEVELS], required: true },
+  { key: "countries", label: "Countries to Study In", type: "text", section: "Profile Data", required: true },
+  // ── Section B — Academic Data ────────────────────────────────────────────
+  { key: "marksheet_10", label: "Class 10 Marksheet", type: "file", section: "Academic Data", required: true },
+  { key: "score_10", label: "Class 10 Score", type: "number", section: "Academic Data", filledBy: "ops", min: 0, max: 100 },
+  { key: "completion_10", label: "Class 10 Completion Year", type: "number", section: "Academic Data", filledBy: "ops" },
+  { key: "board_12", label: "Class 12 Board / Category", type: "select", section: "Academic Data", options: ["ISC", "CBSE", "10+3 Diploma", "NIOS", "State board", "International Baccalaureate", "A level"], required: true },
+  { key: "status_12", label: "Class 12 Academic Status", type: "select", section: "Academic Data", options: ["Completed", "Pursuing"], required: true },
+  { key: "completion_12", label: "Class 12 Completion (Month & Year)", type: "month", section: "Academic Data" },
+  { key: "has_marksheet_12", label: "Class 12 Final Marksheet", type: "select", section: "Academic Data", options: ["Yes", "Not yet available"] },
+  { key: "marksheet_12", label: "Class 12 Marksheet Upload", type: "file", section: "Academic Data" },
+  { key: "school_name", label: "School Name", type: "text", section: "Academic Data", filledBy: "ops" },
+  { key: "score_12", label: "Class 12 Score", type: "number", section: "Academic Data", filledBy: "ops", min: 0, max: 100 },
+  { key: "mbbs_intent", label: "Applying for MBBS", type: "select", section: "Academic Data", options: ["Yes", "No"] },
+  { key: "neet_status", label: "NEET Exam Status", type: "select", section: "Academic Data", options: ["Yes", "Applied"] },
+  { key: "bachelor_status", label: "Bachelor's Degree Status", type: "select", section: "Academic Data", options: ["Completed", "Pursuing - Final Year", "Pursuing - Others"] },
+  { key: "bachelor_completion", label: "Bachelor's Completion (Month & Year)", type: "month", section: "Academic Data" },
+  { key: "bachelor_docs", label: "Bachelor's Marksheets (CMM / Transcript)", type: "select", section: "Academic Data", options: ["Yes - All Documents Available", "Yes - Partial Documents", "No"] },
+  { key: "bachelor_files", label: "Bachelor's Documents Upload", type: "file", section: "Academic Data" },
+  { key: "backlogs", label: "Backlogs / ATKTs (count)", type: "number", section: "Academic Data" },
+  { key: "bachelor_score", label: "Bachelor's Score", type: "number", section: "Academic Data", filledBy: "ops", min: 0, max: 100 },
+  { key: "bachelor_university", label: "Bachelor's University", type: "text", section: "Academic Data", filledBy: "ops" },
+  { key: "bachelor_mode", label: "Bachelor's Degree Mode", type: "select", section: "Academic Data", options: ["Regular", "Distance Learning", "Online"], filledBy: "ops" },
+  { key: "pg_status", label: "Degree After Bachelor's", type: "select", section: "Academic Data", options: ["No", "Currently Pursuing", "Completed"] },
+  { key: "pg_docs", label: "Master's Marksheets (CMM / Transcript)", type: "select", section: "Academic Data", options: ["Yes - All Documents Available", "Yes - Partial Documents", "No"] },
+  { key: "work_exp_months", label: "Work Experience After Bachelor's (months)", type: "number", section: "Academic Data" },
+  { key: "cv_file", label: "Updated CV / Resume", type: "file", section: "Academic Data" },
+  { key: "career_gap_months", label: "Career Gap (months)", type: "number", section: "Academic Data", filledBy: "ops" },
+  // ── Section C — Financing ────────────────────────────────────────────────
+  { key: "finance_plan", label: "On-campus Financing Plan", type: "select", section: "Financing", options: ["Education Loan (Partial/Full)", "Self-funded"], required: true },
+];
+
+export const MAX_RECOMMENDED_PROGRAMS = 5;
+
+/**
+ * The recco engine's matching score — how well a catalogue programme fits
+ * what we know about the learner. Weights: country 40, degree level 25,
+ * academic score 20, work experience 15. Deterministic and explainable on
+ * purpose: every point lost names its reason, because the counsellor quotes
+ * this to the learner and Ops second-guesses it during eligibility.
+ */
+export function matchScore(
+  item: {
+    country: string;
+    degree_level: string;
+    min_score: number | null;
+    min_work_exp_months: number | null;
+  },
+  responses: Record<string, string>
+): { score: number; reasons: string[] } {
+  const reasons: string[] = [];
+  const countries = (responses.countries ?? "")
+    .split(",")
+    .map((c) => c.trim())
+    .filter(Boolean);
+  const degree = responses.degree_level ?? "";
+  const learnerScore = Number(
+    responses.bachelor_score || responses.score_12 || 0
+  );
+  const exp = Number(responses.work_exp_months || 0);
+
+  let score = 0;
+
+  if (countries.length === 0) score += 20;
+  else if (countries.includes(item.country)) score += 40;
+  else reasons.push(`Outside chosen countries (${item.country})`);
+
+  if (!degree || degree === item.degree_level) score += 25;
+  else reasons.push(`${item.degree_level} programme, learner wants ${degree}`);
+
+  if (!item.min_score) score += 15;
+  else if (!learnerScore) {
+    score += 8;
+    reasons.push(`Needs ${item.min_score}% — score not on file yet`);
+  } else if (learnerScore >= item.min_score) score += 20;
+  else reasons.push(`Needs ${item.min_score}%, learner has ${learnerScore}%`);
+
+  if (!item.min_work_exp_months) score += 10;
+  else if (exp >= item.min_work_exp_months) score += 15;
+  else
+    reasons.push(
+      `Needs ${item.min_work_exp_months} months experience, learner has ${exp}`
+    );
+
+  return { score: Math.max(2, Math.min(99, score)), reasons };
+}
+
+/** Ops' verdict on a counsellor-recommended programme. */
+export type ProgramEligibility = "pending" | "eligible" | "not_eligible";
+
+export type DocType = "undertaking" | "acknowledgement";
+
+export const DOC_TYPE_LABELS: Record<DocType, string> = {
+  undertaking: "Undertaking",
+  acknowledgement: "Acknowledgement",
+};
+
+// ── The learner's document locker ────────────────────────────────────────────
+// A fixed checklist, not free-form uploads: every learner carries the same
+// slots, and a slot is either filled or visibly empty. That is the whole point
+// of a checklist — "not uploaded" has to be as legible as "uploaded", which a
+// list of whatever happens to have been attached can never show.
+//
+// `label` is the system's own identifier for the slot (10th_MARKSHEET_1), kept
+// verbatim so it lines up with the records the Ops team already work from.
+
+export const DOC_CATEGORIES = [
+  "Educational",
+  "Personal",
+  "Visa Documents",
+  "User Application",
+  "Application Documents",
+] as const;
+
+export type DocCategory = (typeof DOC_CATEGORIES)[number];
+
+export interface LearnerDocDef {
+  /** Stable storage key. */
+  key: string;
+  /** What it is, in plain words. */
+  type: string;
+  /** The system label shown beside it. */
+  label: string;
+  category: DocCategory;
+  /** Slots that only apply to some learners — never chased as missing. */
+  optional?: boolean;
+  /**
+   * Asked for DURING shortlisting. The full checklist is the whole admissions
+   * journey; this flow only ever shows the slots eligibility actually needs
+   * (PM call: "during the shortlisting only few documents will be shown").
+   * The rest stay defined so later stages can light them up.
+   */
+  shortlisting?: boolean;
+}
+
+export const LEARNER_DOCS: LearnerDocDef[] = [
+  // ── Educational ──────────────────────────────────────────────────────────
+  { key: "doc_10_marksheet", type: "10th Marksheet", label: "10th_MARKSHEET_1", category: "Educational", shortlisting: true },
+  { key: "doc_10_certificate", type: "10th Certificate", label: "10th_CERTIFICATE_1", category: "Educational" },
+  { key: "doc_12_marksheet", type: "12th Marksheet", label: "12th_MARKSHEET_1", category: "Educational", shortlisting: true },
+  { key: "doc_12_marksheet_prov", type: "12th Marksheet (Provisional)", label: "12th_MARKSHEET_PROVISIONAL_1", category: "Educational", optional: true },
+  { key: "doc_12_certificate", type: "12th Certificate", label: "12th_CERTIFICATE_1", category: "Educational" },
+  { key: "doc_ug_degree", type: "UG Degree", label: "UG_DEGREE_1", category: "Educational", shortlisting: true },
+  { key: "doc_ug_marksheet", type: "UG Marksheet", label: "UG_MARKSHEET_1", category: "Educational", shortlisting: true },
+  { key: "doc_work_ex", type: "Work Experience Document", label: "WORK_EXPERIENCE_CERTIFICATE_1", category: "Educational", optional: true, shortlisting: true },
+  { key: "doc_score_card", type: "IELTS / TOEFL / PTE / Duolingo Scorecard", label: "SCORE_CARD_1", category: "Educational", shortlisting: true },
+  { key: "doc_sop_1", type: "Statement of Purpose / Letter of Motivation", label: "SOP_DOCUMENT_1", category: "Educational", shortlisting: true },
+  { key: "doc_sop_2", type: "Statement of Purpose / Letter of Motivation", label: "SOP_DOCUMENT_2", category: "Educational", optional: true },
+  { key: "doc_lor_1", type: "Letter of Recommendation (LOR)", label: "LOR_DOCUMENT_1", category: "Educational" },
+  { key: "doc_gre", type: "GRE / GMAT / SAT / ACT", label: "GRE_GMAT_SAT_ACT_1", category: "Educational", optional: true, shortlisting: true },
+  // ── Personal ─────────────────────────────────────────────────────────────
+  { key: "doc_passport", type: "Passport (front & back)", label: "PASSPORT_1", category: "Personal", shortlisting: true },
+  { key: "doc_aadhaar", type: "Aadhaar Card", label: "AADHAAR_CARD_1", category: "Personal", shortlisting: true },
+  { key: "doc_pan", type: "PAN Card", label: "PAN_CARD_1", category: "Personal", optional: true },
+  { key: "doc_photo", type: "Passport-size Photograph", label: "PHOTOGRAPH_1", category: "Personal" },
+  { key: "doc_birth_certificate", type: "Birth Certificate", label: "BIRTH_CERTIFICATE_1", category: "Personal", optional: true },
+  // ── Visa Documents ───────────────────────────────────────────────────────
+  { key: "doc_bank_statement", type: "Bank Statement / Proof of Funds", label: "FINANCIAL_DOCUMENT_1", category: "Visa Documents" },
+  { key: "doc_loan_sanction", type: "Loan Sanction Letter", label: "LOAN_SANCTION_LETTER_1", category: "Visa Documents", optional: true },
+  { key: "doc_affidavit", type: "Affidavit of Support", label: "AFFIDAVIT_OF_SUPPORT_1", category: "Visa Documents", optional: true },
+  { key: "doc_insurance", type: "Health / Medical Insurance", label: "HEALTH_INSURANCE_1", category: "Visa Documents", optional: true },
+  { key: "doc_pcc", type: "Police Clearance Certificate", label: "PCC_1", category: "Visa Documents", optional: true },
+  // ── User Application ─────────────────────────────────────────────────────
+  { key: "doc_application_form", type: "Signed Application Form", label: "APPLICATION_FORM_1", category: "User Application" },
+  { key: "doc_moi", type: "Medium of Instruction Certificate", label: "MOI_CERTIFICATE_1", category: "User Application", optional: true },
+  { key: "doc_gap_letter", type: "Gap Justification Letter", label: "GAP_JUSTIFICATION_1", category: "User Application", optional: true },
+  // ── Application Documents ────────────────────────────────────────────────
+  { key: "doc_offer_letter", type: "University Offer Letter", label: "OFFER_LETTER_1", category: "Application Documents", optional: true },
+  { key: "doc_fee_receipt", type: "Fee Receipt", label: "FEE_RECEIPT_1", category: "Application Documents", optional: true },
+  { key: "doc_visa_copy", type: "Visa Application Copy", label: "VISA_APPLICATION_1", category: "Application Documents", optional: true },
+];
+
+export const LEARNER_DOC_BY_KEY: Record<string, LearnerDocDef> =
+  Object.fromEntries(LEARNER_DOCS.map((d) => [d.key, d]));
+
+/**
+ * What the shortlisting flow actually shows: 10 slots (8 required, 2
+ * conditional), not the full 29-slot admissions checklist. Every screen in
+ * this prototype renders from this list.
+ */
+export const SHORTLISTING_DOCS: LearnerDocDef[] = LEARNER_DOCS.filter(
+  (d) => d.shortlisting
+);
+
+/** Verification is Ops' call — nobody else marks a document good. */
+export type DocVerification = "pending" | "verified" | "rejected";
+
+/**
+ * What the application is waiting on right now, phrased for whoever is
+ * looking. Rendered as the live item at the top of the Activity Timeline, so
+ * "nothing to do yet" never needs a banner of its own. Returns null when the
+ * chain is closed, or when the viewer is the one being waited on — their
+ * sticky action bar already says so.
+ */
+export function pendingFor(
+  status: AppStatus,
+  role: Role,
+  certified = false
+): string | null {
+  // The learner is told what is happening, never who is holding it. "With the
+  // Ops team" is an internal handoff and reads to them as a delay to chase.
+  if (role === "learner") {
+    if (status === "shortlisted" && !certified) return null;
+    if (status === "completed") return null;
+    return "upGrad is preparing your options";
+  }
+  switch (status) {
+    case "draft":
+      return role === "ac" ? null : "Counsellor is still filling the form";
+    case "under_review":
+      return role === "ops"
+        ? null
+        : "With the Ops team for vetting";
+    case "reviewed":
+      return role === "ac"
+        ? null
+        : "Waiting for the counsellor to send the shortlist";
+    case "shortlisted":
+      return certified
+        ? "Learner certified their details — ready for the offer letter"
+        : "Waiting for the learner to sign and certify their details";
+    case "completed":
+      return null;
+  }
+}

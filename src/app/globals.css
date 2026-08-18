@@ -1,0 +1,319 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Design tokens — ShopOS-referenced language.
+ * Warm neutrals, hairline borders, pill controls, one pink accent.
+ * Change a value here and it propagates through every component.
+ */
+:root {
+  --paper: 248 248 246; /* warm off-white page background */
+  --surface: 255 255 255; /* cards */
+  --ink: 49 48 43; /* warm near-black */
+  --body: 95 94 88; /* body text */
+  --caption: 131 130 124; /* muted text */
+  --line: 229 228 222; /* hairline borders */
+  --line-strong: 212 210 200;
+  --cream: 244 243 235; /* chip / pill fills */
+  --muted: 243 243 244; /* neutral hover grey */
+  --cream-line: 224 222 210;
+  --accent: 174 56 62; /* deep red — brand accent */
+  --charcoal: 28 27 26; /* dark surfaces (auth) */
+  --charcoal-surface: 38 38 36;
+  --charcoal-line: 58 58 55;
+}
+
+body {
+  @apply bg-paper text-ink antialiased;
+}
+
+/*
+ * ---- upGrad learner theme ------------------------------------------------
+ * The learner experience lives inside upgrad.com, so everything under `.ug-app`
+ * wears that site's skin: CircularXX, brand red #EE2C3C, cool greys instead
+ * of the warm ShopOS neutrals. Every shared component reads the same tokens,
+ * so scoping the overrides here reskins the lot — no component forks.
+ *
+ * Font files and palette are lifted from the saved "Profile | upGrad"
+ * captures in ~/Downloads, which are the design source of truth.
+ */
+@font-face {
+  font-family: "CircularXX";
+  src: url("/upgrad/fonts/circular-400.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "CircularXX";
+  src: url("/upgrad/fonts/circular-500.woff2") format("woff2");
+  font-weight: 500 700;
+  font-display: swap;
+}
+/* Same metric-adjusted Arial fallback the live site ships. */
+@font-face {
+  font-family: "CircularXX Fallback";
+  src: local("Arial");
+  ascent-override: 93.2%;
+  descent-override: 27.09%;
+  line-gap-override: 0%;
+  size-adjust: 102.26%;
+}
+
+.ug-app {
+  --paper: 255 255 255;
+  --surface: 255 255 255;
+  --ink: 26 32 44; /* #1a202c */
+  --body: 74 85 104; /* #4a5568 */
+  --caption: 124 134 152; /* #7c8698 */
+  --line: 230 230 230;
+  --line-strong: 223 225 230; /* #dfe1e6 */
+  --cream: 246 247 248; /* neutral chip fill — the site is cool-grey, not warm */
+  --muted: 244 245 246;
+  --cream-line: 226 228 232;
+  --accent: 238 44 60; /* upGrad red #ee2c3c */
+  font-family: "CircularXX", "CircularXX Fallback", Arial, sans-serif;
+}
+
+/* Display type is just Circular here — the site has one family. */
+.ug-app .font-display {
+  font-family: inherit;
+  letter-spacing: -0.01em;
+}
+
+/* Primary actions are red on upgrad.com, and corners sit a touch tighter. */
+.ug-app .btn-primary {
+  @apply bg-accent text-white;
+}
+.ug-app .btn-primary:hover {
+  background: #d61f2e;
+}
+.ug-app .btn {
+  border-radius: 10px;
+}
+.ug-app .card {
+  border-radius: 12px;
+}
+
+/* Form fields exactly as the site's Personal Details form builds them
+   (lifted from the capture's own classes): 48px tall, 8px radius, grey
+   #7C8698 border, 14px text, red border on focus — no focus ring. */
+.ug-app .input {
+  height: 48px;
+  border-radius: 8px;
+  border-color: #7c8698;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+.ug-app .input:focus {
+  border-color: rgb(var(--accent));
+  box-shadow: none;
+}
+.ug-app textarea.input {
+  height: auto;
+  min-height: 96px;
+}
+/* The capture's field label: 14px, normal weight, the same grey. */
+.ug-app .field-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 14px;
+  font-weight: 400;
+  color: #7c8698;
+}
+
+/* Shared classes — every screen consumes these; retheming happens here. */
+.card {
+  @apply bg-surface rounded-2xl border border-line;
+}
+
+.btn {
+  @apply inline-flex items-center justify-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none;
+}
+
+.btn-primary {
+  @apply btn bg-ink text-paper hover:bg-charcoal;
+}
+
+.btn-secondary {
+  @apply btn bg-surface border border-line-strong text-ink hover:bg-muted;
+}
+
+.btn-success {
+  @apply btn bg-[#3f6c45] text-white hover:bg-[#35593a];
+}
+
+.input {
+  @apply w-full rounded-xl border border-line-strong bg-surface px-4 py-2 text-sm text-ink placeholder:text-caption transition-colors focus:outline-none focus:border-ink/40 focus:ring-4 focus:ring-ink/5;
+}
+
+/* Multiline and option controls keep softer corners */
+textarea.input {
+  @apply rounded-2xl;
+}
+
+select.input {
+  @apply pr-9;
+}
+
+.label {
+  @apply block text-xs font-medium text-caption mb-1;
+}
+
+/* ---- Motion ---- */
+
+/* Sky clouds: one oversized image per layer panned left↔right. Because it
+   never wraps there is no seam to hide — the layer is simply wider than the
+   hero and slides within it. Two layers at different speeds give depth. */
+.cloud-pan {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -12%;
+  width: 124%;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.cloud-pan img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Anchor to the top of the sky — cover would otherwise centre-crop and show
+     the pale base of the image instead of the deep cloud tops. */
+  object-position: top center;
+}
+
+@keyframes cloud-pan {
+  from {
+    transform: translate3d(-4.5%, 0, 0);
+  }
+  to {
+    transform: translate3d(4.5%, 0, 0);
+  }
+}
+
+.cloud-front {
+  animation: cloud-pan 70s ease-in-out infinite alternate;
+}
+
+/* Brand mark spin: eases in slowly, whips round, settles, then pauses. */
+@keyframes brand-spin {
+  0% {
+    transform: rotate(0deg);
+    animation-timing-function: ease-in;
+  }
+  32% {
+    transform: rotate(70deg);
+    animation-timing-function: ease-out;
+  }
+  62% {
+    transform: rotate(360deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.spin-mark {
+  animation: brand-spin 4.5s infinite;
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spin-mark {
+    animation: none;
+  }
+}
+
+/* Toast entrance */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.toast-in {
+  animation: toast-in 0.22s ease-out both;
+}
+
+/* Entrance for cards */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.fade-up {
+  /* `backwards`, deliberately not `both`: the end state is the element's
+     natural one anyway, and a forwards-filling transform/opacity animation
+     pins a stacking context on every card forever — which trapped hover
+     tooltips underneath whatever card came later in the DOM (the activity
+     rail). Backwards covers the delayed start, then gets out of the way. */
+  animation: fade-up 0.45s ease-out backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-up {
+    animation: none;
+  }
+}
+
+/* Side panel that fans out from the right edge */
+@keyframes sheet-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+.sheet-in {
+  animation: sheet-in 0.28s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+@keyframes scrim-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.scrim-in {
+  animation: scrim-in 0.28s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet-in,
+  .scrim-in {
+    animation: none;
+  }
+}
+
+/* Hover lift for interactive cards */
+.card-hover {
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px -12px rgb(49 48 43 / 0.14);
+}

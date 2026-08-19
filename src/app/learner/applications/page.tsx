@@ -11,6 +11,7 @@ import {
   getOfferLetter,
   getPrograms,
   listApplications,
+  recheckOf,
 } from "@/lib/queries";
 import { learnerStatus } from "@/lib/domain";
 
@@ -81,7 +82,10 @@ export default function V2ApplicationsPage() {
   const certified = Boolean(app?.certified_at);
   const enrolled = app?.status === "completed" ? 1 : 0;
 
-  const status = app ? learnerStatus(app.status, certified) : null;
+  const recheck = app ? recheckOf(app) : null;
+  const status = app
+    ? learnerStatus(app.status, certified, Boolean(recheck))
+    : null;
   const statusGood = app?.status === "completed" || certified;
   const docStatus = !app
     ? ""
@@ -163,7 +167,7 @@ export default function V2ApplicationsPage() {
                     alt="calender"
                     label="Application Status:"
                     value={(status?.label ?? "").toUpperCase()}
-                    tone={statusGood ? "green" : "urgent"}
+                    tone={statusGood ? "green" : recheck ? "plain" : "urgent"}
                   />
                   <StatusRow
                     icon="/upgrad/site/document.svg"

@@ -1,5 +1,11 @@
 import { getDb } from "./db";
-import type { AppStatus, DocType, DocVerification } from "./domain";
+import type {
+  AppStatus,
+  DocType,
+  DocVerification,
+  RecheckState,
+} from "./domain";
+export type { RecheckState };
 import type { User } from "./auth";
 
 export interface Application {
@@ -12,6 +18,15 @@ export interface Application {
   updated_at: string;
   /** When the learner certified their own details, if they have. */
   certified_at: string | null;
+  /**
+   * Set when the learner edits a detail after the form has been vetted: the
+   * application is waiting on an Ops re-check. Cleared by `clearRecheck`.
+   */
+  recheck_at: string | null;
+  /** The labels the learner changed, comma-separated — what Ops must re-read. */
+  recheck_fields: string | null;
+  /** Whose move it is: 'ops' to re-read, 'ac' to resolve Ops' comments. */
+  recheck_state: RecheckState | null;
   learner_name?: string;
   learner_email?: string;
   ac_name?: string;
@@ -46,6 +61,8 @@ export interface Program {
   source: "auto" | "ops" | "ac";
   /** Ops' verdict on the recommendation — 'pending' until they rule. */
   eligibility: "pending" | "eligible" | "not_eligible";
+  /** The verdict was made before the learner changed the answers behind it. */
+  eligibility_stale?: number;
 }
 
 export interface CatalogueProgram {
@@ -313,6 +330,23 @@ export function logEvent(applicationId: number, actorId: number, action: string,
   getDb()
     .prepare("INSERT INTO events (application_id, actor_id, action, detail) VALUES (?, ?, ?, ?)")
     .run(applicationId, actorId, action, detail ?? null);
+}
+
+/**
+ * Is this application waiting on a re-check, of what, and with whom? Every
+ * screen asks through here so "the learner changed something" is one
+ * condition, not a null test repeated in eight files.
+ */
+export function recheckOf(
+  app: Pick<Application, "recheck_at" | "recheck_fields" | "recheck_state">
+): { at: string; fields: string[]; state: RecheckState } | null {
+  if (!app.recheck_at) return null;
+  return {
+    at: app.recheck_at,
+    fields: (app.recheck_fields ?? "").split(", ").filter(Boolean),
+    // Rows written before the column existed are waiting on Ops.
+    state: app.recheck_state === "ac" ? "ac" : "ops",
+  };
 }
 
 export function setStatus(applicationId: number, status: AppStatus) {

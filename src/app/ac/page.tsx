@@ -4,6 +4,7 @@ import { useDbVersion } from "@/components/db-provider";
 import Link from "next/link";
 import { Shell, requireRole } from "@/components/shell";
 import {
+  CardChip,
   EmptyState,
   StatusBadge,
   StatTile,
@@ -12,12 +13,13 @@ import {
   IconCheck,
   IconInbox,
   IconPen,
+  IconRefresh,
   IconSend,
   IconSignature,
   IconSparkle,
   IconUsers,
 } from "@/components/ui";
-import { listApplications } from "@/lib/queries";
+import { listApplications, type Application } from "@/lib/queries";
 import { ALL_STATUSES, STATUS_LABELS, type AppStatus } from "@/lib/domain";
 
 
@@ -29,6 +31,7 @@ export default function AcDashboard({
     status?: string;
     submitted?: string;
     shortlisted?: string;
+    recheck?: string;
   };
 }) {
   // Re-render on any browser-db or session change.
@@ -39,12 +42,20 @@ export default function AcDashboard({
   const statusFilter = ALL_STATUSES.includes(searchParams.status as AppStatus)
     ? (searchParams.status as AppStatus)
     : undefined;
+  // Ops sent comments on a learner's changed details back to this counsellor
+  // — the learner is waiting on a phone call, so it counts as action needed
+  // whatever status the application is at.
+  const acRecheck = (a: Application) => a.recheck_state === "ac";
+  const recheckCount = all.filter(acRecheck).length;
+
   let apps = q ? listApplications({ acId: user.id, search: q }) : all;
   if (statusFilter) apps = apps.filter((a) => a.status === statusFilter);
+  const recheckFilter = Boolean(searchParams.recheck);
+  if (recheckFilter) apps = apps.filter(acRecheck);
 
   const count = (s: AppStatus) => all.filter((a) => a.status === s).length;
   const actionNeeded = all.filter(
-    (a) => a.status === "draft" || a.status === "reviewed"
+    (a) => a.status === "draft" || a.status === "reviewed" || acRecheck(a)
   ).length;
 
   const draftCount = count("draft");
@@ -105,13 +116,27 @@ export default function AcDashboard({
         />
       </div>
 
-      {(draftCount > 0 || reviewedCount > 0 || shortlistedCount > 0) && (
+      {(draftCount > 0 ||
+        reviewedCount > 0 ||
+        shortlistedCount > 0 ||
+        recheckCount > 0) && (
         <section className="mt-8">
           <div className="flex items-center gap-1.5 text-[13px] font-medium text-body">
             <IconSparkle className="h-3.5 w-3.5 text-accent" />
             Quick actions
           </div>
           <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            {/* First: a learner is mid-application and stuck until this call
+                happens. */}
+            {recheckCount > 0 && (
+              <QuickAction
+                href="/ac?recheck=1"
+                icon={<IconRefresh />}
+                title="Resolve Ops' comments"
+                sub={`${recheckCount} learner${recheckCount === 1 ? "" : "s"} to call about changed details`}
+                tone="amber"
+              />
+            )}
             {draftCount > 0 && (
               <QuickAction
                 href="/ac/users?status=draft"
@@ -157,6 +182,14 @@ export default function AcDashboard({
                 {STATUS_LABELS[statusFilter]} ✕
               </Link>
             )}
+            {recheckFilter && (
+              <Link
+                href="/ac"
+                className="inline-flex items-center gap-1 rounded-full border border-[#ecdfc0] bg-[#f6efdd] px-2.5 py-0.5 text-xs font-medium text-[#8a6d2f] transition-colors hover:text-ink"
+              >
+                Comments to resolve ✕
+              </Link>
+            )}
           </div>
           <form className="flex gap-2" action="/ac">
             <input
@@ -200,7 +233,16 @@ export default function AcDashboard({
                     <div className="text-xs text-caption">{a.learner_email}</div>
                   </td>
                   <td className="px-4 py-3">
-                    <StatusBadge status={a.status} />
+                    {/* A re-check rides on top of any status, so the badge
+                        alone would hide the one row that needs a call. */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <StatusBadge status={a.status} />
+                      {a.recheck_at && (
+                        <CardChip tone={acRecheck(a) ? "amber" : "muted"}>
+                          {acRecheck(a) ? "Comments to resolve" : "Re-check · with Ops"}
+                        </CardChip>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-caption">{a.updated_at} UTC</td>
                   <td className="px-4 py-3 text-right">
@@ -208,11 +250,13 @@ export default function AcDashboard({
                       href={`/ac/application/${a.id}`}
                       className="btn-primary !py-1.5"
                     >
-                      {a.status === "draft"
-                        ? "Fill Details"
-                        : a.status === "reviewed"
-                          ? "Review & Shortlist"
-                          : "View"}
+                      {acRecheck(a)
+                        ? "Resolve Comments"
+                        : a.status === "draft"
+                          ? "Fill Details"
+                          : a.status === "reviewed"
+                            ? "Review & Shortlist"
+                            : "View"}
                     </Link>
                   </td>
                 </tr>

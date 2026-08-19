@@ -20,6 +20,7 @@ import {
   CardChip,
   CertifiedChip,
   DotStatus,
+  RecheckNotice,
   IconBuilding,
   IconCalendar,
   IconCap,
@@ -41,6 +42,7 @@ import {
   getLearnerDocs,
   getOfferLetter,
   listProgramCatalogue,
+  recheckOf,
 } from "@/lib/queries";
 import {
   addProgram,
@@ -50,6 +52,7 @@ import {
   submitForm,
   removeLearnerDoc,
   resolveRemark,
+  returnRecheckToOps,
   shortlistProgram,
   syncFromLsq,
   updateFieldValue,
@@ -119,18 +122,38 @@ export default function AcApplicationPage({
   // shortlist. Ops corrects what Ops finds; nothing comes back for another
   // round of edits. See `editorOf` in domain.ts.
   const editable = canEditDetails(app.status, "ac");
-  const canShortlist = app.status === "reviewed";
+  // Ops re-ruled the learner's programme not eligible after they changed a
+  // detail, so the shortlist came off and there is a choice to make again.
+  const shortlistWithdrawn =
+    app.status === "shortlisted" && !programs.some((p) => p.shortlisted);
+  const canShortlist = app.status === "reviewed" || shortlistWithdrawn;
   const openRemarks = remarks.filter((r) => r.status === "open");
   const certified = Boolean(app.certified_at);
 
   const resolvedRemarks = remarks.filter((r) => r.status === "resolved");
 
+  // The learner changed something after it was vetted. Ops re-reads it
+  // first; if they have comments it comes here, because the counsellor is
+  // the one who talks to the learner. Either way it is never something they
+  // should discover mid-call.
+  const recheck = recheckOf(app);
+  /** Ops' comments on THIS change — not every remark ever left open. */
+  const recheckComments = recheck
+    ? remarks.filter((r) => r.status === "open" && r.created_at >= recheck.at)
+    : [];
+  /** The labels the learner moved — marked wherever the fields are read. */
+  const changedLabels = new Set(recheck?.fields ?? []);
+
   /**
    * Ops' comments on a field. The counsellor is the one who acts on them, so
    * they get the tick — but only while the application is theirs; once the
    * shortlist is out the comments are history.
+   *
+   * The exception is a re-check handed back to them: those comments are the
+   * live conversation with the learner, and ticking them off is what sends
+   * the application back to Ops.
    */
-  const canResolve = app.status === "reviewed";
+  const canResolve = app.status === "reviewed" || recheck?.state === "ac";
   const commentsFor = (fieldKey: string) =>
     remarks
       .filter((r) => r.field_key === fieldKey)
@@ -218,7 +241,7 @@ export default function AcApplicationPage({
   // Two presentations, switched from the role-switcher FAB. Inline is the
   // built design (right rail); the drawer is the alternative being compared —
   // no column at all, opened from a button beside the learner's name.
-  const pending = pendingFor(app.status, "ac", certified);
+  const pending = pendingFor(app.status, "ac", certified, recheck?.state ?? null);
   const inline = activityInline();
   const timeline = inline ? (
     <div className="card fade-up p-5" style={{ animationDelay: "120ms" }}>
@@ -275,6 +298,36 @@ export default function AcApplicationPage({
           </div>
         </div>
       </div>
+
+      {recheck && (
+        <RecheckNotice
+          fields={recheck.fields}
+          at={recheck.at}
+          state={recheck.state}
+          viewer="ac"
+          learnerName={app.learner_name}
+          openRemarks={recheckComments.length}
+          staleVerdicts={programs.filter((p) => p.eligibility_stale).length}
+          action={
+            recheck.state === "ac" ? (
+              <form action={returnRecheckToOps.bind(null, app.id)}>
+                <button
+                  className="btn-success whitespace-nowrap"
+                  disabled={recheckComments.length > 0}
+                  title={
+                    recheckComments.length > 0
+                      ? "Tick off Ops' comments on the changed fields first — they're on the Profile tab"
+                      : ""
+                  }
+                >
+                  <IconCheck className="h-4 w-4" />
+                  Resolved — send back to Ops
+                </button>
+              </form>
+            ) : undefined
+          }
+        />
+      )}
 
       {editable ? (
         // The wizard owns the whole page so its footer runs edge to edge; the
@@ -480,11 +533,15 @@ export default function AcApplicationPage({
                   Eligibility Form
                 </h2>
                 <p className="mb-5 mt-1 text-sm text-body">
-                  {canShortlist
-                    ? openRemarks.length > 0
-                      ? "Vetted by Ops. Flagged fields carry a marker — read the comment, fix the field right there, then tick it off."
-                      : "Vetted by Ops. Your answers are editable if anything needs a correction before you shortlist."
-                    : "Submitted on the call and now with the Ops team."}
+                  {recheck?.state === "ac"
+                    ? "The learner changed the fields marked below and Ops has commented on them. These are not yours to edit — call the learner, and anything they change goes straight back to Ops. Tick a comment off once you've settled it."
+                    : recheck
+                      ? "The learner changed the fields marked below; Ops is re-reading them."
+                      : canShortlist
+                        ? openRemarks.length > 0
+                          ? "Vetted by Ops. Flagged fields carry a marker — read the comment, fix the field right there, then tick it off."
+                          : "Vetted by Ops. Your answers are editable if anything needs a correction before you shortlist."
+                        : "Submitted on the call and now with the Ops team."}
                 </p>
                 {FORM_SECTIONS.map((section) => (
                   <div key={section} className="mb-6">
@@ -504,6 +561,11 @@ export default function AcApplicationPage({
                                 {f.filledBy === "ops" && (
                                   <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
                                     ops
+                                  </span>
+                                )}
+                                {changedLabels.has(f.label) && (
+                                  <span className="ml-1.5 rounded-full bg-[#f6efdd] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#8a6d2f]">
+                                    changed
                                   </span>
                                 )}
                               </span>
@@ -571,9 +633,11 @@ export default function AcApplicationPage({
                   Recommended Programs
                 </h2>
                 <p className="mb-4 mt-1 text-sm text-body">
-                  {canShortlist
-                    ? "Your recommendations, ruled on by Ops. Pick the one ELIGIBLE programme the learner is going ahead with."
-                    : "Your recommendations and Ops' eligibility verdicts."}
+                  {shortlistWithdrawn
+                    ? "The learner's own change made them ineligible for the programme they were sent, so it has come off. Pick another from what Ops still rules eligible — the learner is told the programme has changed."
+                    : canShortlist
+                      ? "Your recommendations, ruled on by Ops. Pick the one ELIGIBLE programme the learner is going ahead with."
+                      : "Your recommendations and Ops' eligibility verdicts."}
                 </p>
 
                 {programs.length === 0 ? (

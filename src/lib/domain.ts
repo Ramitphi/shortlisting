@@ -25,6 +25,12 @@ export const ROLE_LABELS: Record<Role, string> = {
 // The path is one-way. Exactly one role owns the details at a time — the
 // counsellor until they submit, then Ops. There is no loop back to an earlier
 // status, because a form that can bounce between two editors bounces forever.
+//
+// The one thing that DOES come back is a learner editing their own details
+// after vetting. That doesn't rewind the status; it raises a re-check flag on
+// the application (`recheck_at`) which Ops has to clear before the learner
+// can certify or the offer letter can go out. See `updateLearnerDetails` and
+// `clearRecheck` in actions.ts.
 export type AppStatus =
   | "draft"
   | "under_review"
@@ -69,10 +75,15 @@ export function learnerStage(status: AppStatus): number {
 /** The status badge as the learner should read it. */
 export function learnerStatus(
   status: AppStatus,
-  certified = false
+  certified = false,
+  /** Their own edit is being re-checked — nothing is waiting on them. */
+  recheck: RecheckState | null | boolean = null
 ): { label: string; className: string } {
   if (status === "completed")
     return { label: "Completed", className: STATUS_COLORS.completed };
+  // Never "Action needed" while we are the ones holding it up.
+  if (recheck)
+    return { label: "Being checked", className: STATUS_COLORS.reviewed };
   if (status === "shortlisted")
     return certified
       ? { label: "With upGrad", className: STATUS_COLORS.reviewed }
@@ -106,6 +117,14 @@ export const TRANSITIONS: { from: AppStatus; to: AppStatus; by: Role }[] = [
   // Only once the learner has certified their details.
   { from: "shortlisted", to: "completed", by: "ops" },
 ];
+
+/**
+ * Where an open re-check sits — the one loop in an otherwise one-way flow.
+ * 'ops': the learner changed something and it is waiting to be re-read.
+ * 'ac':  Ops read it, left comments, and the counsellor is resolving them
+ *        with the learner. The learner's next edit sends it back to 'ops'.
+ */
+export type RecheckState = "ops" | "ac";
 
 export function canTransition(from: AppStatus, to: AppStatus, by: Role): boolean {
   return TRANSITIONS.some((t) => t.from === from && t.to === to && t.by === by);
@@ -279,6 +298,44 @@ export const FORM_FIELDS: FieldDef[] = [
   { key: "finance_plan", label: "On-campus Financing Plan", type: "select", section: "Financing", options: ["Education Loan (Partial/Full)", "Self-funded"], required: true },
 ];
 
+/**
+ * The answers an eligibility verdict actually rests on.
+ *
+ * `matchScore` below reads countries, degree level, score and experience; a
+ * human verdict rests on more than that — how far through a degree they are,
+ * whether the marksheets exist, backlogs, age against the visa rules, how it
+ * is being paid for. When a learner changes one of these after Ops has ruled,
+ * the ruling was made against answers that no longer exist and has to be made
+ * again. Changing a phone number does not.
+ *
+ * Ops-filled fields (scores, university) are not here: the learner cannot
+ * touch them, and Ops re-reading their own entry is not a re-check.
+ */
+export const ELIGIBILITY_INPUTS = [
+  "dob",
+  "degree_level",
+  "countries",
+  "board_12",
+  "status_12",
+  "has_marksheet_12",
+  "mbbs_intent",
+  "neet_status",
+  "bachelor_status",
+  "bachelor_docs",
+  "backlogs",
+  "pg_status",
+  "pg_docs",
+  "work_exp_months",
+  "finance_plan",
+] as const;
+
+/** Does this set of changed field keys put the verdicts back in question? */
+export function affectsEligibility(changedKeys: readonly string[]): boolean {
+  return changedKeys.some((k) =>
+    (ELIGIBILITY_INPUTS as readonly string[]).includes(k)
+  );
+}
+
 export const MAX_RECOMMENDED_PROGRAMS = 5;
 
 /**
@@ -444,14 +501,31 @@ export type DocVerification = "pending" | "verified" | "rejected";
 export function pendingFor(
   status: AppStatus,
   role: Role,
-  certified = false
+  certified = false,
+  /** An open re-check, and whose move it is — null when there isn't one. */
+  recheck: RecheckState | null = null
 ): string | null {
   // The learner is told what is happening, never who is holding it. "With the
   // Ops team" is an internal handoff and reads to them as a delay to chase.
   if (role === "learner") {
+    if (recheck === "ops") return "We're checking the details you changed";
+    if (recheck === "ac")
+      return "Your counsellor is going through a few of your details with you";
     if (status === "shortlisted" && !certified) return null;
     if (status === "completed") return null;
     return "upGrad is preparing your options";
+  }
+  // A re-check outranks the status: whatever stage the application reached,
+  // the thing it is actually waiting on is somebody re-reading what moved.
+  if (recheck === "ops") {
+    return role === "ops"
+      ? null
+      : "Learner changed their details — with Ops for a re-check";
+  }
+  if (recheck === "ac") {
+    return role === "ac"
+      ? null
+      : "With the counsellor — Ops' comments to resolve with the learner";
   }
   switch (status) {
     case "draft":

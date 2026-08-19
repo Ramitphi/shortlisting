@@ -20,6 +20,7 @@ import {
   EmptyState,
   FileValue,
   Meta,
+  RecheckNotice,
   StatusBadge,
   Timeline,
   IconBuilding,
@@ -29,6 +30,7 @@ import {
   IconClock,
   IconDoc,
   IconPlus,
+  IconSend,
   IconSignature,
   IconSparkle,
   IconTrash,
@@ -44,6 +46,7 @@ import {
   getRemarks,
   getDocuments,
   getLearnerDocs,
+  recheckOf,
   listDocTemplates,
   listProgramCatalogue,
 } from "@/lib/queries";
@@ -51,6 +54,8 @@ import {
   addRemark,
   deleteRemark,
   addDocument,
+  clearRecheck,
+  raiseRecheckRemarks,
   removeDocument,
   markReviewed,
   openApplication,
@@ -121,7 +126,33 @@ export default function OpsApplicationPage({
   // The form locks when vetting ends; the document locker does not. Files keep
   // arriving right up to the offer letter.
   const docsLive = app.status !== "completed";
-  const opsPending = pendingFor(app.status, "ops", Boolean(app.certified_at));
+  // The learner changed something after vetting — this outranks everything
+  // else on the page, so it is read before the readiness checklist is built.
+  const recheck = recheckOf(app);
+  // Commenting is not only a vetting-time thing: a re-check is Ops reading
+  // changed fields and saying what's wrong with them, which is the same act
+  // on a later day. Filling ops-owned fields stays vetting-only.
+  const canComment = Boolean(recheck?.state === "ops") || vetting;
+  // Verdicts made against answers the learner has since changed. Ops rules
+  // again — on the shortlisted programme too — before the re-check can close.
+  const reRuling = Boolean(recheck?.state === "ops");
+  const staleVerdicts = programs.filter((p) => p.eligibility_stale).length;
+  // Comments raised since the learner's change — the only ones that are about
+  // it. `openRemarks` is every open comment on the application, which during
+  // a re-check can include leftovers from vetting.
+  const recheckComments = recheck
+    ? remarks.filter((r) => r.status === "open" && r.created_at >= recheck.at)
+        .length
+    : 0;
+  // The labels the learner moved, for the "changed" marks on the fields.
+  const changedLabels = new Set(recheck?.fields ?? []);
+
+  const opsPending = pendingFor(
+    app.status,
+    "ops",
+    Boolean(app.certified_at),
+    recheck?.state ?? null
+  );
   // Inline right rail, or behind a header button — switched from the FAB.
   const inlineActivity = activityInline();
   const lockerUploaded = locker.filter((r) => r.filename).length;
@@ -184,7 +215,7 @@ export default function OpsApplicationPage({
         text: r.text,
         resolved: r.status === "resolved",
         actions:
-          vetting && r.status === "open" ? (
+          canComment && r.status === "open" ? (
             <span className="flex items-center gap-0.5">
               <form action={resolveRemark.bind(null, r.id)}>
                 <button
@@ -259,14 +290,19 @@ export default function OpsApplicationPage({
     // "!" while empty — the one thing that will block the review, flagged on
     // the tab rather than discovered at the last step.
     // "!" until at least one is marked eligible — that's the review's gate.
+    // A stale verdict outranks the eligible count: the count reads fine while
+    // the verdicts behind it are out of date, which is the one thing the tab
+    // has to say during a re-check.
     programs:
-      eligibleCount > 0
-        ? `${eligibleCount}/${programs.length}`
-        : vetting
-          ? "!"
-          : programs.length > 0
-            ? String(programs.length)
-            : undefined,
+      staleVerdicts > 0
+        ? "!"
+        : eligibleCount > 0
+          ? `${eligibleCount}/${programs.length}`
+          : vetting
+            ? "!"
+            : programs.length > 0
+              ? String(programs.length)
+              : undefined,
     undertaking: docs.length > 0 ? `${signedCount}/${docs.length}` : undefined,
   };
 
@@ -307,6 +343,58 @@ export default function OpsApplicationPage({
           )}
         </div>
       </div>
+
+      {/* A learner edit after vetting sits above everything — the tabs below
+          are showing values that changed since anyone last read them. */}
+      {recheck && (
+        <RecheckNotice
+          fields={recheck.fields}
+          at={recheck.at}
+          state={recheck.state}
+          viewer="ops"
+          learnerName={app.learner_name}
+          openRemarks={recheckComments}
+          staleVerdicts={staleVerdicts}
+          verdictHref={`/ops/application/${app.id}?tab=programs`}
+          action={
+            recheck.state === "ops" ? (
+              <>
+                {/* Two exits, both explicit. Nothing here decides itself:
+                    a re-check that quietly expires is a re-check nobody did. */}
+                <form action={raiseRecheckRemarks.bind(null, app.id)}>
+                  <button
+                    className="btn-secondary whitespace-nowrap"
+                    disabled={recheckComments === 0}
+                    title={
+                      recheckComments === 0
+                        ? "Comment on the fields that are wrong first — the counsellor needs something to act on"
+                        : ""
+                    }
+                  >
+                    <IconSend className="h-4 w-4" />
+                    Send {recheckComments > 0 ? `${recheckComments} ` : ""}comment
+                    {recheckComments === 1 ? "" : "s"} to AC
+                  </button>
+                </form>
+                <form action={clearRecheck.bind(null, app.id)}>
+                  <button
+                    className="btn-success whitespace-nowrap"
+                    disabled={staleVerdicts > 0}
+                    title={
+                      staleVerdicts > 0
+                        ? "Rule on the programmes again first — the change moved the answers your verdicts were based on"
+                        : ""
+                    }
+                  >
+                    <IconCheck className="h-4 w-4" />
+                    Re-check done
+                  </button>
+                </form>
+              </>
+            ) : undefined
+          }
+        />
+      )}
 
       <div className="-mb-12 flex min-h-[calc(100dvh-13.5rem)] flex-col">
       {/* Content left, Activity in the right rail — unless the timeline is
@@ -360,9 +448,13 @@ export default function OpsApplicationPage({
                 Eligibility Details
               </h2>
               <p className="mb-5 mt-1 text-sm text-body">
-                {vetting
-                  ? "Check each field against the documents. The counsellor's answers are theirs to fix — leave a comment on anything wrong. The fields marked ops (scores, university) are yours to fill from the documents."
-                  : "Submitted learner details."}
+                {recheck?.state === "ops"
+                  ? "The learner changed the fields marked below after this was vetted. Re-read those against the documents — comment on anything wrong and send it to the counsellor, or clear the re-check."
+                  : recheck
+                    ? "The learner changed the fields marked below; the counsellor is taking your comments to them. It comes back here once they have."
+                    : vetting
+                      ? "Check each field against the documents. The counsellor's answers are theirs to fix — leave a comment on anything wrong. The fields marked ops (scores, university) are yours to fill from the documents."
+                      : "Submitted learner details."}
               </p>
               {FORM_SECTIONS.map((section) => (
                 <div key={section} className="mb-6">
@@ -384,6 +476,11 @@ export default function OpsApplicationPage({
                                   {f.filledBy === "ops" && (
                                     <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
                                       ops
+                                    </span>
+                                  )}
+                                  {changedLabels.has(f.label) && (
+                                    <span className="ml-1.5 rounded-full bg-[#f6efdd] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#8a6d2f]">
+                                      changed
                                     </span>
                                   )}
                                 </span>
@@ -426,7 +523,7 @@ export default function OpsApplicationPage({
                             </div>
                             {/* Ops fills these from the documents themselves,
                                 so there is nothing to flag to anyone else. */}
-                            {vetting && f.filledBy !== "ops" && (
+                            {canComment && f.filledBy !== "ops" && (
                               <form
                                 key={`${f.key}-${fieldRemarks.length}`}
                                 action={addRemark.bind(null, app.id, f.key)}
@@ -499,9 +596,11 @@ export default function OpsApplicationPage({
                 Recommended Programs
               </h2>
               <p className="mb-4 mt-1 text-sm text-body">
-                {vetting
-                  ? "Recommended by the counsellor with the matching score beside each. Check eligibility against the documents and mark each one — the counsellor shortlists only among the eligible."
-                  : "The counsellor's recommendations and your eligibility verdicts."}
+                {staleVerdicts > 0
+                  ? "The learner changed answers these verdicts were based on. Rule again on each one — including the programme they were shortlisted for, which comes off their application if it is no longer open to them."
+                  : vetting
+                    ? "Recommended by the counsellor with the matching score beside each. Check eligibility against the documents and mark each one — the counsellor shortlists only among the eligible."
+                    : "The counsellor's recommendations and your eligibility verdicts."}
               </p>
 
               <div className="space-y-3">
@@ -574,12 +673,19 @@ export default function OpsApplicationPage({
                     {/* No "recommended by" attribution — the card is about
                         the programme and the verdict, not the sender. */}
                     <div className="mt-3.5 flex flex-wrap items-center justify-end gap-3 border-t border-line pt-3">
-                      {p.shortlisted ? (
+                      {p.eligibility_stale ? (
+                        <CardChip tone="amber">
+                          <IconAlert className="h-3 w-3" />
+                          Verdict out of date
+                        </CardChip>
+                      ) : null}
+                      {p.shortlisted && (
                         <CardChip tone="green">
                           <IconCheck className="h-3 w-3" />
                           Shortlisted by AC
                         </CardChip>
-                      ) : vetting ? (
+                      )}
+                      {p.shortlisted && !reRuling ? null : vetting || reRuling ? (
                         /* Ops' verdict — the pick from the counsellor's list. */
                         <span className="flex items-center gap-2">
                           <form action={setProgramEligibility.bind(null, p.id)}>

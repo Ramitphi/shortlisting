@@ -19,6 +19,7 @@ import {
   getOfferLetter,
   getPrograms,
   listApplications,
+  recheckOf,
 } from "@/lib/queries";
 import {
   certifyDetails,
@@ -102,6 +103,10 @@ export default function V2ApplicationInsidePage({
   const pending = docs.filter((d) => !d.signed_at).length;
   const allSigned = docs.length > 0 && pending === 0;
   const certified = Boolean(app.certified_at);
+  // A detail changed after vetting is being re-checked; Submit (which IS the
+  // certification here) stays held until that clears. Same rule as v1 — only
+  // the clothes differ.
+  const recheck = recheckOf(app);
   const locked = app.status === "completed";
   const editing = !locked ? searchParams.edit : undefined;
 
@@ -247,6 +252,8 @@ export default function V2ApplicationInsidePage({
             <V2Certify
               action={certifyDetails.bind(null, app.id)}
               allSigned={allSigned}
+              recheckFields={recheck?.fields}
+              recheckState={recheck?.state}
               certified={certified}
               certifiedAt={app.certified_at}
               backHref="/learner/applications"

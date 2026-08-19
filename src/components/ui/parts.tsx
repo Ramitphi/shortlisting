@@ -16,13 +16,16 @@ export function StatusBadge({
   status,
   learner = false,
   certified = false,
+  recheck = false,
 }: {
   status: AppStatus;
   learner?: boolean;
   certified?: boolean;
+  /** Learner view only: their changed details are being re-checked. */
+  recheck?: boolean;
 }) {
   const { label, className } = learner
-    ? learnerStatus(status, certified)
+    ? learnerStatus(status, certified, recheck)
     : { label: STATUS_LABELS[status], className: STATUS_COLORS[status] };
   return (
     <span

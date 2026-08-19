@@ -4,6 +4,7 @@ import { useDbVersion } from "@/components/db-provider";
 import Link from "next/link";
 import { Shell, requireRole } from "@/components/shell";
 import {
+  CardChip,
   EmptyState,
   StatusBadge,
   StatTile,
@@ -15,32 +16,37 @@ import {
   IconInbox,
   IconLayers,
   IconPen,
+  IconRefresh,
   IconSend,
   IconSparkle,
 } from "@/components/ui";
-import { listApplications } from "@/lib/queries";
+import { listApplications, type Application } from "@/lib/queries";
 import { ALL_STATUSES, STATUS_LABELS, type AppStatus } from "@/lib/domain";
 
 
 export default function OpsDashboard({
   searchParams,
 }: {
-  searchParams: { q?: string; status?: string; reviewed?: string };
+  searchParams: { q?: string; status?: string; reviewed?: string; recheck?: string };
 }) {
   // Re-render on any browser-db or session change.
   useDbVersion();
   const user = requireRole("ops");
   const q = searchParams.q?.trim() ?? "";
   // Ops sees every application that has entered the pipeline (i.e. not drafts).
-  // Applications waiting on an Ops action float to the top.
+  // Applications waiting on an Ops action float to the top — including the
+  // ones a learner has edited since vetting, whatever stage they reached.
   const OPS_ACTION_STATUSES: AppStatus[] = ["under_review"];
-  const needsOpsAction = (s: AppStatus) => OPS_ACTION_STATUSES.includes(s);
+  // A re-check sitting with the counsellor is not Ops' move — it comes back
+  // on its own, and floating it here would pad the queue with other people's
+  // work.
+  const opsRecheck = (a: Application) =>
+    Boolean(a.recheck_at) && a.recheck_state !== "ac";
+  const needsOpsAction = (a: Application) =>
+    OPS_ACTION_STATUSES.includes(a.status) || opsRecheck(a);
   const all = listApplications()
     .filter((a) => a.status !== "draft")
-    .sort(
-      (a, b) =>
-        Number(needsOpsAction(b.status)) - Number(needsOpsAction(a.status))
-    );
+    .sort((a, b) => Number(needsOpsAction(b)) - Number(needsOpsAction(a)));
   const statusFilter = ALL_STATUSES.includes(searchParams.status as AppStatus)
     ? (searchParams.status as AppStatus)
     : undefined;
@@ -52,9 +58,12 @@ export default function OpsDashboard({
       )
     : all;
   if (statusFilter) apps = apps.filter((a) => a.status === statusFilter);
+  const recheckFilter = Boolean(searchParams.recheck);
+  if (recheckFilter) apps = apps.filter(opsRecheck);
 
   const count = (s: AppStatus) => all.filter((a) => a.status === s).length;
-  const actionCount = all.filter((a) => needsOpsAction(a.status)).length;
+  const actionCount = all.filter(needsOpsAction).length;
+  const recheckCount = all.filter(opsRecheck).length;
 
   const submittedCount = count("under_review");
   const vettingCount = count("under_review");
@@ -116,13 +125,27 @@ export default function OpsDashboard({
         />
       </div>
 
-      {(submittedCount > 0 || vettingCount > 0 || shortlistedCount > 0) && (
+      {(submittedCount > 0 ||
+        vettingCount > 0 ||
+        shortlistedCount > 0 ||
+        recheckCount > 0) && (
         <section className="mt-8">
           <div className="flex items-center gap-1.5 text-[13px] font-medium text-body">
             <IconSparkle className="h-3.5 w-3.5 text-accent" />
             Quick actions
           </div>
           <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            {/* First: a learner has changed something and is stuck until it
+                is re-read — nothing else on this page is blocking anyone. */}
+            {recheckCount > 0 && (
+              <QuickAction
+                href="/ops?recheck=1"
+                icon={<IconRefresh />}
+                title="Re-check changed details"
+                sub={`${recheckCount} learner${recheckCount === 1 ? "" : "s"} edited after vetting`}
+                tone="amber"
+              />
+            )}
             {submittedCount > 0 && (
               <QuickAction
                 href="/ops/users?status=under_review"
@@ -166,6 +189,14 @@ export default function OpsDashboard({
                 className="inline-flex items-center gap-1 rounded-full border border-cream-line bg-cream px-2.5 py-0.5 text-xs font-medium text-body transition-colors hover:text-ink"
               >
                 {STATUS_LABELS[statusFilter]} ✕
+              </Link>
+            )}
+            {recheckFilter && (
+              <Link
+                href="/ops"
+                className="inline-flex items-center gap-1 rounded-full border border-[#ecdfc0] bg-[#f6efdd] px-2.5 py-0.5 text-xs font-medium text-[#8a6d2f] transition-colors hover:text-ink"
+              >
+                Re-check needed ✕
               </Link>
             )}
           </div>
@@ -212,12 +243,32 @@ export default function OpsDashboard({
                   <td className="px-4 py-3 text-body">{a.ac_name ?? "—"}</td>
                   <td className="px-4 py-3">
                     {/* No "Ops action" chip — the badge already says Under
-                        Vetting, and the row's CTA is primary when it's ours. */}
-                    <StatusBadge status={a.status} />
+                        Vetting, and the row's CTA is primary when it's ours.
+                        A re-check is the exception: it can sit on ANY status,
+                        so the badge alone would hide it. */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <StatusBadge status={a.status} />
+                      {a.recheck_at && (
+                        <CardChip
+                          tone={a.recheck_state === "ac" ? "muted" : "amber"}
+                        >
+                          {a.recheck_state === "ac"
+                            ? "Re-check · with AC"
+                            : "Re-check"}
+                        </CardChip>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-caption">{a.updated_at} UTC</td>
                   <td className="px-4 py-3 text-right">
-                    {a.status === "under_review" ? (
+                    {opsRecheck(a) ? (
+                      <Link
+                        href={`/ops/application/${a.id}`}
+                        className="btn-primary !py-1.5"
+                      >
+                        Re-check Details
+                      </Link>
+                    ) : a.status === "under_review" ? (
                       <Link
                         href={`/ops/application/${a.id}`}
                         className="btn-primary !py-1.5"

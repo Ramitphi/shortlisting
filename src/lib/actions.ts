@@ -20,6 +20,7 @@ import {
   LEARNER_DOC_BY_KEY,
   MAX_RECOMMENDED_PROGRAMS,
   matchScore,
+  affectsEligibility,
   canEditDetails,
   canTransition,
   roleHome,
@@ -32,6 +33,7 @@ import {
   getLearnerDocs,
   getOfferLetter,
   getPrograms,
+  getRemarks,
   logEvent,
   recordView,
   notify,
@@ -232,6 +234,9 @@ export async function certifyDetails(applicationId: number) {
   const app = getApplication(applicationId);
   if (!app || app.learner_id !== user.id) return;
   if (app.certified_at) return;
+  // Details the learner has just changed are not yet checked — certifying
+  // them would vouch for values nobody has looked at since they moved.
+  if (app.recheck_at) return;
 
   // Certification covers the undertakings, so they have to be signed first.
   const docs = getDocuments(applicationId);
@@ -315,7 +320,9 @@ export async function deleteRemark(remarkId: number) {
  * close their own too, for a comment they have thought better of.
  *
  * Once the shortlist is out the comments are history and nobody closes
- * anything.
+ * anything — unless a re-check is open, in which case Ops' comments on the
+ * learner's changed details are exactly what the counsellor is working
+ * through, and closing them is the job.
  */
 export async function resolveRemark(remarkId: number) {
   const user = requireUser();
@@ -325,7 +332,8 @@ export async function resolveRemark(remarkId: number) {
   if (!remark) return;
 
   const app = getApplication(remark.application_id);
-  if (!app || app.status === "shortlisted" || app.status === "completed") return;
+  if (!app || app.status === "completed") return;
+  if (app.status === "shortlisted" && !app.recheck_at) return;
   if (user.role === "ac" && app.ac_id !== user.id) return;
   if (user.role !== "ac" && user.role !== "ops") return;
 
@@ -650,20 +658,53 @@ export async function setProgramEligibility(
     .get(programId) as
     | { application_id: number; name: string; shortlisted: number }
     | undefined;
-  if (!p || p.shortlisted) return;
+  if (!p) return;
   const app = getApplication(p.application_id);
-  if (!app || app.status !== "under_review") return;
+  if (!app) return;
+  // Vetting is the normal time to rule. A re-check is the other one: the
+  // learner has changed an answer the verdict rested on, and this time the
+  // SHORTLISTED programme is in scope too — that is the whole risk, that they
+  // have edited their way out of the programme they were sent.
+  const reRuling = Boolean(app.recheck_at) && app.recheck_state !== "ac";
+  if (app.status !== "under_review" && !reRuling) return;
+  if (p.shortlisted && !reRuling) return;
 
   const verdict = String(formData.get("verdict"));
   if (verdict !== "eligible" && verdict !== "not_eligible") return;
   getDb()
-    .prepare("UPDATE programs SET eligibility = ? WHERE id = ?")
+    .prepare(
+      "UPDATE programs SET eligibility = ?, eligibility_stale = 0 WHERE id = ?"
+    )
     .run(verdict, programId);
   logEvent(
     p.application_id,
     user.id,
     `Programme marked ${verdict === "eligible" ? "eligible" : "not eligible"}: ${p.name}`
   );
+
+  // The one that hurts: the programme the learner was shortlisted for is no
+  // longer open to them. The shortlist comes off — nobody signs an offer for
+  // a programme they don't qualify for — and the counsellor picks again from
+  // whatever is still eligible.
+  if (p.shortlisted && verdict === "not_eligible") {
+    getDb()
+      .prepare("UPDATE programs SET shortlisted = 0 WHERE id = ?")
+      .run(programId);
+    logEvent(
+      p.application_id,
+      user.id,
+      `Shortlist withdrawn: ${p.name}`,
+      "The learner is no longer eligible after their own change to the details"
+    );
+    const stillEligible = getPrograms(p.application_id).filter(
+      (x) => x.eligibility === "eligible"
+    ).length;
+    const msg = stillEligible
+      ? `${app.learner_name} is no longer eligible for ${p.name} — choose another programme (${stillEligible} still eligible)`
+      : `${app.learner_name} is no longer eligible for ${p.name} and nothing else on their list is — they need new recommendations`;
+    if (app.ac_id) notify(app.ac_id, msg, `/ac/application/${p.application_id}`);
+    else notifyRole("ac", msg, `/ac/application/${p.application_id}`);
+  }
   dirty();
 }
 
@@ -718,7 +759,15 @@ export async function openApplication(applicationId: number) {
 export async function shortlistProgram(applicationId: number, formData: FormData) {
   const user = requireUser("ac");
   const app = getApplication(applicationId);
-  if (!app || !canTransition(app.status, "shortlisted", "ac")) return;
+  // The second time round: Ops re-ruled the shortlisted programme not
+  // eligible after the learner changed something, so the shortlist came off
+  // and the learner is sitting with nothing. Choosing again is the fix, and
+  // the status is already where it needs to be.
+  const reChoosing =
+    app?.status === "shortlisted" &&
+    !getPrograms(applicationId).some((p) => p.shortlisted);
+  if (!app || (!canTransition(app.status, "shortlisted", "ac") && !reChoosing))
+    return;
   const id = Number(formData.get("programId"));
   if (!id) return;
 
@@ -741,12 +790,16 @@ export async function shortlistProgram(applicationId: number, formData: FormData
   logEvent(
     applicationId,
     user.id,
-    "Program shortlisted & sent to learner",
+    reChoosing
+      ? "Replacement programme shortlisted & sent to learner"
+      : "Program shortlisted & sent to learner",
     `${chosen.name} — ${chosen.institute}`
   );
   notify(
     app.learner_id,
-    `Congratulations! You have been shortlisted for ${chosen.name} at ${chosen.institute}. Please review and sign your documents.`,
+    reChoosing
+      ? `Your programme has been updated to ${chosen.name} at ${chosen.institute}. Please review and sign your documents.`
+      : `Congratulations! You have been shortlisted for ${chosen.name} at ${chosen.institute}. Please review and sign your documents.`,
     "/learner"
   );
   dirty();
@@ -758,8 +811,12 @@ export async function shortlistProgram(applicationId: number, formData: FormData
 /**
  * The learner corrects their own details — no counsellor round trip needed.
  * Only Ops-derived fields (scores read off marksheets) stay read-only, and a
- * completed application is closed. Every change is logged and the counsellor
- * is notified, so edits after signing stay traceable.
+ * completed application is closed.
+ *
+ * A change is never just a change once the form has been vetted: it withdraws
+ * the learner's certification, tells the counsellor, and puts the application
+ * back in front of Ops as a re-check that has to be cleared before the
+ * learner can certify again or the offer letter can go out.
  */
 export async function updateLearnerDetails(
   applicationId: number,
@@ -777,6 +834,7 @@ export async function updateLearnerDetails(
   );
   const before = getFormResponses(applicationId);
   const changed: string[] = [];
+  const changedKeys: string[] = [];
 
   const tx = db.transaction(() => {
     for (const f of FORM_FIELDS) {
@@ -784,7 +842,10 @@ export async function updateLearnerDetails(
       const v = formData.get(f.key);
       if (v === null) continue;
       const next = String(v);
-      if ((before[f.key] ?? "") !== next) changed.push(f.label);
+      if ((before[f.key] ?? "") !== next) {
+        changed.push(f.label);
+        changedKeys.push(f.key);
+      }
       upsert.run(applicationId, f.key, next);
     }
   });
@@ -798,27 +859,244 @@ export async function updateLearnerDetails(
         .prepare("UPDATE applications SET certified_at = NULL WHERE id = ?")
         .run(applicationId);
     }
+    // …and it sends the details back to Ops. A vetted value that the learner
+    // then changes is an UNVETTED value, whatever the pipeline says: the
+    // scores were read against these answers and the undertakings were
+    // generated from them. So the edit raises a re-check — see the note on
+    // `clearRecheck` for why this is a flag and not a status.
+    const wasVetted = app.status !== "draft";
+    // If Ops had already handed it to the counsellor over comments, this edit
+    // is the learner acting on those comments — which sends it straight back
+    // to Ops. Either way the re-check restarts on the Ops side.
+    const answeringRemarks = app.recheck_state === "ac";
+    if (wasVetted) {
+      getDb()
+        .prepare(
+          `UPDATE applications
+           SET recheck_at = datetime('now'),
+               recheck_fields = ?,
+               recheck_state = 'ops'
+           WHERE id = ?`
+        )
+        .run(changed.join(", "), applicationId);
+    }
+    // A changed answer that a verdict rested on un-makes the verdict. The
+    // ruling stays on screen — Ops needs to see what they said last time —
+    // but it is marked stale, and the re-check cannot close until they rule
+    // again. This is the case where a learner edits their way OUT of the
+    // programme they were shortlisted for.
+    const eligibilityMoved = wasVetted && affectsEligibility(changedKeys);
+    if (eligibilityMoved) {
+      getDb()
+        .prepare(
+          "UPDATE programs SET eligibility_stale = 1 WHERE application_id = ?"
+        )
+        .run(applicationId);
+    }
+
     logEvent(
       applicationId,
       user.id,
       `Learner updated ${changed.length} detail(s)`,
       changed.slice(0, 6).join(", ")
     );
-    // Both sides need to know — Ops vetted these values, the counsellor owns
-    // the relationship.
+    if (eligibilityMoved) {
+      logEvent(
+        applicationId,
+        user.id,
+        "Eligibility verdicts need re-ruling",
+        `${changed.slice(0, 6).join(", ")} — the answers the verdicts were made against have changed`
+      );
+    }
+    if (wasVetted) {
+      logEvent(
+        applicationId,
+        user.id,
+        answeringRemarks
+          ? "Learner answered the comments — back to Ops for re-check"
+          : "Sent back to Ops for re-check",
+        `Changed after vetting: ${changed.slice(0, 6).join(", ")}`
+      );
+    }
+
+    // The counsellor hears about it first — they own the relationship and
+    // will be the one the learner rings. Then it goes to Ops, whose queue it
+    // actually lands in.
     const what = changed.slice(0, 3).join(", ");
+    const more = changed.length > 3 ? ` +${changed.length - 3} more` : "";
     if (app.ac_id) {
       notify(
         app.ac_id,
-        `${app.learner_name} updated their details: ${what}`,
+        !wasVetted
+          ? `${app.learner_name} updated their details: ${what}${more}`
+          : answeringRemarks
+            ? `${app.learner_name} made the changes you discussed (${what}${more}) — back with Ops for a re-check`
+            : `${app.learner_name} changed their details (${what}${more}) — back with Ops for a re-check`,
         `/ac/application/${applicationId}`
       );
     }
-    const opsMsg = `${app.learner_name} updated their details: ${what}`;
+    const opsMsg = !wasVetted
+      ? `${app.learner_name} updated their details: ${what}${more}`
+      : answeringRemarks
+        ? `Re-check again: ${app.learner_name} answered your comments — ${what}${more}`
+        : eligibilityMoved
+          ? `Re-check needed: ${app.learner_name} changed ${what}${more} — re-rule the programmes`
+          : `Re-check needed: ${app.learner_name} changed ${what}${more} after vetting`;
     const opsLink = `/ops/application/${applicationId}`;
     if (app.ops_id) notify(app.ops_id, opsMsg, opsLink);
     else notifyRole("ops", opsMsg, opsLink);
   }
+  dirty();
+}
+
+/**
+ * Ops closes the loop: they have re-read the fields the learner changed and
+ * the application can carry on.
+ *
+ * This is a flag rather than a trip back to `under_review` on purpose. The
+ * status machine is one-way (see domain.ts) because a form that can bounce
+ * between two editors bounces forever — and rewinding would also strip the
+ * counsellor's shortlist and the learner's signed undertakings of the state
+ * they were made in. A re-check is a smaller thing than a re-vetting: read
+ * what moved, comment on it if it's wrong, clear it if it isn't.
+ */
+export async function clearRecheck(applicationId: number) {
+  const user = requireUser("ops");
+  const app = getApplication(applicationId);
+  if (!app || !app.recheck_at) return;
+  // While the counsellor is working through Ops' comments the re-check is
+  // theirs to hand back; Ops clearing it underneath them would close a
+  // conversation that is still running.
+  if (app.recheck_state === "ac") return;
+  // A verdict made against answers that have since moved is not a verdict.
+  // Closing the re-check over the top of one would let the offer letter out
+  // on a programme nobody has re-ruled.
+  if (getPrograms(applicationId).some((p) => p.eligibility_stale)) return;
+
+  const fields = app.recheck_fields ?? "";
+  getDb()
+    .prepare(
+      `UPDATE applications
+       SET recheck_at = NULL, recheck_fields = NULL, recheck_state = NULL
+       WHERE id = ?`
+    )
+    .run(applicationId);
+  logEvent(
+    applicationId,
+    user.id,
+    "Ops re-checked the learner's changes",
+    fields || undefined
+  );
+  if (app.ac_id) {
+    notify(
+      app.ac_id,
+      `Ops re-checked ${app.learner_name}'s changed details — the application can continue`,
+      `/ac/application/${applicationId}`
+    );
+  }
+  // The learner is told the outcome, never whose desk it sat on: they are
+  // waiting on a "can I certify yet?" answer, and this is that answer.
+  notify(
+    app.learner_id,
+    "Your updated details have been checked — you can certify your application now",
+    "/learner"
+  );
+  dirty();
+}
+
+/**
+ * The re-check's other exit: Ops read the changed details and something is
+ * wrong with them.
+ *
+ * They do not fix it and they do not go to the learner — Ops never edits the
+ * counsellor's answers (see `updateFieldValue`), and the learner is not
+ * theirs to ring. The comments they pinned to the fields go to the
+ * COUNSELLOR, who talks to the learner; the learner's next edit sends it
+ * straight back here. Until then the re-check stays open, so the offer letter
+ * stays shut.
+ */
+export async function raiseRecheckRemarks(applicationId: number) {
+  const user = requireUser("ops");
+  const app = getApplication(applicationId);
+  if (!app || !app.recheck_at || app.recheck_state === "ac") return;
+  // Only comments raised on THIS change count. An old remark still open from
+  // vetting is not feedback on what the learner just did, and handing that to
+  // the counsellor would send them to the learner with the wrong question.
+  const open = getRemarks(applicationId).filter(
+    (r) => r.status === "open" && r.created_at >= app.recheck_at!
+  );
+  if (open.length === 0) return;
+
+  getDb()
+    .prepare("UPDATE applications SET recheck_state = 'ac' WHERE id = ?")
+    .run(applicationId);
+  logEvent(
+    applicationId,
+    user.id,
+    `Re-check returned to the counsellor with ${open.length} comment${open.length === 1 ? "" : "s"}`,
+    open
+      .map((r) => FORM_FIELDS.find((f) => f.key === r.field_key)?.label ?? r.field_key)
+      .join(", ")
+  );
+  if (app.ac_id) {
+    notify(
+      app.ac_id,
+      `Ops has ${open.length} comment${open.length === 1 ? "" : "s"} on ${app.learner_name}'s changed details — please resolve them with the learner`,
+      `/ac/application/${applicationId}`
+    );
+  } else {
+    notifyRole(
+      "ac",
+      `Ops has ${open.length} comment${open.length === 1 ? "" : "s"} on ${app.learner_name}'s changed details`,
+      `/ac/application/${applicationId}`
+    );
+  }
+  // Told plainly, without the internal handoff: someone is about to call them.
+  notify(
+    app.learner_id,
+    "Your counsellor will get in touch about a few of the details you changed",
+    "/learner"
+  );
+  dirty();
+}
+
+/**
+ * The counsellor has been through Ops' comments with the learner and there is
+ * nothing further to change — hand it back for the re-check.
+ *
+ * The usual way back is the learner editing something, which routes itself.
+ * This is the other case: the answer was right all along, or was fixed
+ * outside the form, and without this the application would sit with the
+ * counsellor forever waiting for an edit that is never coming.
+ */
+export async function returnRecheckToOps(applicationId: number) {
+  const user = requireUser("ac");
+  const app = getApplication(applicationId);
+  if (!app || app.ac_id !== user.id) return;
+  if (!app.recheck_at || app.recheck_state !== "ac") return;
+  // Every comment from this re-check answered first — otherwise Ops gets it
+  // back with the same open list they sent, and the round trip taught nobody
+  // anything. Older remarks are not part of this conversation.
+  const open = getRemarks(applicationId).filter(
+    (r) => r.status === "open" && r.created_at >= app.recheck_at!
+  );
+  if (open.length > 0) return;
+
+  getDb()
+    .prepare(
+      "UPDATE applications SET recheck_at = datetime('now'), recheck_state = 'ops' WHERE id = ?"
+    )
+    .run(applicationId);
+  logEvent(
+    applicationId,
+    user.id,
+    "Comments resolved with the learner — sent back to Ops",
+    app.recheck_fields ?? undefined
+  );
+  const msg = `${app.learner_name}'s counsellor resolved your comments — ready for the re-check`;
+  const link = `/ops/application/${applicationId}`;
+  if (app.ops_id) notify(app.ops_id, msg, link);
+  else notifyRole("ops", msg, link);
   dirty();
 }
 
@@ -865,6 +1143,9 @@ export async function sendOfferLetter(applicationId: number, formData: FormData)
   const docs = getDocuments(applicationId);
   if (docs.length === 0 || !docs.every((d) => d.signed_at)) return;
   if (!app.certified_at) return;
+  // An open re-check means the learner moved something after vetting; the
+  // offer would be written off details Ops has not re-read.
+  if (app.recheck_at) return;
 
   const shortlisted = getPrograms(applicationId).filter((p) => p.shortlisted);
   const chosen =

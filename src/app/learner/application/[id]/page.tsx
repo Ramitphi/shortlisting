@@ -25,6 +25,7 @@ import {
   getOfferLetter,
   getPrograms,
   listApplications,
+  recheckOf,
 } from "@/lib/queries";
 import {
   certifyDetails,
@@ -110,6 +111,12 @@ export default function LearnerApplicationPage({
   const pending = docs.filter((d) => !d.signed_at).length;
   const allSigned = docs.length > 0 && pending === 0;
   const certified = Boolean(app.certified_at);
+  // They changed something after it had been vetted, so it has gone back for
+  // a check. The learner is told their details are being checked, never that
+  // they are sitting with Ops — which desk holds the file is not their
+  // business (see LEARNER_STAGES). What they do need is to stop waiting on a
+  // Certify button that would be refused.
+  const recheck = recheckOf(app);
   const detailsLocked = app.status === "completed";
   const lockerMissing = locker.filter((r) => !r.filename && !r.optional).length;
   const programme = programs[0];
@@ -167,7 +174,12 @@ export default function LearnerApplicationPage({
       </Link>
       <div className="mt-2 flex flex-wrap items-center gap-3">
         <h1 className="text-[28px] font-medium tracking-tight">My application</h1>
-        <StatusBadge status={app.status} learner certified={certified} />
+        <StatusBadge
+          status={app.status}
+          learner
+          certified={certified}
+          recheck={Boolean(recheck)}
+        />
       </div>
       <p className="mt-1 text-[14px] text-body">
         Last updated {app.updated_at.slice(0, 10)}
@@ -262,6 +274,45 @@ export default function LearnerApplicationPage({
             </div>
           </div>
 
+          {/* Their change is being checked. Said once, at the top of the
+              walk — the edit happens on step 1 and the held Certify button
+              is on step 3, so neither place alone would explain it. */}
+          {recheck && canSign && (
+            <div className="card mt-4 flex items-start gap-3 border-[#ecdfc0] bg-[#fbf7ec] p-5">
+              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f6efdd] text-[#8a6d2f]">
+                <IconClock className="h-4 w-4" />
+              </span>
+              <div>
+                <div className="text-[14.5px] font-medium text-[#6f5624]">
+                  {recheck.state === "ac"
+                    ? "Your counsellor will get in touch about these"
+                    : "We’re checking the details you changed"}
+                </div>
+                <p className="mt-1 text-[13.5px] leading-relaxed text-[#8a6d2f]">
+                  {recheck.fields.length > 0 && (
+                    <>You updated {recheck.fields.slice(0, 3).join(", ")}
+                    {recheck.fields.length > 3
+                      ? ` and ${recheck.fields.length - 3} more`
+                      : ""}
+                    . </>
+                  )}
+                  {recheck.state === "ac" ? (
+                    <>
+                      There are a couple of things to go through together.
+                      {app.ac_name ? ` ${app.ac_name} will call you` : " We'll call you"}
+                      {" "}— you can carry on signing in the meantime.
+                    </>
+                  ) : (
+                    <>
+                      This usually takes a day. You can carry on signing in the
+                      meantime — we&rsquo;ll let you know when you can certify.
+                    </>
+                  )}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Step 1 — the details they are about to vouch for, editable in
               place: the walk IS the application, so the fix happens right
               here. Every change notifies the counsellor and Ops; editing
@@ -273,7 +324,7 @@ export default function LearnerApplicationPage({
                 <span className="text-[12.5px] text-caption">
                   {detailsLocked
                     ? "Your application is complete — view only."
-                    : "These are what your undertakings certify. Your counsellor and Ops are notified of any change."}
+                    : "These are what your undertakings certify. Change one and we check it again before your application can finish."}
                 </span>
               </div>
               <ProfileSectionCards
@@ -331,14 +382,24 @@ export default function LearnerApplicationPage({
               {docs.length > 0 && !certified && canSign && (
                 <div className="card mt-4 flex flex-wrap items-center justify-between gap-3 p-6">
                   <div className="text-[13.5px] text-body">
-                    {pending > 0
-                      ? `Sign the remaining ${pending} document${pending === 1 ? "" : "s"} to finish.`
-                      : "All signed — certify that your details are correct to complete your application."}
+                    {recheck
+                      ? recheck.state === "ac"
+                        ? "Your counsellor is going through a few of these with you. You can keep signing — certifying opens up once that's settled."
+                        : "We're checking the details you changed. You can keep signing — certifying opens up once the check is done."
+                      : pending > 0
+                        ? `Sign the remaining ${pending} document${pending === 1 ? "" : "s"} to finish.`
+                        : "All signed — certify that your details are correct to complete your application."}
                   </div>
                   <CertifyDialog
                     action={certifyDetails.bind(null, app.id)}
-                    ready={allSigned}
-                    reason="Sign every document first"
+                    ready={allSigned && !recheck}
+                    reason={
+                      recheck
+                        ? recheck.state === "ac"
+                          ? "Your counsellor is going through these with you"
+                          : "We're still checking the details you changed"
+                        : "Sign every document first"
+                    }
                   />
                 </div>
               )}

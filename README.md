@@ -171,10 +171,30 @@ bounces forever.
   every undertaking is signed and the consent box is ticked**.) Their details are also
   always readable under **Profile → Personal details**, in upgrad.com's own row layout,
   editable per section.
-- **Once the shortlist is sent, remarks lock** as read-only history.
+- **Once the shortlist is sent, remarks lock** as read-only history — except during a
+  re-check, when Ops' comments on the changed details are the live conversation.
+- **A learner edit goes back round the loop.** The learner owns their details and can
+  change them at any point before the offer letter. Doing so, once the form has been
+  vetted, is not a quiet update: it withdraws their certification, notifies the
+  counsellor, and raises a **re-check** that Ops must close before the learner can
+  certify again or the offer letter can go out. Ops re-reads the changed fields (marked
+  **changed** wherever they appear) and takes one of two exits — **clear it**, or
+  **comment and send it to the counsellor**, who is the one who rings the learner. The
+  learner's next edit lands it straight back with Ops; if nothing needs changing, the
+  counsellor ticks the comments off and hands it back. The status never rewinds — the
+  pipeline is one-way — the re-check rides on top of whatever stage it reached.
+- **A changed answer un-makes the verdicts that rested on it.** If the edit touches
+  something eligibility depends on (destination, degree level, academic status,
+  backlogs, experience, financing, date of birth — `ELIGIBILITY_INPUTS` in domain.ts),
+  every programme verdict is marked **out of date** and Ops has to rule again before the
+  re-check can close — the shortlisted programme included. If that one flips to *not
+  eligible*, the shortlist comes off, the counsellor is told to pick another from what is
+  still eligible, and the learner is told their programme has changed. This is the case
+  the flow exists for: a learner editing their way out of the programme they were sent.
 - **The learner certifies at the end.** Signing says "I agree to these documents";
   certifying says "and the details behind them are correct". Ops cannot release the offer
-  letter without it, and editing any detail afterwards withdraws it.
+  letter without it, and editing any detail afterwards withdraws it and sends the
+  application back for a re-check (above).
 - **Programmes travel counsellor → Ops → counsellor.** The counsellor recommends from
   the catalogue (guided by the match score), Ops rules each recommendation eligible or
   not, and the counsellor shortlists **exactly one** — and only from the eligible.
@@ -238,7 +258,7 @@ src/
 │   ├── open-application.tsx              ← records a visit / claims for Ops (see below)
 │   └── ui/                               ← the component library — one file per concern
 └── lib/
-    ├── domain.ts                         ← statuses, transitions, form fields, clauses
+    ├── domain.ts                         ← statuses, transitions, re-check state, form fields, clauses
     ├── actions.ts                        ← every mutation (all writes)
     ├── queries.ts                        ← every read
     ├── browser-db.ts                     ← sql.js adapter + IndexedDB persistence

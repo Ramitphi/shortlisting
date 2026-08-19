@@ -18,6 +18,7 @@ export { UndertakingCard } from "./undertaking-card";
 export * from "./icons";
 export { OrbRow } from "./orb-row";
 export { CertifiedChip } from "./certified-chip";
+export { RecheckNotice } from "./recheck-notice";
 export { FileTile, FileValue, FileGlyph, FILE_ACCEPT } from "./file-tile";
 export { DocumentTable, type DocRow } from "./document-table";
 export { SideSheet } from "./side-sheet";

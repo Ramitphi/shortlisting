@@ -194,11 +194,24 @@ function migrateColumns(db: BrowserDb) {
   // The counsellor recommends; Ops rules on each recommendation. 'pending'
   // until Ops has looked.
   addColumn(db, "programs", "eligibility", "TEXT NOT NULL DEFAULT 'pending'");
+  // Set when a learner edit changed one of the answers the verdict rested on:
+  // the ruling still reads on screen, but it was made against details that
+  // have since moved, and Ops has to make it again before the re-check closes.
+  addColumn(db, "programs", "eligibility_stale", "INTEGER NOT NULL DEFAULT 0");
   addColumn(db, "documents", "template_id", "INTEGER");
   addColumn(db, "documents", "source", "TEXT NOT NULL DEFAULT 'auto'");
   // When the learner certified their own details. Ops cannot release the
   // offer letter until this is set.
   addColumn(db, "applications", "certified_at", "TEXT");
+  // A learner edit lands the details back in front of Ops. Not a status —
+  // the pipeline is one-way — but a flag Ops has to clear: `recheck_at` is
+  // when the edit happened, `recheck_fields` the labels that moved, so Ops
+  // re-reads exactly what changed rather than the whole form again.
+  addColumn(db, "applications", "recheck_at", "TEXT");
+  addColumn(db, "applications", "recheck_fields", "TEXT");
+  // Whose move the re-check is: 'ops' = waiting to be re-read, 'ac' = Ops
+  // raised comments and the counsellor is resolving them with the learner.
+  addColumn(db, "applications", "recheck_state", "TEXT");
 }
 
 function seedCatalogues(db: BrowserDb) {

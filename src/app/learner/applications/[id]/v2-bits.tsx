@@ -222,12 +222,21 @@ export function V2Certify({
   certified,
   certifiedAt,
   backHref,
+  recheckFields,
+  recheckState,
 }: {
   action: () => Promise<void>;
   allSigned: boolean;
   certified: boolean;
   certifiedAt?: string | null;
   backHref: string;
+  /**
+   * Set while the learner's own edit is being re-checked — Submit is held,
+   * because certifying would vouch for values nobody has re-read.
+   */
+  recheckFields?: string[];
+  /** 'ac' = their counsellor is going through it with them. */
+  recheckState?: "ops" | "ac";
 }) {
   const [agreed, setAgreed] = useState(false);
   const [busy, startTransition] = useTransition();
@@ -253,10 +262,41 @@ export function V2Certify({
     );
   }
 
-  const canSubmit = agreed && allSigned && !busy;
+  const rechecking = Boolean(recheckFields);
+  const canSubmit = agreed && allSigned && !rechecking && !busy;
+  const withCounsellor = recheckState === "ac";
+  const heldReason = rechecking
+    ? withCounsellor
+      ? "Your counsellor is going through these with you"
+      : "We're still checking the details you changed"
+    : !allSigned
+      ? "Sign every undertaking above first"
+      : "";
 
   return (
     <div className="mt-spacing32">
+      {rechecking && (
+        <div className="mb-spacing24 rounded-8 bg-[#FFF4E5] p-spacing16">
+          <p className="text-bodySmall font-medium text-[#8a6d2f]">
+            {withCounsellor
+              ? "Your counsellor will get in touch about these"
+              : "We’re checking the details you changed"}
+          </p>
+          <p className="text-labelNormal text-[#8a6d2f] mt-spacing8">
+            {recheckFields && recheckFields.length > 0
+              ? `You updated ${recheckFields.slice(0, 3).join(", ")}${
+                  recheckFields.length > 3
+                    ? ` and ${recheckFields.length - 3} more`
+                    : ""
+                }. `
+              : ""}
+            {withCounsellor
+              ? "There are a couple of things to go through together. Submit opens up again once that's settled — you can keep signing in the meantime."
+              : "Submit opens up again as soon as the check is done — you can keep signing in the meantime."}
+          </p>
+        </div>
+      )}
+
       {/* Capture: hidden checkbox + styled label + consent paragraph */}
       <div className="flex justify-center items-start gap-spacing8 mb-spacing56">
         <div>
@@ -295,7 +335,7 @@ export function V2Certify({
         <button
           type="button"
           disabled={!canSubmit}
-          title={!allSigned ? "Sign every undertaking above first" : ""}
+          title={heldReason}
           onClick={() =>
             startTransition(async () => {
               toast("Details certified");
@@ -312,7 +352,7 @@ export function V2Certify({
           Submit
         </button>
       </div>
-      {!allSigned && (
+      {!allSigned && !rechecking && (
         <p className="text-underlineSmall text-user-title-text mt-spacing8 text-right">
           Sign every undertaking above to enable Submit.
         </p>

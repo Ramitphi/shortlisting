@@ -67,6 +67,7 @@ import { docInsight, fieldInsight } from "@/lib/doc-insights";
 import { OpenApplication } from "@/components/open-application";
 import { CataloguePicker, type PickerItem } from "./catalogue-picker";
 import { OpsField } from "./ops-field";
+import { SendOfferDialog } from "./send-offer-dialog";
 import {
   DOC_CATEGORIES,
   FORM_FIELDS,
@@ -817,24 +818,17 @@ export default function OpsApplicationPage({
                 </div>
               </>
             ) : (
-              <form
-                action={sendOfferLetter.bind(null, app.id)}
-                className="flex w-full flex-wrap items-center gap-3"
-              >
+              <div className="flex w-full flex-wrap items-center gap-3">
                 <span className="text-xs text-caption">
                   Signed &amp; certified
                   {app.certified_at ? ` on ${app.certified_at.slice(0, 10)}` : ""}{" "}
                   · details auto-filled into the programme application
                 </span>
                 {/* The counsellor sends exactly one programme, so there is
-                    nothing here to choose between — just say which one. */}
+                    nothing here to choose between — just say which one. The
+                    button opens a confirmation naming learner + programme. */}
                 {shortlistedPrograms[0] && (
                   <>
-                    <input
-                      type="hidden"
-                      name="programId"
-                      value={shortlistedPrograms[0].id}
-                    />
                     <span className="ml-auto inline-flex items-center gap-2 rounded-xl border border-line bg-white px-3.5 py-2 text-[13px] text-ink">
                       <IconCap className="h-4 w-4 shrink-0 text-caption" />
                       {shortlistedPrograms[0].name} —{" "}
@@ -842,12 +836,21 @@ export default function OpsApplicationPage({
                         {shortlistedPrograms[0].institute}
                       </span>
                     </span>
+                    <SendOfferDialog
+                      learnerName={app.learner_name ?? "the learner"}
+                      learnerEmail={app.learner_email ?? "—"}
+                      programme={{
+                        id: shortlistedPrograms[0].id,
+                        name: shortlistedPrograms[0].name,
+                        institute: shortlistedPrograms[0].institute,
+                        duration: shortlistedPrograms[0].duration,
+                        fee: shortlistedPrograms[0].fee,
+                      }}
+                      action={sendOfferLetter.bind(null, app.id)}
+                    />
                   </>
                 )}
-                <button className="btn-primary shrink-0">
-                  Send Offer Letter
-                </button>
-              </form>
+              </div>
             )}
           </div>
         </div>

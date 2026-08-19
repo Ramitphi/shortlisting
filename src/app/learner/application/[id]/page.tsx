@@ -30,6 +30,7 @@ import {
   certifyDetails,
   removeLearnerDoc,
   signDocument,
+  updateLearnerDetails,
   uploadLearnerDoc,
   verifyLearnerDoc,
 } from "@/lib/actions";
@@ -44,6 +45,7 @@ import {
 import { docRows, signeesFor } from "@/lib/documents";
 import { CertifyDialog } from "../../certify-block";
 import { DetailRows } from "../../detail-rows";
+import { ProfileSectionCards } from "../../profile-cards";
 import { ProgrammeCard } from "../../programme-card";
 
 
@@ -59,6 +61,7 @@ import { ProgrammeCard } from "../../programme-card";
 const SECTIONS: Record<string, UgSection | "review"> = {
   application: "application",
   programs: "application", // legacy tab
+  details: "details", // the learner edits HERE — application-specific, not Profile
   documents: "documents",
   docs: "documents", // used by the rejection notification
   review: "review",
@@ -75,7 +78,7 @@ export default function LearnerApplicationPage({
   searchParams,
 }: {
   params: { id: string };
-  searchParams: { tab?: string; step?: string };
+  searchParams: { tab?: string; step?: string; edit?: string };
 }) {
   // Re-render on any browser-db or session change.
   useDbVersion();
@@ -86,8 +89,10 @@ export default function LearnerApplicationPage({
   );
   if (!app) notFound();
 
-  // "My details" lives under Profile, where the site keeps personal data.
-  if (searchParams.tab === "profile") redirect("/learner/profile");
+  // Details are edited INSIDE the application — the profile tab of old (and
+  // the site's Profile page) only read them now.
+  if (searchParams.tab === "profile")
+    redirect(`/learner/application/${params.id}?tab=details`);
   // The old Undertaking tab is now the walk — reading comes first.
   if (searchParams.tab === "undertaking")
     redirect(`/learner/application/${app.id}?tab=review&step=1`);
@@ -158,7 +163,7 @@ export default function LearnerApplicationPage({
   return (
     <UpgradShell user={user} section={shellSection} appId={app.id}>
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-[28px] font-medium tracking-tight">Shortlisting</h1>
+        <h1 className="text-[28px] font-medium tracking-tight">My application</h1>
         <StatusBadge status={app.status} learner certified={certified} />
       </div>
       <p className="mt-1 text-[14px] text-body">
@@ -283,6 +288,34 @@ export default function LearnerApplicationPage({
         </>
       )}
 
+      {/* ── My details: the application-specific edit ──
+          The same section cards as everywhere else, but editing happens HERE,
+          scoped to this application — not on the site's Profile page. Every
+          change notifies the counsellor and Ops, and editing after certifying
+          withdraws the certification. */}
+      {section === "details" && (
+        <>
+          {!detailsLocked && (
+            <p className="mt-4 text-[13.5px] text-body">
+              These are the details your application runs on — edit anything
+              that is wrong. Your counsellor and the Ops team are notified of
+              every change.
+            </p>
+          )}
+          <ProfileSectionCards
+            responses={responses}
+            locked={detailsLocked}
+            editing={detailsLocked ? undefined : searchParams.edit}
+            hrefFor={(sec) =>
+              sec
+                ? `/learner/application/${app.id}?tab=details&edit=${encodeURIComponent(sec)}`
+                : `/learner/application/${app.id}?tab=details`
+            }
+            action={updateLearnerDetails.bind(null, app.id)}
+          />
+        </>
+      )}
+
       {/* ── Documents ── */}
       {section === "documents" && (
         <div className="card mt-5 p-6">
@@ -367,10 +400,10 @@ export default function LearnerApplicationPage({
                 These are the details your undertakings certify, so read them
                 before you sign. Something wrong?{" "}
                 <Link
-                  href="/learner/profile"
+                  href={`/learner/application/${app.id}?tab=details`}
                   className="font-medium text-accent hover:underline"
                 >
-                  Edit them in your Profile
+                  Edit them under My details
                 </Link>{" "}
                 first.
               </p>

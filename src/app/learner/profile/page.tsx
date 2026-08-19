@@ -1,6 +1,7 @@
 "use client";
 
 import { useDbVersion } from "@/components/db-provider";
+import Link from "next/link";
 import { requireRole } from "@/components/shell";
 import { UpgradShell } from "@/components/upgrad-shell";
 import { getFormResponses, listApplications } from "@/lib/queries";
@@ -9,22 +10,16 @@ import { ProfileSectionCards } from "../profile-cards";
 
 
 /**
- * Profile → Personal details. The cards themselves live in ProfileSectionCards
- * and are shared with the v2 application's Personal Details tab — this page
- * only supplies the shell and the edit-mode URL.
+ * Profile → Personal details, READ-ONLY. Editing is application-specific
+ * (My applications → My details) — the PM's call: the profile page shows
+ * what is on file, the application is where it changes.
  */
-export default function LearnerProfilePage({
-  searchParams,
-}: {
-  searchParams: { edit?: string };
-}) {
+export default function LearnerProfilePage() {
   // Re-render on any browser-db or session change.
   useDbVersion();
   const user = requireRole("learner");
   const app = listApplications({ learnerId: user.id })[0];
   const responses = app ? getFormResponses(app.id) : {};
-  const locked = !app || app.status === "completed";
-  const editing = !locked ? searchParams.edit : undefined;
 
   return (
     <UpgradShell user={user} section="profile" appId={app?.id ?? null}>
@@ -36,17 +31,24 @@ export default function LearnerProfilePage({
           application with you on a call.
         </div>
       ) : (
-        <ProfileSectionCards
-          responses={responses}
-          locked={locked}
-          editing={editing}
-          hrefFor={(section) =>
-            section
-              ? `/learner/profile?edit=${encodeURIComponent(section)}`
-              : "/learner/profile"
-          }
-          action={updateLearnerDetails.bind(null, app.id)}
-        />
+        <>
+          <p className="mt-1 text-[14px] text-body">
+            To change anything here, edit it inside{" "}
+            <Link
+              href={`/learner/application/${app.id}?tab=details`}
+              className="font-medium text-accent hover:underline"
+            >
+              My applications → My details
+            </Link>
+            .
+          </p>
+          <ProfileSectionCards
+            responses={responses}
+            locked
+            hrefFor={() => `/learner/application/${app.id}?tab=details`}
+            action={updateLearnerDetails.bind(null, app.id)}
+          />
+        </>
       )}
     </UpgradShell>
   );

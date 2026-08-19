@@ -1,14 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { NotificationBell } from "./shell";
 import { RoleSwitcher } from "./role-switcher";
 import { UgBody } from "./ug-body";
 import { activityInline, learnerView, type User } from "@/lib/auth";
 import { logout } from "@/lib/actions";
 import {
   IconBriefcase,
-  IconCap,
   IconDoc,
   IconInbox,
   IconLogout,
@@ -36,7 +34,12 @@ import {
  * The walk renders under "My application". "applications" is the v2 world —
  * the site's current My Applications pages.
  */
-export type UgSection = "profile" | "application" | "documents" | "applications";
+export type UgSection =
+  | "profile"
+  | "application"
+  | "details"
+  | "documents"
+  | "applications";
 
 function SearchPill() {
   return (
@@ -201,8 +204,9 @@ export function UpgradShell({
               IIT/IIM Courses
             </span>
           </nav>
+          {/* No notifications on the learner side — the application page
+              itself says what needs doing. The bell stays internal-tool only. */}
           <div className="ml-auto flex items-center gap-3 lg:ml-0">
-            <NotificationBell user={user} />
             <span className="flex h-9 w-9 items-center justify-center rounded-full bg-muted text-body">
               <PersonGlyph className="h-5 w-5" />
             </span>
@@ -224,7 +228,7 @@ export function UpgradShell({
           </Link>
           <span className="text-caption">›</span>
           <span className="font-medium text-ink">
-            {onProfile ? "Profile" : "Shortlisting"}
+            {onProfile ? "Profile" : "My applications"}
           </span>
         </div>
       </div>
@@ -263,8 +267,10 @@ export function UpgradShell({
               </div>
             )}
 
-            {/* v2: the product lives where the site already has it — under
-                My applications. v1: a Shortlisting entry of its own. */}
+            {/* The product lives where the site already has it — under
+                My applications. No Shortlisting entry of its own (PM call);
+                the application, its editable details and its documents are
+                all sub-pages of My applications. */}
             {v2 ? (
               <NavRow
                 icon={<IconInbox className="h-5 w-5" />}
@@ -277,10 +283,6 @@ export function UpgradShell({
                 <NavRow
                   icon={<IconInbox className="h-5 w-5" />}
                   label="My applications"
-                />
-                <NavRow
-                  icon={<IconCap className="h-5 w-5" />}
-                  label="Shortlisting"
                   href={appHref("application")}
                   active={!onProfile}
                 />
@@ -290,6 +292,11 @@ export function UpgradShell({
                       label="My application"
                       href={appHref("application")}
                       active={section === "application"}
+                    />
+                    <SubRow
+                      label="My details"
+                      href={appHref("details")}
+                      active={section === "details"}
                     />
                     <SubRow
                       label="Documents"

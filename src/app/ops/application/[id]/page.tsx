@@ -802,8 +802,9 @@ export default function OpsApplicationPage({
                 className="flex w-full flex-wrap items-center gap-3"
               >
                 <span className="text-xs text-caption">
-                  All documents signed · certified by the learner
-                  {app.certified_at ? ` on ${app.certified_at.slice(0, 10)}` : ""}
+                  Signed &amp; certified
+                  {app.certified_at ? ` on ${app.certified_at.slice(0, 10)}` : ""}{" "}
+                  · details auto-filled into the programme application
                 </span>
                 {/* The counsellor sends exactly one programme, so there is
                     nothing here to choose between — just say which one. */}

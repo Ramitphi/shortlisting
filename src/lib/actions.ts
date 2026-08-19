@@ -197,6 +197,18 @@ export async function certifyDetails(applicationId: number) {
     "Learner certified their details",
     "Confirmed all submitted information and signed undertakings are correct"
   );
+  // The journey's stage-4 rule (the "or" branch the PM picked): certifying IS
+  // the sync — the certified details auto-fill the shortlisted programme's
+  // application, no separate trigger step. Ops' next move is releasing the OL.
+  const shortlisted = getPrograms(applicationId).find((p) => p.shortlisted);
+  if (shortlisted) {
+    logEvent(
+      applicationId,
+      user.id,
+      `Certified details auto-filled into the ${shortlisted.name} application`,
+      `${shortlisted.institute} — synced from the certified eligibility form`
+    );
+  }
   if (app.ac_id) {
     notify(
       app.ac_id,
@@ -204,7 +216,9 @@ export async function certifyDetails(applicationId: number) {
       `/ac/application/${applicationId}`
     );
   }
-  const msg = `${app.learner_name} certified their details — offer letter can be released`;
+  const msg = shortlisted
+    ? `${app.learner_name} certified — details auto-filled into the ${shortlisted.name} application, offer letter can be released`
+    : `${app.learner_name} certified their details — offer letter can be released`;
   const link = `/ops/application/${applicationId}`;
   if (app.ops_id) notify(app.ops_id, msg, link);
   else notifyRole("ops", msg, link);

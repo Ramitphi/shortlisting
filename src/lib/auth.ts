@@ -54,9 +54,15 @@ export function activityInline(): boolean {
 }
 
 /**
- * Prototype-only: which learner experience to show, toggled from the FAB so
- * the two can be compared live in front of an audience.
+ * v1 is the learner experience — the decision has been made. The v2 build
+ * (the one on the site's My Applications capture code) stays in the repo as
+ * reference, but nothing surfaces it: this flag pins `learnerView()` to v1,
+ * hides the FAB switch, and bounces the /learner/applications routes home.
+ * Flip it to true to bring v2 back for a comparison.
  */
+export const LEARNER_V2_ENABLED = false;
+
 export function learnerView(): "v1" | "v2" {
+  if (!LEARNER_V2_ENABLED) return "v1";
   return learnerViewRaw() === "v2" ? "v2" : "v1";
 }

@@ -8,6 +8,7 @@ import {
   toggleActivityView,
   toggleLearnerView,
 } from "@/lib/actions";
+import { LEARNER_V2_ENABLED } from "@/lib/auth";
 
 const ACCOUNTS = [
   {
@@ -125,9 +126,10 @@ export function RoleSwitcher({
               </button>
             </form>
 
-            {/* Which learner experience the demo shows. Off = the redesigned
-                Shortlisting flow; on = v2, built on the site's current
-                My Applications pages with our flows mixed in. */}
+            {/* v1 is the learner direction — the v2 comparison switch only
+                returns if LEARNER_V2_ENABLED is flipped back on (auth.ts).
+                The v2 build itself stays in the repo. */}
+            {LEARNER_V2_ENABLED && (
             <form action={toggleLearnerView} className="border-t border-line">
               <button className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-muted">
                 <span className="min-w-0 flex-1">
@@ -154,6 +156,7 @@ export function RoleSwitcher({
                 </span>
               </button>
             </form>
+            )}
 
             {/* Two presentations of the same activity log, side by side for
                 comparison. Off takes the timeline out of the layout entirely

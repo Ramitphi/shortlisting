@@ -17,13 +17,12 @@ fonts (CircularXX), brand red and profile-page layout, with a **Shortlisting** e
 added to the site's left navigation below My applications. That is the pitch: the
 learner never leaves upgrad.com.
 
-The learner side ships in **two skins**, switchable live from the round button:
-**v1** adds a Shortlisting section of its own to the site's navigation; **v2** rebuilds
-the journey on the site's *current* **My Applications** pages — and v2 is not a lookalike.
-It runs on the site's **own compiled stylesheet and markup**, lifted from saved captures
-of upgrad.com and bundled in this zip, so what you see is the production site's actual
-code rendering our flows. That's deliberate: this is the code that would be integrated
-into upgrad.com.
+The learner experience is **v1**: a Shortlisting section in the site's own navigation,
+with a guided review walk that ends in signing and certification. (An alternative "v2"
+build — the journey recreated on the site's current My Applications pages, using the
+production site's own compiled stylesheet and markup — lives in the repo for reference,
+switched off behind `LEARNER_V2_ENABLED` in `src/lib/auth.ts`. Nothing in the UI
+surfaces it.)
 
 ---
 
@@ -96,16 +95,10 @@ the bottom-right corner switches account instantly, and tells you what each one 
 | Learner | Neha Gupta | Inside upgrad.com — review, sign and certify |
 | Admin | Asha Sharma | Users and role assignment |
 
-The same menu holds one button and two switches:
+The same menu holds one button and one switch:
 
 - **Reset demo data** — puts every learner back to their starting state. Click through
   freely and reset when you want a clean run.
-- **My Applications v2** — flips the learner between the two skins. **On** (v2): the
-  site's My Applications list and a tabbed application — Personal Details / Program /
-  Undertaking / Upload Documents — walked with Next/Back buttons, closed by the site's
-  own consent checkbox + **Submit** (that submit *is* the certification). **Off** (v1):
-  a Shortlisting entry in the profile navigation with the guided review walk. Same
-  database, same rules — only the skin changes.
 - **Activity timeline** — flips between the two ways of showing the activity log, so both
   can be compared live. **On** is the built design: the timeline sits in the right-hand
   column of the application. **Off** removes that column entirely and puts the same log
@@ -129,7 +122,7 @@ as Arjun shows every state in one list.
 | **Sneha Patel** | Under Vetting | Omar is mid-vetting — drop a comment pin on a counsellor field, fill an ops field, verify documents, and **rule each recommended programme eligible or not** |
 | **Vikram Joshi** | Reviewed by Ops | Ops corrected two fields and rejected a passport scan. As Arjun: read the comments, shortlist among the eligible |
 | **Kabir Nair** | Reviewed by Ops | Clean — every document verified, 3 recommendations ruled eligible. Shortlist one and send |
-| **Neha Gupta** | Shortlisted | Switch to Neha: she's on upgrad.com. Review details → programme → undertakings, **sign with an OTP**, then **certify**. Then as Ops, release the offer. Try her in both skins |
+| **Neha Gupta** | Shortlisted | Switch to Neha: she's on upgrad.com. Review details → programme → undertakings, **sign with an OTP**, then **certify**. Then as Ops, release the offer |
 | **Aman Verma** | Completed | The finished state, offer letter issued |
 
 Clicking through changes this data — that's the point (it changes it in YOUR browser
@@ -171,10 +164,11 @@ bounces forever.
   the file is our business, and naming it only invites "why is it still there?".
 - **Reading comes before signing.** In v1 there is no Undertaking tab at all — signing
   lives at the end of a guided walk (Your details → Your programme → Undertaking), so a
-  learner cannot reach a signature without having just re-read what it certifies. In v2
+  learner cannot reach a signature without having just re-read what it certifies. (In
+  the shelved v2
   the site's tab strip stays freely navigable (that's how the real pages behave), but
   the Next/Back walk leads through the same order and **Submit stays disabled until
-  every undertaking is signed and the consent box is ticked**. Their details are also
+  every undertaking is signed and the consent box is ticked**.) Their details are also
   always readable under **Profile → Personal details**, in upgrad.com's own row layout,
   editable per section.
 - **Once the shortlist is sent, remarks lock** as read-only history.
@@ -268,6 +262,9 @@ src/
 ---
 
 ## The learner/v2 side wears the site's own code — read this before touching it
+
+*(v2 is currently switched off — `LEARNER_V2_ENABLED` in `src/lib/auth.ts` — but the
+code and these rules stay, for whenever it is compared again.)*
 
 This was an explicit product decision, not a styling shortcut: the learner experience is
 what gets integrated into upgrad.com, so it must be the site's code, not a translation

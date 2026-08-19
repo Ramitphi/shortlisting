@@ -1,6 +1,8 @@
 "use client";
 
 import { useDbVersion } from "@/components/db-provider";
+import { redirect } from "next/navigation";
+import { LEARNER_V2_ENABLED } from "@/lib/auth";
 import Link from "next/link";
 import { requireRole } from "@/components/shell";
 import { UpgradShell } from "@/components/upgrad-shell";
@@ -64,6 +66,9 @@ function StatusRow({
 export default function V2ApplicationsPage() {
   // Re-render on any browser-db or session change.
   useDbVersion();
+  // v1 is the learner direction — these v2 routes stay in the repo but are
+  // not part of the product until the flag in auth.ts turns them back on.
+  if (!LEARNER_V2_ENABLED) redirect("/learner");
   const user = requireRole("learner");
   const app = listApplications({ learnerId: user.id })[0];
 

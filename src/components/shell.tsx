@@ -320,6 +320,7 @@ export function Shell({
       </div>
       <RoleSwitcher
         currentRole={user.role}
+        currentEmail={user.email}
         activityInline={activityInline()}
         learnerV2={learnerView() === "v2"}
       />

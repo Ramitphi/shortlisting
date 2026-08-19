@@ -20,7 +20,8 @@ export default function LearnerHome() {
   const user = requireRole("learner");
   const app = listApplications({ learnerId: user.id })[0];
   if (learnerView() === "v2") redirect("/learner/applications");
-  if (app) redirect(`/learner/application/${app.id}`);
+  // Home is the Applications list — the card carries the status story.
+  if (app) redirect("/learner/application");
 
   return (
     <UpgradShell user={user} section="application" appId={null}>

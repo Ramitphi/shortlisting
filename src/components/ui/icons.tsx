@@ -453,3 +453,12 @@ export function IconX({ className }: { className?: string }) {
     </Icon>
   );
 }
+
+export function IconRefresh({ className }: { className?: string }) {
+  return (
+    <Icon className={className}>
+      <path d="M20.5 12a8.5 8.5 0 1 1-2.6-6.1" />
+      <path d="M20.5 2.8v3.4h-3.4" />
+    </Icon>
+  );
+}

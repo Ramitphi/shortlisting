@@ -26,6 +26,7 @@ import {
   IconCheck,
   IconClock,
   IconDoc,
+  IconRefresh,
   IconSignature,
   IconSparkle,
   IconWallet,
@@ -50,6 +51,7 @@ import {
   removeLearnerDoc,
   resolveRemark,
   shortlistProgram,
+  syncFromLsq,
   updateFieldValue,
   uploadLearnerDoc,
   verifyLearnerDoc,
@@ -65,6 +67,7 @@ import {
   pendingFor,
 } from "@/lib/domain";
 import { docRows, signeesFor } from "@/lib/documents";
+import { docInsight } from "@/lib/doc-insights";
 import { OpenApplication } from "@/components/open-application";
 import {
   CataloguePicker,
@@ -257,7 +260,19 @@ export default function AcApplicationPage({
             </div>
             <p className="mt-1 text-[14.5px] text-body">{app.learner_email}</p>
           </div>
-          {activityButton}
+          <div className="flex items-center gap-2">
+            {/* Draft only: pull whatever the LSQ lead already knows, so the
+                call starts from a part-filled form. Fills EMPTY fields only. */}
+            {app.status === "draft" && (
+              <form action={syncFromLsq.bind(null, app.id)}>
+                <button className="btn-secondary !h-8 !px-3 !text-[12.5px]">
+                  <IconRefresh className="h-3.5 w-3.5" />
+                  Auto-sync with LSQ
+                </button>
+              </form>
+            )}
+            {activityButton}
+          </div>
         </div>
       </div>
 
@@ -272,6 +287,7 @@ export default function AcApplicationPage({
             <DocumentTable
               rows={locker}
               categories={DOC_CATEGORIES}
+              insightFor={(key) => docInsight(key, responses, app.learner_name ?? "")}
               canUpload
               canVerify={false}
               upload={uploadLearnerDoc.bind(null, app.id)}
@@ -533,6 +549,7 @@ export default function AcApplicationPage({
               <DocumentTable
                 rows={locker}
                 categories={DOC_CATEGORIES}
+                insightFor={(key) => docInsight(key, responses, app.learner_name ?? "")}
                 canUpload={editable}
                 canVerify={false}
                 upload={uploadLearnerDoc.bind(null, app.id)}

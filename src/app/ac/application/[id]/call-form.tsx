@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useEffect,
   createContext,
   useContext,
   useMemo,
@@ -287,6 +288,24 @@ export function CallForm({
   const [v, setV] = useState<Values>(initial);
   const [pending, startTransition] = useTransition();
   const set = (k: string, val: string) => setV((p) => ({ ...p, [k]: val }));
+
+  // Values can now arrive UNDERNEATH the wizard — "Auto-sync with LSQ" writes
+  // straight to the application. Adopt fresh values for fields the counsellor
+  // hasn't typed into yet, and only those: a merge limited to locally-empty
+  // keys can never clobber in-progress typing.
+  useEffect(() => {
+    setV((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const [k, val] of Object.entries(initial)) {
+        if (val && !(next[k] ?? "").trim()) {
+          next[k] = val;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [initial]);
 
   const age = ageFrom(v.dob ?? "");
   const isMinor = age !== null && age < 18;

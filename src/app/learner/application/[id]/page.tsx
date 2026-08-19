@@ -59,9 +59,12 @@ import { ProgrammeCard } from "../../programme-card";
  * walk is how the UI enforces it.
  */
 const SECTIONS: Record<string, UgSection | "review"> = {
-  application: "application",
-  programs: "application", // legacy tab
-  details: "details", // the learner edits HERE — application-specific, not Profile
+  // The walk IS the application view now — the old overview screen carried
+  // no decision (PM: "the previous screen is mute"), so every legacy tab
+  // lands on the stepper. Documents keeps its own tab.
+  application: "review",
+  programs: "review",
+  details: "review",
   documents: "documents",
   docs: "documents", // used by the rejection notification
   review: "review",
@@ -91,10 +94,7 @@ export default function LearnerApplicationPage({
 
   // Details are edited INSIDE the application — the profile tab of old (and
   // the site's Profile page) only read them now.
-  if (searchParams.tab === "profile")
-    redirect(`/learner/application/${params.id}?tab=details`);
-  // The old Undertaking tab is now the walk — reading comes first.
-  if (searchParams.tab === "undertaking")
+  if (searchParams.tab === "profile" || searchParams.tab === "undertaking")
     redirect(`/learner/application/${app.id}?tab=review&step=1`);
 
   const responses = getFormResponses(app.id);
@@ -114,10 +114,7 @@ export default function LearnerApplicationPage({
   const lockerMissing = locker.filter((r) => !r.filename && !r.optional).length;
   const programme = programs[0];
 
-  let section = SECTIONS[searchParams.tab ?? ""] ?? "application";
-  // The walk only exists while there is something to sign or certify.
-  if (section === "review" && (!canSign || certified))
-    redirect(`/learner/application/${app.id}?tab=application`);
+  const section = SECTIONS[searchParams.tab ?? ""] ?? "review";
   const step = Math.min(3, Math.max(1, Number(searchParams.step) || 1));
   const walkHref = (s: number) =>
     `/learner/application/${app.id}?tab=review&step=${s}`;
@@ -162,7 +159,13 @@ export default function LearnerApplicationPage({
 
   return (
     <UpgradShell user={user} section={shellSection} appId={app.id}>
-      <div className="flex flex-wrap items-center gap-3">
+      <Link
+        href="/learner/application"
+        className="text-[13.5px] font-medium text-body hover:text-ink"
+      >
+        ← All applications
+      </Link>
+      <div className="mt-2 flex flex-wrap items-center gap-3">
         <h1 className="text-[28px] font-medium tracking-tight">My application</h1>
         <StatusBadge status={app.status} learner certified={certified} />
       </div>
@@ -182,139 +185,6 @@ export default function LearnerApplicationPage({
           </>
         )}
       </p>
-
-      {/* ── My application ── */}
-      {section === "application" && (
-        <>
-          <div className="card mt-5 p-6">
-            <h2 className="text-[18px] font-medium">My application</h2>
-            {/* Three coarse stages — never the internal pipeline. */}
-            <div className="mt-5 flex items-center gap-2">
-              {LEARNER_STAGES.map((s, i) => (
-                <div key={s.label} className="flex-1">
-                  <div
-                    className={`h-1.5 rounded-full ${
-                      i <= stage ? "bg-accent" : "bg-line"
-                    }`}
-                  />
-                  <div
-                    className={`mt-2 text-[13px] ${
-                      i <= stage ? "font-medium text-ink" : "text-caption"
-                    }`}
-                  >
-                    {s.label}
-                  </div>
-                  <div className="text-[12px] text-caption">{s.hint}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="card mt-4 p-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-[18px] font-medium">Programme</h2>
-              {programme && (
-                <CardChip tone="green">
-                  <IconCheck className="h-3 w-3" />
-                  Shortlisted for you
-                </CardChip>
-              )}
-            </div>
-            {!programmeVisible || !programme ? (
-              <EmptyState text="We're preparing your options — your programme appears here." />
-            ) : (
-              programmeCard
-            )}
-          </div>
-
-          {/* One next step, and it is the walk — reading before signing. */}
-          {canSign && !certified && (
-            <div className="card mt-4 flex flex-wrap items-center justify-between gap-3 p-6">
-              <div>
-                <div className="text-[15px] font-medium">
-                  {pending > 0
-                    ? `${pending} document${pending === 1 ? "" : "s"} awaiting your signature`
-                    : "Everything is signed — one last step"}
-                </div>
-                <div className="mt-0.5 text-[13.5px] text-body">
-                  First review your details and your programme — signing and
-                  certifying come at the end.
-                </div>
-              </div>
-              <Link href={walkHref(1)} className="btn-primary">
-                {pending > 0 ? "Review & sign" : "Review & certify"}
-              </Link>
-            </div>
-          )}
-
-          {certified && !offer && (
-            <div className="card mt-4 flex items-center gap-3 p-6 text-[14px] text-body">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#e8f2e9] text-[#3f6c45]">
-                <IconCheck className="h-4 w-4" />
-              </span>
-              Certified on {app.certified_at?.slice(0, 10)} — your offer letter
-              is on its way.
-            </div>
-          )}
-
-          {offer && (
-            <div className="card mt-4 border-[#cde1d2] bg-[#f2f8f3] p-6">
-              <p className="text-[15px] font-medium text-[#1f3d26]">
-                🎉 Your offer letter is ready
-              </p>
-              <p className="mt-3 whitespace-pre-wrap text-[13.5px] leading-relaxed text-[#1f3d26]/90">
-                {offer.content}
-              </p>
-              <p className="mt-3 flex items-center gap-1.5 text-[12.5px] text-[#2f5e38]">
-                <IconCalendar className="h-3.5 w-3.5" />
-                Issued {offer.created_at} UTC
-              </p>
-            </div>
-          )}
-
-          {/* Signed papers stay readable — viewing only, signing lives in the walk. */}
-          {allSigned && (
-            <div className="card mt-4 p-6">
-              <h2 className="text-[18px] font-medium">
-                Undertaking &amp; Acknowledgement
-              </h2>
-              <p className="mb-4 mt-1 text-[13.5px] text-body">
-                Signed on {docs[0]?.signed_at?.slice(0, 10)} — open any document
-                to re-read it.
-              </p>
-              {undertakingGrid(false)}
-            </div>
-          )}
-        </>
-      )}
-
-      {/* ── My details: the application-specific edit ──
-          The same section cards as everywhere else, but editing happens HERE,
-          scoped to this application — not on the site's Profile page. Every
-          change notifies the counsellor and Ops, and editing after certifying
-          withdraws the certification. */}
-      {section === "details" && (
-        <>
-          {!detailsLocked && (
-            <p className="mt-4 text-[13.5px] text-body">
-              These are the details your application runs on — edit anything
-              that is wrong. Your counsellor and the Ops team are notified of
-              every change.
-            </p>
-          )}
-          <ProfileSectionCards
-            responses={responses}
-            locked={detailsLocked}
-            editing={detailsLocked ? undefined : searchParams.edit}
-            hrefFor={(sec) =>
-              sec
-                ? `/learner/application/${app.id}?tab=details&edit=${encodeURIComponent(sec)}`
-                : `/learner/application/${app.id}?tab=details`
-            }
-            action={updateLearnerDetails.bind(null, app.id)}
-          />
-        </>
-      )}
 
       {/* ── Documents ── */}
       {section === "documents" && (
@@ -392,33 +262,32 @@ export default function LearnerApplicationPage({
             </div>
           </div>
 
-          {/* Step 1 — the details they are about to vouch for */}
+          {/* Step 1 — the details they are about to vouch for, editable in
+              place: the walk IS the application, so the fix happens right
+              here. Every change notifies the counsellor and Ops; editing
+              after certifying withdraws the certification. */}
           {step === 1 && (
-            <div className="card mt-4 p-6">
-              <h2 className="text-[18px] font-medium">Your details</h2>
-              <p className="mt-1 text-[13.5px] text-body">
-                These are the details your undertakings certify, so read them
-                before you sign. Something wrong?{" "}
-                <Link
-                  href={`/learner/application/${app.id}?tab=details`}
-                  className="font-medium text-accent hover:underline"
-                >
-                  Edit them under My details
-                </Link>{" "}
-                first.
-              </p>
-              {FORM_SECTIONS.map((s) => (
-                <div key={s} className="mt-5">
-                  <h3 className="text-[15px] font-medium">{s}</h3>
-                  <DetailRows
-                    fields={FORM_FIELDS.filter(
-                      (f) => f.section === s && f.type !== "file"
-                    )}
-                    responses={responses}
-                  />
-                </div>
-              ))}
-            </div>
+            <>
+              <div className="mt-4 flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="text-[18px] font-medium">Your details</h2>
+                <span className="text-[12.5px] text-caption">
+                  {detailsLocked
+                    ? "Your application is complete — view only."
+                    : "These are what your undertakings certify. Your counsellor and Ops are notified of any change."}
+                </span>
+              </div>
+              <ProfileSectionCards
+                responses={responses}
+                locked={detailsLocked}
+                editing={detailsLocked ? undefined : searchParams.edit}
+                hrefFor={(sec) =>
+                  sec
+                    ? `/learner/application/${app.id}?tab=review&step=1&edit=${encodeURIComponent(sec)}`
+                    : `/learner/application/${app.id}?tab=review&step=1`
+                }
+                action={updateLearnerDetails.bind(null, app.id)}
+              />
+            </>
           )}
 
           {/* Step 2 — the programme those details earned */}
@@ -431,12 +300,14 @@ export default function LearnerApplicationPage({
               {programme ? (
                 programmeCard
               ) : (
-                <EmptyState text="Nothing shortlisted yet." />
+                <EmptyState text="We're preparing your options — your shortlisted programme appears here." />
               )}
             </div>
           )}
 
-          {/* Step 3 — only here can anything be signed or certified */}
+          {/* Step 3 — only here can anything be signed or certified, and the
+              close of the journey (certified note, offer letter) lives here
+              too now that the overview screen is gone. */}
           {step === 3 && (
             <>
               <div className="card mt-4 p-6">
@@ -444,18 +315,20 @@ export default function LearnerApplicationPage({
                   Undertaking &amp; Acknowledgement
                 </h2>
                 <p className="mb-4 mt-1 text-[13.5px] text-body">
-                  {pending > 0
-                    ? `${pending} document${pending === 1 ? "" : "s"} need your signature.`
-                    : "Everything is signed."}
+                  {docs.length === 0
+                    ? "Nothing to sign yet."
+                    : pending > 0
+                      ? `${pending} document${pending === 1 ? "" : "s"} need your signature.`
+                      : "Everything is signed."}
                 </p>
                 {docs.length === 0 ? (
-                  <EmptyState text="Documents appear once your details have been checked." />
+                  <EmptyState text="Your undertakings appear here once your details have been checked." />
                 ) : (
-                  undertakingGrid(canSign)
+                  undertakingGrid(canSign && !certified)
                 )}
               </div>
 
-              {docs.length > 0 && (
+              {docs.length > 0 && !certified && canSign && (
                 <div className="card mt-4 flex flex-wrap items-center justify-between gap-3 p-6">
                   <div className="text-[13.5px] text-body">
                     {pending > 0
@@ -469,13 +342,38 @@ export default function LearnerApplicationPage({
                   />
                 </div>
               )}
+
+              {certified && !offer && (
+                <div className="card mt-4 flex items-center gap-3 p-6 text-[14px] text-body">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#e8f2e9] text-[#3f6c45]">
+                    <IconCheck className="h-4 w-4" />
+                  </span>
+                  Certified on {app.certified_at?.slice(0, 10)} — your offer
+                  letter is on its way.
+                </div>
+              )}
+
+              {offer && (
+                <div className="card mt-4 border-[#cde1d2] bg-[#f2f8f3] p-6">
+                  <p className="text-[15px] font-medium text-[#1f3d26]">
+                    🎉 Your offer letter is ready
+                  </p>
+                  <p className="mt-3 whitespace-pre-wrap text-[13.5px] leading-relaxed text-[#1f3d26]/90">
+                    {offer.content}
+                  </p>
+                  <p className="mt-3 flex items-center gap-1.5 text-[12.5px] text-[#2f5e38]">
+                    <IconCalendar className="h-3.5 w-3.5" />
+                    Issued {offer.created_at} UTC
+                  </p>
+                </div>
+              )}
             </>
           )}
 
           {/* Walk navigation — forward is earned by reading, not by default. */}
           <div className="mt-4 flex items-center justify-between">
             <Link
-              href={step === 1 ? `/learner/application/${app.id}` : walkHref(step - 1)}
+              href={step === 1 ? "/learner/application" : walkHref(step - 1)}
               className="btn-secondary"
             >
               Back
@@ -486,7 +384,9 @@ export default function LearnerApplicationPage({
               </Link>
             ) : (
               <span className="text-[12.5px] text-caption">
-                Step 3 of 3 — sign above, then certify
+                {canSign && !certified
+                  ? "Step 3 of 3 — sign above, then certify"
+                  : "Step 3 of 3"}
               </span>
             )}
           </div>

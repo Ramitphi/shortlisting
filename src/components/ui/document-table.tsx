@@ -3,6 +3,8 @@
 import { useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
+import { AiInsightLine } from "./ai-insight";
+import type { DocInsight } from "@/lib/doc-insights";
 import { CardChip } from "./card-bits";
 import { DocumentDialog } from "./document-dialog";
 import { FileGlyph, FILE_ACCEPT } from "./file-tile";
@@ -58,6 +60,7 @@ export function DocumentTable({
   remove,
   verify,
   note,
+  insightFor,
 }: {
   rows: DocRow[];
   categories: readonly string[];
@@ -68,6 +71,8 @@ export function DocumentTable({
   remove: (docKey: string) => void | Promise<void>;
   verify: (docKey: string, formData: FormData) => void | Promise<void>;
   note?: string;
+  /** The AI's one-liner under an uploaded document (learner side). */
+  insightFor?: (docKey: string) => DocInsight | null;
 }) {
   const [rejecting, setRejecting] = useState<DocRow | null>(null);
   const [busy, startTransition] = useTransition();
@@ -145,6 +150,7 @@ export function DocumentTable({
                   <Row
                     key={row.key}
                     row={row}
+                    insight={row.filename ? insightFor?.(row.key) ?? null : null}
                     canUpload={canUpload}
                     canVerify={canVerify}
                     onUpload={(filename) => {
@@ -225,6 +231,7 @@ const iconBtn =
 
 function Row({
   row,
+  insight,
   canUpload,
   canVerify,
   onUpload,
@@ -233,6 +240,7 @@ function Row({
   onReject,
 }: {
   row: DocRow;
+  insight?: DocInsight | null;
   canUpload: boolean;
   canVerify: boolean;
   onUpload: (filename: string) => void;
@@ -270,13 +278,15 @@ function Row({
             </div>
           </div>
         </div>
+        {/* The AI's read of this upload — one quiet Google-style line. */}
+        {insight && <AiInsightLine insight={insight} />}
       </td>
 
       {/* One status, one chip family. "Uploaded" was never information on its
           own: a document that isn't there can't be verified, so the two
           collapse into one. Empty is an outline, present-but-unchecked is a
           grey tick, checked is a green one — same object, different tone. */}
-      <td className="px-4 py-2.5 align-middle">
+      <td className="px-4 pb-2.5 pt-[15px] align-top">
         {!filled ? (
           <CardChip tone="outline">Not uploaded</CardChip>
         ) : row.verification === "verified" ? (
@@ -302,7 +312,7 @@ function Row({
         )}
       </td>
 
-      <td className="px-4 py-2.5 align-middle">
+      <td className="px-4 pb-2.5 pt-3 align-top">
         <div className="flex items-center justify-end gap-0.5">
           {filled ? (
             <>

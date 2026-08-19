@@ -23,3 +23,4 @@ export { DocumentTable, type DocRow } from "./document-table";
 export { SideSheet } from "./side-sheet";
 export { FieldComments, type FieldComment } from "./field-comments";
 export { MultiSelect } from "./multi-select";
+export { AiStar, AiInsightLine } from "./ai-insight";

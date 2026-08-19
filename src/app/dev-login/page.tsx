@@ -3,6 +3,7 @@
 import { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getDb } from "@/lib/db";
+import { DEMO_ACCOUNTS } from "@/lib/actions";
 import { setSessionUid } from "@/lib/session";
 import { roleHome, type Role } from "@/lib/domain";
 
@@ -23,9 +24,11 @@ function DevLogin() {
       router.replace("/login");
       return;
     }
+    // The FAB's rows use the @upgrad.com demo shortcuts — same map as login.
+    const seeded = DEMO_ACCOUNTS[email.toLowerCase()] ?? email;
     const user = getDb()
       .prepare("SELECT id, role FROM users WHERE email = ?")
-      .get(email) as { id: number; role: Role } | undefined;
+      .get(seeded) as { id: number; role: Role } | undefined;
     if (!user) {
       router.replace("/login");
       return;

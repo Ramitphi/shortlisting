@@ -10,6 +10,7 @@ import {
   CardChip,
   CertifiedChip,
   FieldComments,
+  AiInsightLine,
   DocumentDialog,
   DocumentTable,
   SideSheet,
@@ -62,6 +63,7 @@ import {
   verifyLearnerDoc,
 } from "@/lib/actions";
 import { docRows, signeesFor } from "@/lib/documents";
+import { docInsight, fieldInsight } from "@/lib/doc-insights";
 import { OpenApplication } from "@/components/open-application";
 import { CataloguePicker, type PickerItem } from "./catalogue-picker";
 import { OpsField } from "./ops-field";
@@ -106,6 +108,11 @@ export default function OpsApplicationPage({
   const events = getEvents(app.id);
   const offer = getOfferLetter(app.id);
   const locker = docRows(getLearnerDocs(app.id));
+  // Which document slots are filled — the AI vet only speaks about a field
+  // when its counterpart document is actually there to compare against.
+  const uploadedKeys = new Set(
+    locker.filter((r) => r.filename).map((r) => r.key)
+  );
 
   // Ops holds the pen while vetting: they correct the fields, verify the
   // documents and note what they changed. See `editorOf` in domain.ts.
@@ -403,6 +410,18 @@ export default function OpsApplicationPage({
                                   )}
                                 </div>
                               )}
+                              {/* The AI vet's field remark: doc vs field,
+                                  only while Ops is actually vetting. */}
+                              {vetting &&
+                                f.type !== "file" &&
+                                (() => {
+                                  const ai = fieldInsight(
+                                    f.key,
+                                    responses,
+                                    uploadedKeys
+                                  );
+                                  return ai ? <AiInsightLine insight={ai} /> : null;
+                                })()}
                             </div>
                             {/* Ops fills these from the documents themselves,
                                 so there is nothing to flag to anyone else. */}
@@ -455,6 +474,7 @@ export default function OpsApplicationPage({
               <DocumentTable
                 rows={locker}
                 categories={DOC_CATEGORIES}
+                insightFor={(key) => docInsight(key, responses, app.learner_name ?? "")}
                 canUpload={docsLive}
                 canVerify={docsLive}
                 upload={uploadLearnerDoc.bind(null, app.id)}

@@ -37,7 +37,6 @@ import {
 export type UgSection =
   | "profile"
   | "application"
-  | "details"
   | "documents"
   | "applications";
 
@@ -283,20 +282,15 @@ export function UpgradShell({
                 <NavRow
                   icon={<IconInbox className="h-5 w-5" />}
                   label="My applications"
-                  href={appHref("application")}
+                  href="/learner/application"
                   active={!onProfile}
                 />
                 {!onProfile && (
                   <div className="pb-2">
                     <SubRow
-                      label="My application"
-                      href={appHref("application")}
+                      label="Applications"
+                      href="/learner/application"
                       active={section === "application"}
-                    />
-                    <SubRow
-                      label="My details"
-                      href={appHref("details")}
-                      active={section === "details"}
                     />
                     <SubRow
                       label="Documents"
@@ -331,6 +325,7 @@ export function UpgradShell({
 
       <RoleSwitcher
         currentRole={user.role}
+        currentEmail={user.email}
         activityInline={activityInline()}
         learnerV2={v2}
       />

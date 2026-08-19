@@ -84,8 +84,9 @@ export async function toggleLearnerView() {
 // ---------- auth ----------
 
 // Mock credential auth: one demo account per role, password "12345" for all.
-// Each maps onto a seeded user so the demo data stays intact.
-const DEMO_ACCOUNTS: Record<string, string> = {
+// Each maps onto a seeded user so the demo data stays intact. Exported so
+// /dev-login can translate the same shortcuts.
+export const DEMO_ACCOUNTS: Record<string, string> = {
   "learner@upgrad.com": "neha.learner@example.com",
   "ops@upgrad.com": "omar.ops@example.com",
   "academic@upgrad.com": "arjun.ac@example.com",
@@ -111,6 +112,54 @@ export async function logout() {
 }
 
 // ---------- Stage 1: AC fills & submits the eligibility form ----------
+
+/**
+ * "Auto-sync with LSQ" — the counsellor's one-click pull of whatever the
+ * LeadSquared lead already knows, so the call starts from a part-filled form
+ * instead of a blank one. Prototype: stands in for the CRM call with the
+ * lead-form fields, and only ever fills fields that are still EMPTY — the
+ * counsellor's own answers are never overwritten.
+ */
+export async function syncFromLsq(applicationId: number) {
+  const user = requireUser("ac");
+  const app = getApplication(applicationId);
+  if (!app || app.ac_id !== user.id || app.status !== "draft") return;
+
+  // What a lead record carries: identity and intent, never academics.
+  const lead: Record<string, string> = {
+    full_name: app.learner_name ?? "",
+    mobile: "+91 98450 21167",
+    degree_level: "Masters",
+    countries: "Germany, Australia",
+    finance_plan: "Education Loan (Partial/Full)",
+  };
+
+  const before = getFormResponses(applicationId);
+  const db = getDb();
+  const upsert = db.prepare(
+    `INSERT INTO form_responses (application_id, field_key, value) VALUES (?, ?, ?)
+     ON CONFLICT (application_id, field_key) DO UPDATE SET value = excluded.value`
+  );
+  const filled: string[] = [];
+  const tx = db.transaction(() => {
+    for (const [key, value] of Object.entries(lead)) {
+      if ((before[key] ?? "").trim() || !value) continue;
+      upsert.run(applicationId, key, value);
+      filled.push(FORM_FIELDS.find((f) => f.key === key)?.label ?? key);
+    }
+  });
+  tx();
+
+  logEvent(
+    applicationId,
+    user.id,
+    filled.length > 0
+      ? `Auto-synced ${filled.length} field(s) from LSQ`
+      : "Auto-sync with LSQ — everything already up to date",
+    filled.length > 0 ? filled.join(", ") : undefined
+  );
+  dirty();
+}
 
 /**
  * The counsellor's autosave. Draft only: submitting hands the pen to Ops and

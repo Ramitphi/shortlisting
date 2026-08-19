@@ -35,17 +35,17 @@ export default function LearnerProfilePage() {
           <p className="mt-1 text-[14px] text-body">
             To change anything here, edit it inside{" "}
             <Link
-              href={`/learner/application/${app.id}?tab=details`}
+              href={`/learner/application/${app.id}`}
               className="font-medium text-accent hover:underline"
             >
-              My applications → My details
+              your application
             </Link>
             .
           </p>
           <ProfileSectionCards
             responses={responses}
             locked
-            hrefFor={() => `/learner/application/${app.id}?tab=details`}
+            hrefFor={() => `/learner/application/${app.id}`}
             action={updateLearnerDetails.bind(null, app.id)}
           />
         </>

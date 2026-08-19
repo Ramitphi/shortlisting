@@ -9,6 +9,8 @@ import {
   toggleLearnerView,
 } from "@/lib/actions";
 import { LEARNER_V2_ENABLED } from "@/lib/auth";
+import { dbReady, getDb } from "@/lib/db";
+import { STATUS_LABELS, type AppStatus } from "@/lib/domain";
 
 const ACCOUNTS = [
   {
@@ -48,19 +50,44 @@ const ACCOUNTS = [
  */
 export function RoleSwitcher({
   currentRole,
+  currentEmail,
   activityInline,
   learnerV2 = false,
 }: {
   currentRole: string;
+  /** Signed-in user's email — highlights the matching learner case. */
+  currentEmail?: string;
   /** Which of the two activity presentations is currently showing. */
   activityInline: boolean;
   /** Learner experience: false = redesigned flow, true = current-site v2. */
   learnerV2?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [cases, setCases] = useState(false);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   if (!mounted) return null;
+
+  // Every seeded learner, each parked at a different journey state — so the
+  // learner side can be walked in ANY state, not just Neha's. The database
+  // lives in this browser, so the FAB can just ask it.
+  const learnerCases = dbReady()
+    ? (getDb()
+        .prepare(
+          `SELECT u.email, u.name, a.id AS appId, a.status
+           FROM users u LEFT JOIN applications a ON a.learner_id = u.id
+           WHERE u.role = 'learner' ORDER BY a.id`
+        )
+        .all() as {
+        email: string;
+        name: string;
+        appId: number | null;
+        status: AppStatus | null;
+      }[])
+    : [];
+
+  const caseHref = (l: (typeof learnerCases)[number]) =>
+    `/dev-login?email=${encodeURIComponent(l.email)}&next=%2Flearner`;
 
   return createPortal(
     <>
@@ -111,6 +138,61 @@ export function RoleSwitcher({
                 </a>
               );
             })}
+
+            {/* Learner cases: the same learner side, one row per seeded
+                journey state. Opens as a sub-list so the panel stays short. */}
+            <div className="border-t border-line">
+              <button
+                type="button"
+                onClick={() => setCases((c) => !c)}
+                className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-muted"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-medium text-ink">
+                    Learner cases
+                  </span>
+                  <span className="block text-[11.5px] text-caption">
+                    One learner per journey state — view as any of them
+                  </span>
+                </span>
+                <span
+                  className={`text-caption transition-transform ${cases ? "rotate-180" : ""}`}
+                  aria-hidden
+                >
+                  ▾
+                </span>
+              </button>
+              {cases && (
+                <div className="max-h-56 overflow-y-auto border-t border-line/70 bg-paper/60 py-1">
+                  {learnerCases.map((l) => {
+                    const active = l.email === currentEmail;
+                    return (
+                      <a
+                        key={l.email}
+                        href={caseHref(l)}
+                        className={`flex items-center gap-2 px-4 py-1.5 transition-colors ${
+                          active ? "bg-cream/70" : "hover:bg-muted"
+                        }`}
+                      >
+                        <span
+                          className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full ${
+                            active ? "bg-ink text-paper" : "text-transparent"
+                          }`}
+                        >
+                          <IconCheck className="h-2 w-2" />
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-[12.5px] text-ink">
+                          {l.name}
+                        </span>
+                        <span className="shrink-0 text-[11px] text-caption">
+                          {l.status ? STATUS_LABELS[l.status] : "No application"}
+                        </span>
+                      </a>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
 
             <form action={resetDemoData} className="border-t border-line">
               <button className="flex w-full items-start gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-muted">

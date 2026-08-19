@@ -297,7 +297,7 @@ function seedDemo(db) {
     insertEvent.run(reviewedId, ARJUN, "Eligibility form submitted", `Submitted by Arjun Mehta on behalf of ${reviewed.name}`);
     insertEvent.run(reviewedId, OMAR, "Picked up for vetting", null);
     insertEvent.run(reviewedId, OMAR, "Comment added on \"Work Experience After Bachelor's (months)\"", "CV shows 30 months, form says 24");
-    insertEvent.run(reviewedId, OMAR, "All 14 documents verified", null);
+    insertEvent.run(reviewedId, OMAR, "Every uploaded document verified", null);
     insertEvent.run(reviewedId, OMAR, "Remark resolved on \"Learner Mobile Number\"", null);
     insertEvent.run(reviewedId, OMAR, "Remark resolved on \"Work Experience After Bachelor's (months)\"", null);
     insertEvent.run(reviewedId, OMAR, "Marked as reviewed by Ops", null);

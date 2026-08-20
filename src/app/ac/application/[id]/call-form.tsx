@@ -39,7 +39,6 @@ type Values = Record<string, string>;
 const STEPS = [
   { id: "profile", label: "Profile", hint: "Who the learner is" },
   { id: "academics", label: "Academics", hint: "Marks & scores" },
-  { id: "documents", label: "Documents", hint: "What they've sent" },
   { id: "financing", label: "Financing", hint: "How they'll pay" },
   { id: "programmes", label: "Programmes", hint: "Pick from the AI's matches" },
   { id: "review", label: "Review", hint: "Confirm & submit" },
@@ -49,7 +48,6 @@ const STEPS = [
 const SECTION_BY_STEP = [
   "Profile Data",
   "Academic Data",
-  "Documents",
   "Financing",
   "Programmes",
   "Review",
@@ -273,8 +271,6 @@ export function CallForm({
   submitAction,
   mode = "fill",
   remarks = [],
-  documents,
-  documentsDone = false,
   programmes,
   programmesCount = 0,
   sidebar,
@@ -287,10 +283,6 @@ export function CallForm({
   /** "review" = post-vetting: editable, remarks inline, page owns the footer. */
   mode?: "fill" | "review";
   remarks?: StepRemark[];
-  /** The document checklist, rendered as its own step. */
-  documents?: React.ReactNode;
-  /** Every required slot filled — the page owns the checklist, so it decides. */
-  documentsDone?: boolean;
   /** The programme recommendations step (engine-scored picker + picks). */
   programmes?: React.ReactNode;
   /** How many the counsellor has recommended so far — gates submission. */
@@ -397,12 +389,11 @@ export function CallForm({
     return [
       profile,
       academics,
-      documentsDone,
       financing,
       programmesCount > 0,
       missing.length === 0,
     ];
-  }, [v, degree, countries, isMinor, isMasters, missing, documentsDone, programmesCount]);
+  }, [v, degree, countries, isMinor, isMasters, missing, programmesCount]);
 
   const openCount = remarks.filter((r) => !r.resolved).length;
   const resolving = mode === "review";
@@ -900,25 +891,8 @@ export function CallForm({
           </>
         )}
 
-        {/* ── Step 3: Documents ──
-            The counsellor is on the call with the learner, so this is where
-            the documents actually get collected. The same checklist Ops vets
-            against and the learner tops up later — one table, three roles. */}
-        {(resolving || step === 2) && documents && (
-          <div className="card fade-up p-6">
-            <h2 className="font-display text-[15px] font-semibold tracking-tight">
-              Documents
-            </h2>
-            <p className="mb-4 mt-1 text-sm text-body">
-              Collect what the learner has to hand. Anything still missing can
-              be uploaded by them later — this doesn&apos;t block submitting.
-            </p>
-            {documents}
-          </div>
-        )}
-
-        {/* ── Step 4: Financing ── */}
-        {(resolving || step === 3) && (
+        {/* ── Step 3: Financing ── */}
+        {(resolving || step === 2) && (
           <>
           <div className="card fade-up p-6">
             <h2 className="font-display text-[15px] font-semibold tracking-tight">
@@ -949,8 +923,8 @@ export function CallForm({
           </>
         )}
 
-        {/* ── Step 5: Programmes — the AI vet recommends, the counsellor picks ── */}
-        {(resolving || step === 4) && programmes && (
+        {/* ── Step 4: Programmes — the AI vet recommends, the counsellor picks ── */}
+        {(resolving || step === 3) && programmes && (
           <div className="card fade-up p-6">
             <h2 className="font-display text-[15px] font-semibold tracking-tight">
               Recommended programmes
@@ -965,8 +939,8 @@ export function CallForm({
           </div>
         )}
 
-        {/* ── Step 6: Review ── */}
-        {(resolving || step === 5) && (
+        {/* ── Step 5: Review ── */}
+        {(resolving || step === 4) && (
           <>
           <div className="card fade-up p-6">
             <h2 className="font-display text-[15px] font-semibold tracking-tight">

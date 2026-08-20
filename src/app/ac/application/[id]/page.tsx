@@ -433,19 +433,6 @@ export default function AcApplicationPage({
           }
           saveAction={saveForm.bind(null, app.id)}
           submitAction={submitForm.bind(null, app.id)}
-          documents={
-            <DocumentTable
-              rows={locker}
-              categories={DOC_CATEGORIES}
-              insightFor={(key) => docInsight(key, responses, app.learner_name ?? "")}
-              canUpload
-              canVerify={false}
-              upload={uploadLearnerDoc.bind(null, app.id)}
-              remove={removeLearnerDoc.bind(null, app.id)}
-              verify={verifyLearnerDoc.bind(null, app.id)}
-            />
-          }
-          documentsDone={lockerMissing === 0}
           programmes={
             <>
               {programs.length > 0 && (

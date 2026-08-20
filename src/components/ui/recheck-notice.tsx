@@ -56,43 +56,28 @@ export function RecheckNotice({
       ? `${openRemarks} comment${openRemarks === 1 ? "" : "s"}`
       : "comments";
 
+  // ONE line — the changed fields are pinned on the fields themselves and
+  // the full story is in the Activity timeline, so the banner only has to
+  // say whose move it is.
   const title =
     state === "ops"
       ? viewer === "ops"
-        ? "Re-check needed — the learner changed their details"
-        : `${who} changed their details — with Ops for a re-check`
+        ? `Re-check — ${who} changed ${fields.length || "some"} detail${fields.length === 1 ? "" : "s"} after vetting`
+        : `${who} changed ${fields.length || "some"} detail${fields.length === 1 ? "" : "s"} — with Ops for a re-check`
       : viewer === "ac"
-        ? `Ops raised ${comments} on ${who}'s changed details`
-        : `With the counsellor — ${comments} to resolve with the learner`;
-
-  const body =
-    state === "ops"
-      ? viewer === "ops"
-        ? "These were vetted before the change. Read them again — clear the re-check if they're fine, or comment on the fields that aren't and send it to the counsellor. Until this is closed the learner cannot certify and the offer letter cannot go out."
-        : "Their certification has been withdrawn. If Ops has comments it comes back to you to resolve with the learner; if not, the application picks up where it left off."
-      : viewer === "ac"
-        ? "Ops does not call the learner — you do. Work through each comment with them: anything they change comes straight back to Ops, and if nothing needs changing, tick the comments off and send it back yourself."
-        : "You have commented and the counsellor is taking it to the learner. It comes back here when they've changed something or confirmed nothing needs changing.";
-
-  const verdictLine =
-    staleVerdicts > 0
-      ? `${staleVerdicts} eligibility verdict${staleVerdicts === 1 ? "" : "s"} rested on what they changed${
-          viewer === "ops"
-            ? " — rule again before closing this, including on the shortlisted programme"
-            : " and are being ruled again — the shortlisted programme could change"
-        }.`
-      : null;
+        ? `Re-check — resolve Ops' ${comments} on ${who}'s change with the learner`
+        : `Re-check with the counsellor — ${comments} to resolve with the learner`;
 
   return (
     <div
-      className={`card fade-up mb-5 p-5 ${
+      className={`card fade-up mb-5 px-5 py-4 ${
         mine ? "border-[#ecdfc0] bg-[#fbf7ec]" : "border-line bg-paper"
       }`}
     >
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex min-w-0 gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+        <div className="flex min-w-0 items-center gap-3">
           <span
-            className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
               mine ? "bg-[#f6efdd] text-[#8a6d2f]" : "bg-cream text-body"
             }`}
           >
@@ -104,59 +89,39 @@ export function RecheckNotice({
           </span>
           <div className="min-w-0">
             <div
-              className={`text-[15px] font-medium ${
+              className={`text-[14.5px] font-medium ${
                 mine ? "text-[#6f5624]" : "text-ink"
               }`}
             >
               {title}
             </div>
             <p
-              className={`mt-1 text-[13.5px] leading-relaxed ${
-                mine ? "text-[#8a6d2f]" : "text-body"
+              className={`mt-0.5 text-[12.5px] ${
+                mine ? "text-[#a08442]" : "text-caption"
               }`}
             >
-              {body}
-            </p>
-            {verdictLine && (
-              <p
-                className={`mt-2 text-[13.5px] font-medium leading-relaxed ${
-                  mine ? "text-[#8a6d2f]" : "text-body"
-                }`}
-              >
-                {verdictLine}
-                {verdictHref && (
-                  <>
-                    {" "}
-                    <a
-                      href={verdictHref}
-                      className="underline underline-offset-2 hover:no-underline"
-                    >
-                      Rule on them now →
-                    </a>
-                  </>
-                )}
-              </p>
-            )}
-            {fields.length > 0 && (
-              <ul className="mt-3 flex flex-wrap gap-1.5">
-                {fields.map((f) => (
-                  <li
-                    key={f}
-                    className={`rounded-full border px-2.5 py-1 text-[12px] font-medium ${
-                      mine
-                        ? "border-[#ecdfc0] bg-white text-[#8a6d2f]"
-                        : "border-line bg-white text-body"
-                    }`}
-                  >
-                    {f}
-                  </li>
-                ))}
-              </ul>
-            )}
-            <p
-              className={`mt-3 text-[12px] ${mine ? "text-[#a08442]" : "text-caption"}`}
-            >
-              Changed {at} UTC
+              Changed fields carry a yellow marker · details in the Activity
+              timeline
+              {staleVerdicts > 0 && (
+                <>
+                  {" · "}
+                  <b className={mine ? "text-[#8a6d2f]" : "text-body"}>
+                    {staleVerdicts} verdict{staleVerdicts === 1 ? "" : "s"} to
+                    re-rule
+                  </b>
+                  {verdictHref && (
+                    <>
+                      {" "}
+                      <a
+                        href={verdictHref}
+                        className="underline underline-offset-2 hover:no-underline"
+                      >
+                        rule now →
+                      </a>
+                    </>
+                  )}
+                </>
+              )}
             </p>
           </div>
         </div>

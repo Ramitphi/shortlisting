@@ -277,12 +277,12 @@ export function V2Certify({
     <div className="mt-spacing32">
       {rechecking && (
         <div className="mb-spacing24 rounded-8 bg-[#FFF4E5] p-spacing16">
-          <p className="text-bodySmall font-medium text-[#8a6d2f]">
+          <p className="text-bodySmall font-medium text-body">
             {withCounsellor
               ? "Your counsellor will get in touch about these"
               : "We’re checking the details you changed"}
           </p>
-          <p className="text-labelNormal text-[#8a6d2f] mt-spacing8">
+          <p className="text-labelNormal text-body mt-spacing8">
             {recheckFields && recheckFields.length > 0
               ? `You updated ${recheckFields.slice(0, 3).join(", ")}${
                   recheckFields.length > 3

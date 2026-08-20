@@ -10,6 +10,7 @@ import {
   CardChip,
   CertifiedChip,
   FieldComments,
+  ChangedPin,
   AiInsightLine,
   DocumentDialog,
   DocumentTable,
@@ -356,43 +357,6 @@ export default function OpsApplicationPage({
           openRemarks={recheckComments}
           staleVerdicts={staleVerdicts}
           verdictHref={`/ops/application/${app.id}?tab=programs`}
-          action={
-            recheck.state === "ops" ? (
-              <>
-                {/* Two exits, both explicit. Nothing here decides itself:
-                    a re-check that quietly expires is a re-check nobody did. */}
-                <form action={raiseRecheckRemarks.bind(null, app.id)}>
-                  <button
-                    className="btn-secondary whitespace-nowrap"
-                    disabled={recheckComments === 0}
-                    title={
-                      recheckComments === 0
-                        ? "Comment on the fields that are wrong first — the counsellor needs something to act on"
-                        : ""
-                    }
-                  >
-                    <IconSend className="h-4 w-4" />
-                    Send {recheckComments > 0 ? `${recheckComments} ` : ""}comment
-                    {recheckComments === 1 ? "" : "s"} to AC
-                  </button>
-                </form>
-                <form action={clearRecheck.bind(null, app.id)}>
-                  <button
-                    className="btn-success whitespace-nowrap"
-                    disabled={staleVerdicts > 0}
-                    title={
-                      staleVerdicts > 0
-                        ? "Rule on the programmes again first — the change moved the answers your verdicts were based on"
-                        : ""
-                    }
-                  >
-                    <IconCheck className="h-4 w-4" />
-                    Re-check done
-                  </button>
-                </form>
-              </>
-            ) : undefined
-          }
         />
       )}
 
@@ -478,12 +442,10 @@ export default function OpsApplicationPage({
                                       ops
                                     </span>
                                   )}
-                                  {changedLabels.has(f.label) && (
-                                    <span className="ml-1.5 rounded-full bg-[#f6efdd] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#8a6d2f]">
-                                      changed
-                                    </span>
-                                  )}
                                 </span>
+                                {changedLabels.has(f.label) && (
+                                  <ChangedPin at={recheck?.at} />
+                                )}
                                 <FieldComments comments={commentsFor(f.key)} />
                               </div>
                               {/* The split the PM drew: the counsellor's
@@ -846,7 +808,7 @@ export default function OpsApplicationPage({
       </div>
 
       {/* Sticky action bar — mirrors the counsellor's wizard footer */}
-      {(vetting || (awaitingOffer && allSigned && certified)) && (
+      {(vetting || reRuling || (awaitingOffer && allSigned && certified)) && (
         <div className="sticky bottom-0 z-20 mt-auto py-3.5">
           <div className="pointer-events-none absolute inset-y-0 left-1/2 w-screen -translate-x-1/2 border-t border-line bg-white/90 backdrop-blur-md" />
           <div className="relative flex flex-wrap items-center gap-3">
@@ -923,6 +885,49 @@ export default function OpsApplicationPage({
                   )}
                 </div>
               </>
+            ) : reRuling ? (
+              /* The re-check's two exits, both explicit — in the bar where
+                 every other primary action lives, not inside the notice. */
+              <div className="flex w-full flex-wrap items-center gap-3">
+                <span className="text-xs text-caption">
+                  {staleVerdicts > 0
+                    ? `${staleVerdicts} verdict${staleVerdicts === 1 ? "" : "s"} to re-rule on the Programs tab`
+                    : recheckComments > 0
+                      ? `${recheckComments} comment${recheckComments === 1 ? "" : "s"} raised on the change`
+                      : "Re-read the marked fields — comment on what's wrong, or close the re-check"}
+                </span>
+                <div className="ml-auto flex items-center gap-2">
+                  <form action={raiseRecheckRemarks.bind(null, app.id)}>
+                    <button
+                      className="btn-secondary whitespace-nowrap"
+                      disabled={recheckComments === 0}
+                      title={
+                        recheckComments === 0
+                          ? "Comment on the fields that are wrong first — the counsellor needs something to act on"
+                          : ""
+                      }
+                    >
+                      <IconSend className="h-4 w-4" />
+                      Send {recheckComments > 0 ? `${recheckComments} ` : ""}comment
+                      {recheckComments === 1 ? "" : "s"} to AC
+                    </button>
+                  </form>
+                  <form action={clearRecheck.bind(null, app.id)}>
+                    <button
+                      className="btn-success whitespace-nowrap"
+                      disabled={staleVerdicts > 0}
+                      title={
+                        staleVerdicts > 0
+                          ? "Rule on the programmes again first — the change moved the answers your verdicts were based on"
+                          : ""
+                      }
+                    >
+                      <IconCheck className="h-4 w-4" />
+                      Re-check done
+                    </button>
+                  </form>
+                </div>
+              </div>
             ) : (
               <div className="flex w-full flex-wrap items-center gap-3">
                 <span className="text-xs text-caption">

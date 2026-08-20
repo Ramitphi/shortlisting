@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { IconAlert, IconCheck } from "./icons";
+import { IconAlert, IconCheck, IconRefresh } from "./icons";
 
 export interface FieldComment {
   id: number;
@@ -131,5 +131,24 @@ export function FieldComments({ comments }: { comments: FieldComment[] }) {
           document.body
         )}
     </>
+  );
+}
+
+/**
+ * The "learner changed this" marker — same family as the comment pin, one
+ * icon against the field, the story on hover. Exists so a re-check can be
+ * done field by field instead of re-reading the whole form.
+ */
+export function ChangedPin({ at }: { at?: string | null }) {
+  return (
+    <span
+      title={`The learner changed this after vetting — re-check it.${
+        at ? ` Changed ${at} UTC.` : ""
+      }`}
+      className="flex h-5 w-5 shrink-0 cursor-help items-center justify-center rounded-full bg-[#f6efdd] text-[#8a6d2f]"
+      aria-label="Changed by the learner — re-check"
+    >
+      <IconRefresh className="h-3 w-3" />
+    </span>
   );
 }

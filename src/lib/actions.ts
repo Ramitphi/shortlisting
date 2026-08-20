@@ -13,7 +13,7 @@ import {
   learnerViewRaw,
 } from "./session";
 import { requireUser } from "./auth";
-import { attachRequiredForms, claimApplication } from "./vetting";
+import { attachMissingForms, attachRequiredForms, claimApplication } from "./vetting";
 import {
   CLAUSES,
   FORM_FIELDS,
@@ -168,9 +168,13 @@ export async function syncFromLsq(applicationId: number) {
  * the counsellor does not get it back. See `editorOf` in domain.ts.
  */
 export async function saveForm(applicationId: number, formData: FormData) {
-  requireUser("ac");
+  const user = requireUser("ac");
   const app = getApplication(applicationId);
-  if (!app || !canEditDetails(app.status, "ac")) return;
+  // Draft, or a re-check handed back to the counsellor — the edit board is
+  // theirs again in both, because somebody has to be able to act on a change.
+  const recheckEditing =
+    app?.recheck_state === "ac" && app.ac_id === user.id;
+  if (!app || !(canEditDetails(app.status, "ac") || recheckEditing)) return;
 
   const db = getDb();
   const upsert = db.prepare(
@@ -378,7 +382,7 @@ export async function updateFieldValue(
   const acResolving =
     user.role === "ac" &&
     app.ac_id === user.id &&
-    app.status === "reviewed" &&
+    (app.status === "reviewed" || app.recheck_state === "ac") &&
     field.filledBy !== "ops";
   if (!opsFilling && !acResolving) return;
 
@@ -577,7 +581,9 @@ export async function removeDocument(docId: number) {
 export async function addProgram(applicationId: number, formData: FormData) {
   const user = requireUser("ac");
   const app = getApplication(applicationId);
-  if (!app || app.ac_id !== user.id || app.status !== "draft") return;
+  const mayEdit =
+    app?.status === "draft" || app?.recheck_state === "ac";
+  if (!app || app.ac_id !== user.id || !mayEdit) return;
   if (getPrograms(applicationId).length >= MAX_RECOMMENDED_PROGRAMS) return;
   const catalogueId = Number(formData.get("catalogueId"));
   if (!catalogueId) return;
@@ -637,7 +643,9 @@ export async function removeProgram(programId: number) {
     | undefined;
   if (!p || p.shortlisted) return;
   const app = getApplication(p.application_id);
-  if (!app || app.ac_id !== user.id || app.status !== "draft") return;
+  const mayEdit =
+    app?.status === "draft" || app?.recheck_state === "ac";
+  if (!app || app.ac_id !== user.id || !mayEdit) return;
   getDb().prepare("DELETE FROM programs WHERE id = ?").run(programId);
   logEvent(p.application_id, user.id, `Recommendation withdrawn: ${p.name}`);
   dirty();
@@ -1069,11 +1077,18 @@ export async function raiseRecheckRemarks(applicationId: number) {
  * outside the form, and without this the application would sit with the
  * counsellor forever waiting for an edit that is never coming.
  */
-export async function returnRecheckToOps(applicationId: number) {
+export async function returnRecheckToOps(
+  applicationId: number,
+  formData?: FormData
+) {
   const user = requireUser("ac");
   const app = getApplication(applicationId);
   if (!app || app.ac_id !== user.id) return;
   if (!app.recheck_at || app.recheck_state !== "ac") return;
+
+  // Posted from the edit board: everything on it saves with the hand-back,
+  // so "send back" can never lose the fixes it is sending back.
+  if (formData) await saveForm(applicationId, formData);
   // Every comment from this re-check answered first — otherwise Ops gets it
   // back with the same open list they sent, and the round trip taught nobody
   // anything. Older remarks are not part of this conversation.
@@ -1093,6 +1108,10 @@ export async function returnRecheckToOps(applicationId: number) {
     "Comments resolved with the learner — sent back to Ops",
     app.recheck_fields ?? undefined
   );
+  // A changed answer can trigger clauses the original call didn't — any
+  // newly needed undertakings attach now, unsigned, closing the loop:
+  // learner signs the new papers, certifies again, and only then the OL.
+  attachMissingForms(applicationId, user.id);
   const msg = `${app.learner_name}'s counsellor resolved your comments — ready for the re-check`;
   const link = `/ops/application/${applicationId}`;
   if (app.ops_id) notify(app.ops_id, msg, link);

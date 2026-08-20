@@ -99,6 +99,14 @@ export const STATUS_LABELS: Record<AppStatus, string> = {
   completed: "Completed",
 };
 
+/**
+ * A re-check replaces the status chip while it is live — ONE chip, in a
+ * colour no status uses (blue), so it never twins with Under Vetting's amber
+ * and a row never wears two badges.
+ */
+export const RECHECK_CHIP =
+  "bg-[#e7eef8] text-[#3b5e8e] border border-[#d3e0f0]";
+
 export const STATUS_COLORS: Record<AppStatus, string> = {
   draft: "bg-cream text-body border border-cream-line",
   under_review: "bg-[#f6efdd] text-[#8a6d2f] border border-[#ecdfc0]",

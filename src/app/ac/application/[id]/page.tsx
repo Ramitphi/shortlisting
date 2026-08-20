@@ -13,6 +13,7 @@ import {
   Timeline,
   Meta,
   FieldComments,
+  ChangedPin,
   DocumentDialog,
   DocumentTable,
   SideSheet,
@@ -78,7 +79,7 @@ import {
 } from "@/app/ops/application/[id]/catalogue-picker";
 import { OpsField } from "@/app/ops/application/[id]/ops-field";
 import { AiAdd, PickRemove } from "./ai-add";
-import { CallForm } from "./call-form";
+import { CallForm, type StepRemark } from "./call-form";
 import { AcFlowBar } from "./shortlist-button";
 
 
@@ -143,6 +144,25 @@ export default function AcApplicationPage({
     : [];
   /** The labels the learner moved — marked wherever the fields are read. */
   const changedLabels = new Set(recheck?.fields ?? []);
+
+  // A hand-back re-opens the edit board: somebody has to be able to ACT on
+  // the change — fix fields, swap programme recommendations — and that
+  // somebody is the counsellor, who talks to the learner.
+  const recheckEditing = recheck?.state === "ac";
+  const wizardRemarks: StepRemark[] = recheckEditing
+    ? remarks.map((r) => ({
+        id: r.id,
+        fieldKey: r.field_key,
+        section:
+          FORM_FIELDS.find((f) => f.key === r.field_key)?.section ??
+          "Profile Data",
+        author: r.author_name ?? "Ops",
+        at: r.created_at,
+        text: r.text,
+        resolved: r.status === "resolved",
+        resolveAction: resolveRemark.bind(null, r.id),
+      }))
+    : [];
 
   /**
    * Ops' comments on a field. The counsellor is the one who acts on them, so
@@ -308,32 +328,53 @@ export default function AcApplicationPage({
           learnerName={app.learner_name}
           openRemarks={recheckComments.length}
           staleVerdicts={programs.filter((p) => p.eligibility_stale).length}
-          action={
-            recheck.state === "ac" ? (
-              <form action={returnRecheckToOps.bind(null, app.id)}>
-                <button
-                  className="btn-success whitespace-nowrap"
-                  disabled={recheckComments.length > 0}
-                  title={
-                    recheckComments.length > 0
-                      ? "Tick off Ops' comments on the changed fields first — they're on the Profile tab"
-                      : ""
-                  }
-                >
-                  <IconCheck className="h-4 w-4" />
-                  Resolved — send back to Ops
-                </button>
-              </form>
-            ) : undefined
-          }
         />
       )}
 
-      {editable ? (
+      {editable || recheckEditing ? (
         // The wizard owns the whole page so its footer runs edge to edge; the
         // timeline rides along inside it rather than in a column beside it.
+        // A re-check handed back re-opens it as the EDIT BOARD (mode review):
+        // every field editable with Ops' comments inline, programmes
+        // re-recommendable against the changed answers.
         <CallForm
           initial={responses}
+          mode={recheckEditing ? "review" : "fill"}
+          remarks={recheckEditing ? wizardRemarks : []}
+          reviewBar={
+            recheckEditing ? (
+              <>
+                <span className="text-xs text-caption">
+                  {recheckComments.length > 0
+                    ? `${recheckComments.length} comment${recheckComments.length === 1 ? "" : "s"} from Ops to resolve — under the fields they're about`
+                    : "All comments resolved — save and send it back to Ops"}
+                </span>
+                <div className="ml-auto flex items-center gap-2">
+                  <button
+                    formAction={saveForm.bind(null, app.id)}
+                    formNoValidate
+                    className="btn-secondary"
+                  >
+                    Save changes
+                  </button>
+                  <button
+                    formAction={returnRecheckToOps.bind(null, app.id)}
+                    formNoValidate
+                    disabled={recheckComments.length > 0}
+                    title={
+                      recheckComments.length > 0
+                        ? "Tick off Ops' comments first — they sit under the fields they are about"
+                        : ""
+                    }
+                    className="btn-success"
+                  >
+                    <IconCheck className="h-4 w-4" />
+                    Save &amp; send back to Ops
+                  </button>
+                </div>
+              </>
+            ) : undefined
+          }
           saveAction={saveForm.bind(null, app.id)}
           submitAction={submitForm.bind(null, app.id)}
           documents={
@@ -563,12 +604,10 @@ export default function AcApplicationPage({
                                     ops
                                   </span>
                                 )}
-                                {changedLabels.has(f.label) && (
-                                  <span className="ml-1.5 rounded-full bg-[#f6efdd] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#8a6d2f]">
-                                    changed
-                                  </span>
-                                )}
                               </span>
+                              {changedLabels.has(f.label) && (
+                                <ChangedPin at={recheck?.at} />
+                              )}
                               <FieldComments comments={commentsFor(f.key)} />
                             </div>
                             {f.type === "file" ? (

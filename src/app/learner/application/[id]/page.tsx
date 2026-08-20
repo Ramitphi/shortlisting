@@ -278,17 +278,17 @@ export default function LearnerApplicationPage({
               walk — the edit happens on step 1 and the held Certify button
               is on step 3, so neither place alone would explain it. */}
           {recheck && canSign && (
-            <div className="card mt-4 flex items-start gap-3 border-[#ecdfc0] bg-[#fbf7ec] p-5">
-              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f6efdd] text-[#8a6d2f]">
+            <div className="card mt-4 flex items-start gap-3 bg-paper p-5">
+              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-body">
                 <IconClock className="h-4 w-4" />
               </span>
               <div>
-                <div className="text-[14.5px] font-medium text-[#6f5624]">
+                <div className="text-[14.5px] font-medium text-ink">
                   {recheck.state === "ac"
                     ? "Your counsellor will get in touch about these"
                     : "We’re checking the details you changed"}
                 </div>
-                <p className="mt-1 text-[13.5px] leading-relaxed text-[#8a6d2f]">
+                <p className="mt-1 text-[13.5px] leading-relaxed text-body">
                   {recheck.fields.length > 0 && (
                     <>You updated {recheck.fields.slice(0, 3).join(", ")}
                     {recheck.fields.length > 3

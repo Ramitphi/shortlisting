@@ -2,8 +2,15 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { FORM_FIELDS, FORM_SECTIONS, type FieldDef } from "@/lib/domain";
 import {
+  COUNTRIES,
+  COUNTRY_FLAGS,
+  FORM_FIELDS,
+  FORM_SECTIONS,
+  type FieldDef,
+} from "@/lib/domain";
+import {
+  MultiSelect,
   DocumentDialog,
   FileTile,
   useToast,
@@ -98,6 +105,18 @@ export function LearnerDetailsForm({
           <div className="text-sm">
             {value || <span className="text-caption">—</span>}
           </div>
+        ) : f.key === "countries" ? (
+          /* Free text invited "America" — the catalogue only knows its own
+             countries, so this is a dropdown, same options and same up-to-3
+             rule as the counsellor's wizard. */
+          <MultiSelect
+            values={value.split(", ").filter(Boolean)}
+            options={[...COUNTRIES]}
+            max={3}
+            onChange={(next) => set(f.key, next.join(", "))}
+            placeholder="Select up to 3 countries…"
+            iconFor={(o) => COUNTRY_FLAGS[o] ?? ""}
+          />
         ) : f.type === "select" && f.options ? (
           <select
             value={value}

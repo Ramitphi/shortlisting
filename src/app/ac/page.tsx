@@ -235,14 +235,12 @@ export default function AcDashboard({
                   <td className="px-4 py-3">
                     {/* A re-check rides on top of any status, so the badge
                         alone would hide the one row that needs a call. */}
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <StatusBadge status={a.status} />
-                      {a.recheck_at && (
-                        <CardChip tone={acRecheck(a) ? "amber" : "muted"}>
-                          {acRecheck(a) ? "Comments to resolve" : "Re-check · with Ops"}
-                        </CardChip>
-                      )}
-                    </div>
+                    {/* ONE chip: a live re-check replaces the status — its
+                        own blue, so it reads as its own state. */}
+                    <StatusBadge
+                      status={a.status}
+                      recheckLabel={a.recheck_at ? "Re-check" : null}
+                    />
                   </td>
                   <td className="px-4 py-3 text-caption">{a.updated_at} UTC</td>
                   <td className="px-4 py-3 text-right">

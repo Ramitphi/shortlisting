@@ -246,18 +246,12 @@ export default function OpsDashboard({
                         Vetting, and the row's CTA is primary when it's ours.
                         A re-check is the exception: it can sit on ANY status,
                         so the badge alone would hide it. */}
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <StatusBadge status={a.status} />
-                      {a.recheck_at && (
-                        <CardChip
-                          tone={a.recheck_state === "ac" ? "muted" : "amber"}
-                        >
-                          {a.recheck_state === "ac"
-                            ? "Re-check · with AC"
-                            : "Re-check"}
-                        </CardChip>
-                      )}
-                    </div>
+                    {/* ONE chip: a live re-check replaces the status — its
+                        own blue, so it reads as its own state. */}
+                    <StatusBadge
+                      status={a.status}
+                      recheckLabel={a.recheck_at ? "Re-check" : null}
+                    />
                   </td>
                   <td className="px-4 py-3 text-caption">{a.updated_at} UTC</td>
                   <td className="px-4 py-3 text-right">

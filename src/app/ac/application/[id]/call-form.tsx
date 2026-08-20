@@ -266,6 +266,7 @@ export function CallForm({
   programmes,
   programmesCount = 0,
   sidebar,
+  reviewBar,
 }: {
   initial: Values;
   saveAction: (formData: FormData) => void;
@@ -283,6 +284,9 @@ export function CallForm({
   programmesCount?: number;
   /** Rendered in the right rail — inside the form so the footer stays full width. */
   sidebar?: React.ReactNode;
+  /** review mode's sticky footer — the page's actions, inside the form so
+   *  they can post the form's own data (Save, Save & send back). */
+  reviewBar?: React.ReactNode;
 }) {
   const [step, setStep] = useState(0);
   const [v, setV] = useState<Values>(initial);
@@ -392,7 +396,10 @@ export function CallForm({
 
   return (
     <RemarksContext.Provider value={remarks}>
-    <form className="-mb-12 grid min-h-[calc(100dvh-12.2rem)] grid-rows-[1fr_auto] gap-6">  {/* -mb-12 cancels main's bottom padding so the sticky bar can reach the viewport edge */}
+    <form
+      id="call-form"
+      className="-mb-12 grid min-h-[calc(100dvh-12.2rem)] grid-rows-[1fr_auto] gap-6"
+    >  {/* -mb-12 cancels main's bottom padding so the sticky bar can reach the viewport edge */}
       {/* Persist every value, including fields on steps not currently mounted */}
       {Object.entries(v).map(([k, val]) =>
         [
@@ -999,6 +1006,15 @@ export function CallForm({
       {/* Action bar — spans the whole page, not just the field column.
           Suppressed after review: the page owns a persistent bar there so it
           stays put across the Programmes and Undertaking tabs too. */}
+      {resolving && reviewBar && (
+        <div className="sticky bottom-0 z-20 py-3.5">
+          <div className="pointer-events-none absolute inset-y-0 left-1/2 w-screen -translate-x-1/2 border-t border-line bg-white/90 backdrop-blur-md" />
+          <div className="relative flex flex-wrap items-center gap-3">
+            {reviewBar}
+          </div>
+        </div>
+      )}
+
       {!resolving && (
       <div className="sticky bottom-0 z-20 py-3.5">
         {/* Backing spans the whole content column, not just the grid cell */}

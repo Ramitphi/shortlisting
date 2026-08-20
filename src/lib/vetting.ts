@@ -1,5 +1,5 @@
 import { getDb } from "./db";
-import { getApplication, getDocuments, getFormResponses, logEvent } from "./queries";
+import { getApplication, getDocuments, getFormResponses, logEvent, notify } from "./queries";
 
 /**
  * Attach the forms this application requires, as source='auto' so Ops cannot
@@ -62,4 +62,64 @@ export function claimApplication(applicationId: number, opsId: number): boolean 
     .run(opsId, applicationId);
   logEvent(applicationId, opsId, "Picked up for vetting");
   return true;
+}
+
+/**
+ * The incremental sibling of attachRequiredForms, for re-checks: a changed
+ * answer can trigger a clause that wasn't triggered on the original call, so
+ * when the counsellor sends a re-check back, any NEWLY needed forms attach —
+ * unsigned, for the learner to sign before they can certify again. Forms
+ * already attached (signed or not) are left exactly as they are.
+ */
+export function attachMissingForms(applicationId: number, actorId: number) {
+  const app = getApplication(applicationId);
+  if (!app) return;
+
+  const db = getDb();
+  const responses = getFormResponses(applicationId);
+  const learner = responses.full_name || app.learner_name || "the learner";
+  const triggered = (responses.triggered_clauses ?? "").split("|").filter(Boolean);
+
+  const existing = new Set(
+    getDocuments(applicationId)
+      .map((d) => d.template_id)
+      .filter((id): id is number => id !== null)
+  );
+  const templates = db.prepare("SELECT * FROM document_templates").all() as {
+    id: number;
+    type: string;
+    title: string;
+    content: string;
+    clause_id: string | null;
+    always_required: number;
+  }[];
+  const needed = templates.filter(
+    (t) =>
+      !existing.has(t.id) &&
+      (t.always_required === 1 ||
+        (t.clause_id && triggered.includes(t.clause_id)))
+  );
+  if (needed.length === 0) return;
+
+  const insert = db.prepare(
+    `INSERT INTO documents
+     (application_id, type, title, content, auto_generated, template_id, source)
+     VALUES (?, ?, ?, ?, 1, ?, 'auto')`
+  );
+  for (const t of needed) {
+    insert.run(applicationId, t.type, t.title, `I, ${learner}, ${t.content}`, t.id);
+  }
+  logEvent(
+    applicationId,
+    actorId,
+    `${needed.length} new undertaking(s) attached after the change`,
+    needed.map((t) => t.title).join("; ")
+  );
+  if (app.learner_id) {
+    notify(
+      app.learner_id,
+      `Your change added ${needed.length} document(s) to sign before you can certify`,
+      "/learner"
+    );
+  }
 }

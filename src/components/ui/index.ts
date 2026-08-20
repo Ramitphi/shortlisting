@@ -22,6 +22,6 @@ export { RecheckNotice } from "./recheck-notice";
 export { FileTile, FileValue, FileGlyph, FILE_ACCEPT } from "./file-tile";
 export { DocumentTable, type DocRow } from "./document-table";
 export { SideSheet } from "./side-sheet";
-export { FieldComments, type FieldComment } from "./field-comments";
+export { FieldComments, ChangedPin, type FieldComment } from "./field-comments";
 export { MultiSelect } from "./multi-select";
 export { AiStar, AiInsightLine } from "./ai-insight";

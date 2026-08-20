@@ -1,5 +1,6 @@
 import Link from "next/link";
 import {
+  RECHECK_CHIP,
   STATUS_COLORS,
   STATUS_LABELS,
   learnerStatus,
@@ -17,16 +18,22 @@ export function StatusBadge({
   learner = false,
   certified = false,
   recheck = false,
+  recheckLabel = null,
 }: {
   status: AppStatus;
   learner?: boolean;
   certified?: boolean;
   /** Learner view only: their changed details are being re-checked. */
   recheck?: boolean;
+  /** Internal views: a live re-check REPLACES the status chip — one chip,
+   *  this label, the re-check blue. */
+  recheckLabel?: string | null;
 }) {
-  const { label, className } = learner
-    ? learnerStatus(status, certified, recheck)
-    : { label: STATUS_LABELS[status], className: STATUS_COLORS[status] };
+  const { label, className } = recheckLabel
+    ? { label: recheckLabel, className: RECHECK_CHIP }
+    : learner
+      ? learnerStatus(status, certified, recheck)
+      : { label: STATUS_LABELS[status], className: STATUS_COLORS[status] };
   return (
     <span
       className={`inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-medium ${className}`}

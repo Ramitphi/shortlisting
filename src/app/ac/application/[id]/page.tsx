@@ -21,6 +21,7 @@ import {
   CardChip,
   CertifiedChip,
   DotStatus,
+  ProfileSummary,
   RecheckNotice,
   IconBuilding,
   IconCalendar,
@@ -83,16 +84,14 @@ import { CallForm, type StepRemark } from "./call-form";
 import { AcFlowBar } from "./shortlist-button";
 
 
-// One word each. Anything longer wraps to two lines and makes the whole tab
-// bar twice as tall — the headings inside each tab carry the full wording.
-// There is deliberately NO Comments tab: Ops' remarks live as pins beside the
-// fields they are about, and the counsellor fixes the field right there
-// (PM: "remarks will be in place with the field which needs to be edited").
+// TWO tabs, and they stay one running row. Documents moved out to a header
+// CTA (the locker is a reference, not a stage), and Programmes + Undertaking
+// merged into Eligibility — the summary, what they sign and what we send are
+// one decision, not three screens. There is deliberately NO Comments tab:
+// Ops' remarks live as pins beside the fields they are about.
 const TABS = [
   { key: "profile", label: "Profile" },
-  { key: "documents", label: "Documents" },
-  { key: "programs", label: "Programs" },
-  { key: "undertaking", label: "Undertaking" },
+  { key: "eligibility", label: "Eligibility" },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -145,10 +144,16 @@ export default function AcApplicationPage({
   /** The labels the learner moved — marked wherever the fields are read. */
   const changedLabels = new Set(recheck?.fields ?? []);
 
-  // A hand-back re-opens the edit board: somebody has to be able to ACT on
-  // the change — fix fields, swap programme recommendations — and that
-  // somebody is the counsellor, who talks to the learner.
-  const recheckEditing = recheck?.state === "ac";
+  // ANY live re-check re-opens the edit board. The learner changed something,
+  // so somebody has to be able to ACT on it — fix fields, swap programme
+  // recommendations — and that somebody is the counsellor, who is the one on
+  // the phone to them. Read-only-for-everyone was the hole in this loop.
+  const recheckEditing = Boolean(recheck);
+  const handedBack = recheck?.state === "ac";
+  /** The same changed fields, as wizard field keys, for the edit board. */
+  const changedKeys = FORM_FIELDS.filter((f) => changedLabels.has(f.label)).map(
+    (f) => f.key
+  );
   const wizardRemarks: StepRemark[] = recheckEditing
     ? remarks.map((r) => ({
         id: r.id,
@@ -198,12 +203,12 @@ export default function AcApplicationPage({
       }));
 
   // Nothing is recommended until Ops finishes, so while it's with them the
-  // counsellor sees the details and the documents and nothing else. Ops'
-  // comments only appear once they have finished — mid-vetting notes are a
-  // work in progress, not something to act on.
+  // counsellor sees the details and nothing else (documents stay one click
+  // away in the header). Ops' comments only appear once they have finished —
+  // mid-vetting notes are a work in progress, not something to act on.
   const withOps = app.status === "under_review";
   const visibleTabs = withOps
-    ? TABS.filter((t) => t.key === "profile" || t.key === "documents")
+    ? TABS.filter((t) => t.key === "profile")
     : TABS;
   const requested = searchParams.tab as TabKey | undefined;
 
@@ -253,9 +258,16 @@ export default function AcApplicationPage({
   const tabCount: Record<TabKey, string | undefined> = {
     // Open comments surface on the Profile tab, where the pins are.
     profile: openRemarks.length > 0 ? String(openRemarks.length) : undefined,
-    documents: `${lockerUploaded}/${locker.length}`,
-    programs: programs.length > 0 ? String(programs.length) : undefined,
-    undertaking: docs.length > 0 ? `${signedCount}/${docs.length}` : undefined,
+    // Once the shortlist is out, signing is the live number; before that it
+    // is how many programmes are on the table.
+    eligibility:
+      app.status === "shortlisted" || app.status === "completed"
+        ? docs.length > 0
+          ? `${signedCount}/${docs.length}`
+          : undefined
+        : programs.length > 0
+          ? String(programs.length)
+          : undefined,
   };
 
   // Two presentations, switched from the role-switcher FAB. Inline is the
@@ -303,7 +315,46 @@ export default function AcApplicationPage({
             </div>
             <p className="mt-1 text-[14.5px] text-body">{app.learner_email}</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* The locker is reference material, not a stage of the journey —
+                so it is one click from the header rather than a tab of its
+                own, next to the other header actions. */}
+            <SideSheet
+              title="Documents"
+              subtitle={`${app.learner_name} · ${lockerUploaded} of ${locker.length} uploaded`}
+              size="wide"
+              triggerClassName="btn-secondary !h-8 !px-3 !text-[12.5px]"
+              trigger={
+                <>
+                  <IconDoc className="h-3.5 w-3.5" />
+                  Documents
+                  <span className="ml-0.5 rounded-full bg-cream px-1.5 py-0.5 text-[10px] font-semibold leading-none text-caption">
+                    {lockerUploaded}/{locker.length}
+                  </span>
+                </>
+              }
+            >
+              <p className="mb-4 text-[13px] text-body">
+                {editable
+                  ? "Collect what you can on the call. Anything missing can still be uploaded by the learner or by Ops."
+                  : "Everything on file for this learner. Ops verifies these during vetting."}
+              </p>
+              <DocumentTable
+                rows={locker}
+                categories={DOC_CATEGORIES}
+                insightFor={(key) => docInsight(key, responses, app.learner_name ?? "")}
+                canUpload={editable}
+                canVerify={false}
+                upload={uploadLearnerDoc.bind(null, app.id)}
+                remove={removeLearnerDoc.bind(null, app.id)}
+                verify={verifyLearnerDoc.bind(null, app.id)}
+                note={
+                  editable
+                    ? undefined
+                    : "Read-only — Ops holds the application from here."
+                }
+              />
+            </SideSheet>
             {/* Draft only: pull whatever the LSQ lead already knows, so the
                 call starts from a part-filled form. Fills EMPTY fields only. */}
             {app.status === "draft" && (
@@ -341,36 +392,41 @@ export default function AcApplicationPage({
           initial={responses}
           mode={recheckEditing ? "review" : "fill"}
           remarks={recheckEditing ? wizardRemarks : []}
+          changedFields={changedKeys}
           reviewBar={
             recheckEditing ? (
               <>
                 <span className="text-xs text-caption">
-                  {recheckComments.length > 0
-                    ? `${recheckComments.length} comment${recheckComments.length === 1 ? "" : "s"} from Ops to resolve — under the fields they're about`
-                    : "All comments resolved — save and send it back to Ops"}
+                  {!handedBack
+                    ? `${recheck?.fields.length ?? 0} detail${(recheck?.fields.length ?? 0) === 1 ? "" : "s"} changed by the learner — Ops is re-reading them. Fix anything you need to with the learner.`
+                    : recheckComments.length > 0
+                      ? `${recheckComments.length} comment${recheckComments.length === 1 ? "" : "s"} from Ops to resolve — under the fields they're about`
+                      : "All comments resolved — save and send it back to Ops"}
                 </span>
                 <div className="ml-auto flex items-center gap-2">
                   <button
                     formAction={saveForm.bind(null, app.id)}
                     formNoValidate
-                    className="btn-secondary"
+                    className={handedBack ? "btn-secondary" : "btn-primary"}
                   >
                     Save changes
                   </button>
-                  <button
-                    formAction={returnRecheckToOps.bind(null, app.id)}
-                    formNoValidate
-                    disabled={recheckComments.length > 0}
-                    title={
-                      recheckComments.length > 0
-                        ? "Tick off Ops' comments first — they sit under the fields they are about"
-                        : ""
-                    }
-                    className="btn-success"
-                  >
-                    <IconCheck className="h-4 w-4" />
-                    Save &amp; send back to Ops
-                  </button>
+                  {handedBack && (
+                    <button
+                      formAction={returnRecheckToOps.bind(null, app.id)}
+                      formNoValidate
+                      disabled={recheckComments.length > 0}
+                      title={
+                        recheckComments.length > 0
+                          ? "Tick off Ops' comments first — they sit under the fields they are about"
+                          : ""
+                      }
+                      className="btn-success"
+                    >
+                      <IconCheck className="h-4 w-4" />
+                      Save &amp; send back to Ops
+                    </button>
+                  )}
                 </div>
               </>
             ) : undefined
@@ -535,13 +591,13 @@ export default function AcApplicationPage({
                         searchParams.sel ? `&sel=${searchParams.sel}` : ""
                       }`}
                       scroll={false}
-                      className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-[13px] font-medium transition-colors ${
+                      className={`flex min-w-0 flex-1 basis-0 items-center justify-center gap-2 rounded-xl px-3 py-2 text-[13px] font-medium transition-colors ${
                         active
                           ? "bg-ink text-paper"
                           : "text-body hover:bg-muted"
                       }`}
                     >
-                      {t.label}
+                      <span className="truncate">{t.label}</span>
                       {count && (
                         <span
                           className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none ${
@@ -636,37 +692,66 @@ export default function AcApplicationPage({
               </div>
             )}
 
-          {/* ── Documents: the learner's locker ── */}
-          {tab === "documents" && (
-            <div className="card fade-up p-6">
-              <h2 className="font-display text-[15px] font-semibold tracking-tight">
-                Documents
-              </h2>
-              <p className="mb-4 mt-1 text-sm text-body">
-                {editable
-                  ? "Collect what you can on the call. Anything missing can still be uploaded by the learner or by Ops."
-                  : "Everything on file for this learner. Ops verifies these during vetting."}
-              </p>
-              <DocumentTable
-                rows={locker}
-                categories={DOC_CATEGORIES}
-                insightFor={(key) => docInsight(key, responses, app.learner_name ?? "")}
-                canUpload={editable}
-                canVerify={false}
-                upload={uploadLearnerDoc.bind(null, app.id)}
-                remove={removeLearnerDoc.bind(null, app.id)}
-                verify={verifyLearnerDoc.bind(null, app.id)}
-                note={
-                  editable
-                    ? undefined
-                    : "Read-only — Ops holds the application from here."
-                }
-              />
-            </div>
+          {/* ── Eligibility ──
+              One tab, three parts in the order the decision is actually made:
+              what we know about the learner, what they will have to sign, and
+              the programmes we are putting in front of them. */}
+          {tab === "eligibility" && (
+            <ProfileSummary
+              responses={responses}
+              locker={locker}
+              learnerName={app.learner_name}
+            />
           )}
 
+            {/* ── Undertaking: documents + offer letter ── */}
+            {tab === "eligibility" && (
+              <div className="card fade-up p-6">
+                <h2 className="font-display text-[15px] font-semibold tracking-tight">
+                  Undertaking & Acknowledgement
+                </h2>
+                <p className="mb-4 mt-1 text-sm text-body">
+                  Auto-generated by Ops from the declarations triggered on the
+                  call. The learner signs these once shortlisted.
+                </p>
+
+                {docs.length === 0 ? (
+                  <EmptyState text="Documents are generated when Ops starts vetting." />
+                ) : (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                      {docs.map((d) => (
+                        <UndertakingCard
+                          key={d.id}
+                          title={d.title}
+                          learnerName={responses.full_name || app.learner_name || "—"}
+                          counsellorName={app.ac_name ?? "—"}
+                          email={app.learner_email ?? "—"}
+                          signedAt={d.signed_at}
+                              action={
+                            <DocumentDialog
+                              docType={DOC_TYPE_LABELS[d.type]}
+                              title={d.title}
+                              content={d.content}
+                              signees={signeesFor(app, responses, d)}
+                              triggerLabel="View document"
+                              triggerClassName="btn-secondary w-full !h-9"
+                            />
+                          }
+                        />
+                      ))}
+                </div>
+                )}
+
+                {offer && (
+                  <div className="mt-4 rounded-xl border border-[#cde1d2] bg-[#e2eee5] p-3.5 text-sm text-[#1f3d26]">
+                    🎉 Offer letter sent for <b>{offer.program_name}</b> (
+                    {offer.institute}) on {offer.created_at} UTC.
+                  </div>
+                )}
+              </div>
+            )}
           {/* ── Recommended Programs: pick and send the shortlist ── */}
-            {tab === "programs" && (
+            {tab === "eligibility" && (
               <div className="card fade-up p-6">
                 <h2 className="font-display text-[15px] font-semibold tracking-tight">
                   Recommended Programs
@@ -861,52 +946,6 @@ export default function AcApplicationPage({
               </div>
             )}
 
-            {/* ── Undertaking: documents + offer letter ── */}
-            {tab === "undertaking" && (
-              <div className="card fade-up p-6">
-                <h2 className="font-display text-[15px] font-semibold tracking-tight">
-                  Undertaking & Acknowledgement
-                </h2>
-                <p className="mb-4 mt-1 text-sm text-body">
-                  Auto-generated by Ops from the declarations triggered on the
-                  call. The learner signs these once shortlisted.
-                </p>
-
-                {docs.length === 0 ? (
-                  <EmptyState text="Documents are generated when Ops starts vetting." />
-                ) : (
-                  <div className="grid gap-3 sm:grid-cols-2">
-                      {docs.map((d) => (
-                        <UndertakingCard
-                          key={d.id}
-                          title={d.title}
-                          learnerName={responses.full_name || app.learner_name || "—"}
-                          counsellorName={app.ac_name ?? "—"}
-                          email={app.learner_email ?? "—"}
-                          signedAt={d.signed_at}
-                              action={
-                            <DocumentDialog
-                              docType={DOC_TYPE_LABELS[d.type]}
-                              title={d.title}
-                              content={d.content}
-                              signees={signeesFor(app, responses, d)}
-                              triggerLabel="View document"
-                              triggerClassName="btn-secondary w-full !h-9"
-                            />
-                          }
-                        />
-                      ))}
-                </div>
-                )}
-
-                {offer && (
-                  <div className="mt-4 rounded-xl border border-[#cde1d2] bg-[#e2eee5] p-3.5 text-sm text-[#1f3d26]">
-                    🎉 Offer letter sent for <b>{offer.program_name}</b> (
-                    {offer.institute}) on {offer.created_at} UTC.
-                  </div>
-                )}
-              </div>
-            )}
           </div>
 
           {timeline && <div className="space-y-6">{timeline}</div>}
@@ -924,14 +963,10 @@ export default function AcApplicationPage({
                   : tab === "profile"
                     ? openRemarks.length > 0
                       ? `${openRemarks.length} open comment${openRemarks.length === 1 ? "" : "s"} from Ops — fix the flagged fields, then tick them off`
-                      : "Check the details, then pick a programme to send"
-                    : tab === "documents"
-                      ? `${lockerVerified} of ${lockerUploaded} uploaded document(s) verified by Ops`
-                      : tab === "programs"
-                        ? `Pick one of ${eligiblePrograms.length} eligible programme(s)`
-                        : selected
-                          ? "Programme selected — ready to send"
-                          : "Go back and pick a programme"}
+                      : "Check the details, then open Eligibility to pick a programme"
+                    : selected
+                      ? "Programme selected — ready to send"
+                      : `Pick one of ${eligiblePrograms.length} eligible programme(s)`}
               </span>
               <div className="ml-auto flex items-center gap-2">
                 <AcFlowBar

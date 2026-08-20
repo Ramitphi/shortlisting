@@ -16,6 +16,7 @@ import {
 } from "@/lib/domain";
 import {
   RemarkCard,
+  ChangedPin,
   FileTile,
   IconCheck,
   IconDoc,
@@ -81,6 +82,13 @@ function ageFrom(dob: string): number | null {
  */
 const RemarksContext = createContext<StepRemark[]>([]);
 
+/**
+ * The field keys the learner changed after vetting. The re-check notice tells
+ * the counsellor the changed fields are marked — so on the edit board they
+ * have to actually be marked, not just in the read-only view.
+ */
+const ChangedContext = createContext<ReadonlySet<string>>(new Set());
+
 function FieldRemarks({ fieldKey }: { fieldKey: string }) {
   const all = useContext(RemarksContext);
   const mine = all.filter((r) => r.fieldKey === fieldKey);
@@ -131,11 +139,15 @@ function Row({
   /** FORM_FIELDS key, so any Ops remark on it renders right here. */
   k?: string;
 }) {
+  const changed = useContext(ChangedContext);
   return (
     <div className={wide ? "sm:col-span-2" : ""}>
-      <label className="mb-1.5 block text-[13px] font-medium text-ink">
-        {label}
-        {required && <span className="text-accent"> *</span>}
+      <label className="mb-1.5 flex items-center gap-2 text-[13px] font-medium text-ink">
+        <span>
+          {label}
+          {required && <span className="text-accent"> *</span>}
+        </span>
+        {k && changed.has(k) && <ChangedPin />}
       </label>
       {children}
       {hint && <p className="mt-1.5 text-[12px] leading-snug text-caption">{hint}</p>}
@@ -267,6 +279,7 @@ export function CallForm({
   programmesCount = 0,
   sidebar,
   reviewBar,
+  changedFields = [],
 }: {
   initial: Values;
   saveAction: (formData: FormData) => void;
@@ -287,8 +300,11 @@ export function CallForm({
   /** review mode's sticky footer — the page's actions, inside the form so
    *  they can post the form's own data (Save, Save & send back). */
   reviewBar?: React.ReactNode;
+  /** FORM_FIELDS keys the learner changed after vetting — marked on the row. */
+  changedFields?: readonly string[];
 }) {
   const [step, setStep] = useState(0);
+  const changedSet = useMemo(() => new Set(changedFields), [changedFields]);
   const [v, setV] = useState<Values>(initial);
   const [pending, startTransition] = useTransition();
   const set = (k: string, val: string) => setV((p) => ({ ...p, [k]: val }));
@@ -395,6 +411,7 @@ export function CallForm({
     "h-10 w-full rounded-xl border border-line-strong bg-white px-3.5 text-[14px] text-ink placeholder:text-caption outline-none transition-colors focus:border-ink/40 focus:ring-4 focus:ring-ink/5";
 
   return (
+    <ChangedContext.Provider value={changedSet}>
     <RemarksContext.Provider value={remarks}>
     <form
       id="call-form"
@@ -446,6 +463,10 @@ export function CallForm({
             whole form is shown at once, so there is nothing to step through. */}
         {!resolving && (
         <div className="card p-1.5">
+          {/* One running row, always. The activity rail narrows this column,
+              so the steps have to be allowed to SHRINK (min-w-0 + truncate) —
+              without that they refuse to give ground and the last step bleeds
+              off the card. */}
           <div className="flex gap-1">
             {STEPS.map((s, i) => {
               const active = i === step;
@@ -460,7 +481,7 @@ export function CallForm({
                   formAction={saveAction}
                   formNoValidate
                   onClick={() => setStep(i)}
-                  className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-[13px] font-medium transition-colors ${
+                  className={`flex min-w-0 flex-1 basis-0 items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-[13px] font-medium transition-colors ${
                     active
                       ? "bg-ink text-paper"
                       : done
@@ -481,7 +502,7 @@ export function CallForm({
                       {done ? "✓" : i + 1}
                     </span>
                   )}
-                  {s.label}
+                  <span className="truncate">{s.label}</span>
                   {flags > 0 && (
                     <span
                       className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none ${
@@ -1064,5 +1085,6 @@ export function CallForm({
       )}
     </form>
     </RemarksContext.Provider>
+    </ChangedContext.Provider>
   );
 }

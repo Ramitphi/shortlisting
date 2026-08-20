@@ -17,6 +17,7 @@ export function SideSheet({
   subtitle,
   trigger,
   triggerClassName = "btn-secondary !h-9",
+  size = "default",
   children,
 }: {
   title: string;
@@ -24,6 +25,8 @@ export function SideSheet({
   /** Button contents. */
   trigger: React.ReactNode;
   triggerClassName?: string;
+  /** "wide" for tabular content — the document locker needs the room. */
+  size?: "default" | "wide";
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -65,7 +68,9 @@ export function SideSheet({
               role="dialog"
               aria-modal="true"
               aria-label={title}
-              className="sheet-in fixed right-0 top-0 z-[71] flex h-dvh w-full max-w-[440px] flex-col border-l border-line bg-white shadow-[-24px_0_60px_-30px_rgba(49,48,43,0.5)]"
+              className={`sheet-in fixed right-0 top-0 z-[71] flex h-dvh w-full flex-col border-l border-line bg-white shadow-[-24px_0_60px_-30px_rgba(49,48,43,0.5)] ${
+                size === "wide" ? "max-w-[860px]" : "max-w-[440px]"
+              }`}
             >
               <div className="flex items-start gap-3 border-b border-line px-5 py-4">
                 <div className="min-w-0 flex-1">

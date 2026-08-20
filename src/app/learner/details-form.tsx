@@ -10,7 +10,6 @@ import {
   type FieldDef,
 } from "@/lib/domain";
 import {
-  MultiSelect,
   DocumentDialog,
   FileTile,
   useToast,
@@ -106,17 +105,21 @@ export function LearnerDetailsForm({
             {value || <span className="text-caption">—</span>}
           </div>
         ) : f.key === "countries" ? (
-          /* Free text invited "America" — the catalogue only knows its own
-             countries, so this is a dropdown, same options and same up-to-3
-             rule as the counsellor's wizard. */
-          <MultiSelect
-            values={value.split(", ").filter(Boolean)}
-            options={[...COUNTRIES]}
-            max={3}
-            onChange={(next) => set(f.key, next.join(", "))}
-            placeholder="Select up to 3 countries…"
-            iconFor={(o) => COUNTRY_FLAGS[o] ?? ""}
-          />
+          /* Free text invited "America" — a single dropdown over the
+             catalogue's own countries. One pick; a legacy multi-value shows
+             as unselected until the learner picks. */
+          <select
+            value={COUNTRIES.includes(value as (typeof COUNTRIES)[number]) ? value : ""}
+            onChange={(e) => set(f.key, e.target.value)}
+            className={inputCls}
+          >
+            <option value="">Select a country…</option>
+            {COUNTRIES.map((o) => (
+              <option key={o} value={o}>
+                {COUNTRY_FLAGS[o] ? `${COUNTRY_FLAGS[o]} ` : ""}{o}
+              </option>
+            ))}
+          </select>
         ) : f.type === "select" && f.options ? (
           <select
             value={value}

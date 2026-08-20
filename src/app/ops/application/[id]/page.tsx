@@ -21,6 +21,7 @@ import {
   EmptyState,
   FileValue,
   Meta,
+  ProfileSummary,
   RecheckNotice,
   StatusBadge,
   Timeline,
@@ -88,9 +89,7 @@ import {
 // One word each — see the note on the counsellor's TABS.
 const TABS = [
   { key: "profile", label: "Profile" },
-  { key: "documents", label: "Documents" },
-  { key: "programs", label: "Programs" },
-  { key: "undertaking", label: "Undertaking" },
+  { key: "eligibility", label: "Eligibility" },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -261,7 +260,7 @@ export default function OpsApplicationPage({
   ).length;
   const readiness = [
     {
-      key: "programs" as TabKey,
+      key: "eligibility" as TabKey,
       blocking: true,
       done: eligibleCount > 0,
       todo:
@@ -274,11 +273,13 @@ export default function OpsApplicationPage({
           : "The counsellor shortlists only among the eligible, so mark at least one. Tap to review.",
     },
     {
-      key: "documents" as TabKey,
+      // The locker lives in the header now, so this one states the fact
+      // rather than linking: `href: null` keeps it a plain chip.
+      key: null,
       blocking: false,
       done: lockerUnchecked === 0,
       todo: `${lockerUnchecked} document${lockerUnchecked === 1 ? "" : "s"} unchecked`,
-      why: "Not blocking — but anything you don't check stays unchecked. Tap to review.",
+      why: "Not blocking — but anything you don't check stays unchecked. Documents are in the header.",
     },
   ];
 
@@ -287,14 +288,10 @@ export default function OpsApplicationPage({
 
   const tabCount: Record<TabKey, string | undefined> = {
     profile: openRemarks > 0 ? String(openRemarks) : undefined,
-    documents: `${lockerVerified}/${lockerUploaded}`,
-    // "!" while empty — the one thing that will block the review, flagged on
-    // the tab rather than discovered at the last step.
-    // "!" until at least one is marked eligible — that's the review's gate.
-    // A stale verdict outranks the eligible count: the count reads fine while
-    // the verdicts behind it are out of date, which is the one thing the tab
-    // has to say during a re-check.
-    programs:
+    // "!" until at least one programme is marked eligible — that's the
+    // review's gate — and a stale verdict outranks the count, because the
+    // count reads fine while the verdicts behind it are out of date.
+    eligibility:
       staleVerdicts > 0
         ? "!"
         : eligibleCount > 0
@@ -304,7 +301,6 @@ export default function OpsApplicationPage({
             : programs.length > 0
               ? String(programs.length)
               : undefined,
-    undertaking: docs.length > 0 ? `${signedCount}/${docs.length}` : undefined,
   };
 
   return (
@@ -328,6 +324,50 @@ export default function OpsApplicationPage({
               {app.learner_email} · Counsellor: {app.ac_name ?? "—"}
             </p>
           </div>
+          <div className="flex flex-wrap items-center gap-2">
+          {/* The locker is reference material Ops keeps coming back to, not a
+              stage of the review — one click from the header, any tab. */}
+          <SideSheet
+            title="Documents"
+            subtitle={`${app.learner_name} · ${lockerVerified} of ${lockerUploaded} verified`}
+            size="wide"
+            triggerClassName="btn-secondary !h-8 !px-3 !text-[12.5px]"
+            trigger={
+              <>
+                <IconDoc className="h-3.5 w-3.5" />
+                Documents
+                <span className="ml-0.5 rounded-full bg-cream px-1.5 py-0.5 text-[10px] font-semibold leading-none text-caption">
+                  {lockerVerified}/{lockerUploaded}
+                </span>
+              </>
+            }
+          >
+            <p className="mb-4 text-[13px] text-body">
+              {docsLive
+                ? "Check each document against the details, then mark it verified or reject it with a reason. Rejecting notifies the learner to re-upload."
+                : "Everything on file for this learner."}
+            </p>
+            {/* Unlike the form, this stays open past vetting: visa papers and
+                loan letters arrive later, and a document nobody can verify is
+                a row nobody can act on. */}
+            <DocumentTable
+              rows={locker}
+              categories={DOC_CATEGORIES}
+              insightFor={(key) => docInsight(key, responses, app.learner_name ?? "")}
+              canUpload={docsLive}
+              canVerify={docsLive}
+              upload={uploadLearnerDoc.bind(null, app.id)}
+              remove={removeLearnerDoc.bind(null, app.id)}
+              verify={verifyLearnerDoc.bind(null, app.id)}
+              note={
+                docsLive
+                  ? vetting
+                    ? undefined
+                    : "Vetting is finished — you can still verify anything that arrives late."
+                  : "This application is complete."
+              }
+            />
+          </SideSheet>
           {!inlineActivity && (
             <SideSheet
               title="Activity"
@@ -342,6 +382,7 @@ export default function OpsApplicationPage({
               <Timeline events={events} pending={opsPending} />
             </SideSheet>
           )}
+          </div>
         </div>
       </div>
 
@@ -356,7 +397,7 @@ export default function OpsApplicationPage({
           learnerName={app.learner_name}
           openRemarks={recheckComments}
           staleVerdicts={staleVerdicts}
-          verdictHref={`/ops/application/${app.id}?tab=programs`}
+          verdictHref={`/ops/application/${app.id}?tab=eligibility`}
         />
       )}
 
@@ -380,7 +421,7 @@ export default function OpsApplicationPage({
                     key={t.key}
                     href={`/ops/application/${app.id}?tab=${t.key}`}
                     scroll={false}
-                    className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-[13px] font-medium transition-colors ${
+                    className={`flex min-w-0 flex-1 basis-0 items-center justify-center gap-2 rounded-xl px-3 py-2 text-[13px] font-medium transition-colors ${
                       active ? "bg-ink text-paper" : "text-body hover:bg-muted"
                     }`}
                   >
@@ -517,42 +558,117 @@ export default function OpsApplicationPage({
             </div>
           )}
 
-          {/* ── Documents: the learner's locker ── */}
-          {tab === "documents" && (
-            <div className="card fade-up p-6">
-              <h2 className="font-display text-[15px] font-semibold tracking-tight">
-                Documents
-              </h2>
-              <p className="mb-4 mt-1 text-sm text-body">
-                {docsLive
-                  ? "Check each document against the details, then mark it verified or reject it with a reason. Rejecting notifies the learner to re-upload."
-                  : "Everything on file for this learner."}
-              </p>
-              {/* Unlike the form, this stays open past vetting: visa papers and
-                  loan letters arrive later, and a document nobody can verify is
-                  a row nobody can act on. */}
-              <DocumentTable
-                rows={locker}
-                categories={DOC_CATEGORIES}
-                insightFor={(key) => docInsight(key, responses, app.learner_name ?? "")}
-                canUpload={docsLive}
-                canVerify={docsLive}
-                upload={uploadLearnerDoc.bind(null, app.id)}
-                remove={removeLearnerDoc.bind(null, app.id)}
-                verify={verifyLearnerDoc.bind(null, app.id)}
-                note={
-                  docsLive
-                    ? vetting
-                      ? undefined
-                      : "Vetting is finished — you can still verify anything that arrives late."
-                    : "This application is complete."
-                }
-              />
-            </div>
+          {/* ── Eligibility ──
+              One tab, three parts in the order the decision is actually made:
+              what we know about the learner, what they will have to sign, and
+              the programmes to rule on. */}
+          {tab === "eligibility" && (
+            <ProfileSummary
+              responses={responses}
+              locker={locker}
+              learnerName={app.learner_name}
+            />
           )}
 
+
+          {/* ── Undertaking & Acknowledgement ── */}
+          {tab === "eligibility" && (
+            <div className="card fade-up p-6">
+              <h2 className="font-display text-[15px] font-semibold tracking-tight">
+                Undertaking &amp; Acknowledgement
+              </h2>
+              <p className="mb-4 mt-1 text-sm text-body">
+                Auto-generated when vetting starts, including any declarations
+                triggered on the call. Attach more if this learner needs them.
+              </p>
+
+              {docs.length === 0 ? (
+                <EmptyState text="Documents are generated when you start vetting." />
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {docs.map((d) => (
+                    <UndertakingCard
+                      key={d.id}
+                      title={d.title}
+                      learnerName={responses.full_name || app.learner_name || "—"}
+                      counsellorName={app.ac_name ?? "—"}
+                      email={app.learner_email ?? "—"}
+                      signedAt={d.signed_at}
+                      secondaryAction={
+                        vetting ? (
+                          d.source === "ops" && !d.signed_at ? (
+                            <form action={removeDocument.bind(null, d.id)}>
+                              <button className="btn-secondary w-full !h-9">
+                                Delete
+                              </button>
+                            </form>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled
+                              title="Required document — cannot be deleted"
+                              className="btn-secondary w-full !h-9"
+                            >
+                              Delete
+                            </button>
+                          )
+                        ) : null
+                      }
+                      action={
+                        <DocumentDialog
+                          docType={DOC_TYPE_LABELS[d.type]}
+                          title={d.title}
+                          content={d.content}
+                          signees={signeesFor(app, responses, d)}
+                          triggerLabel="View"
+                          triggerClassName="btn-secondary w-full !h-9"
+                        />
+                      }
+                    />
+                  ))}
+                </div>
+              )}
+
+              {vetting && (
+                <CataloguePicker
+                  label="Add undertaking from the form library"
+                  title="Undertaking & acknowledgement forms"
+                  hint="Attach a form for this learner to sign. Required forms are already attached and cannot be removed."
+                  items={docItems}
+                  addedIds={docs
+                    .map((d) => d.template_id)
+                    .filter((id): id is number => id !== null)}
+                  action={addDocument.bind(null, app.id)}
+                  idField="templateId"
+                  addedLabel="Undertaking"
+                  layout="cards"
+                />
+              )}
+
+              {offer && (
+                <div className="mt-4 rounded-2xl border border-[#cde1d2] bg-[#e2eee5] p-4">
+                  <p className="text-sm font-medium text-[#1f3d26]">
+                    🎉 Offer letter sent for {offer.program_name} (
+                    {offer.institute}) on {offer.created_at} UTC.
+                  </p>
+                  <p className="mt-3 whitespace-pre-wrap text-[12.5px] leading-relaxed text-[#1f3d26]/85">
+                    {offer.content}
+                  </p>
+                </div>
+              )}
+
+              {awaitingOffer && !(allSigned && certified) && (
+                <p className="mt-4 rounded-xl border border-line bg-paper px-3.5 py-2.5 text-[12.5px] text-body">
+                  {!allSigned
+                    ? "Waiting for the learner to sign their documents."
+                    : "Signed — now waiting for the learner to certify that their details are correct."}{" "}
+                  The offer letter can only be released once they have done both.
+                </p>
+              )}
+            </div>
+          )}
           {/* ── Recommended Programs: the counsellor's picks, Ops' verdicts ── */}
-          {tab === "programs" && (
+          {tab === "eligibility" && (
             <div className="card fade-up p-6">
               <h2 className="font-display text-[15px] font-semibold tracking-tight">
                 Recommended Programs
@@ -696,103 +812,6 @@ export default function OpsApplicationPage({
               </div>
             </div>
           )}
-
-          {/* ── Undertaking & Acknowledgement ── */}
-          {tab === "undertaking" && (
-            <div className="card fade-up p-6">
-              <h2 className="font-display text-[15px] font-semibold tracking-tight">
-                Undertaking &amp; Acknowledgement
-              </h2>
-              <p className="mb-4 mt-1 text-sm text-body">
-                Auto-generated when vetting starts, including any declarations
-                triggered on the call. Attach more if this learner needs them.
-              </p>
-
-              {docs.length === 0 ? (
-                <EmptyState text="Documents are generated when you start vetting." />
-              ) : (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {docs.map((d) => (
-                    <UndertakingCard
-                      key={d.id}
-                      title={d.title}
-                      learnerName={responses.full_name || app.learner_name || "—"}
-                      counsellorName={app.ac_name ?? "—"}
-                      email={app.learner_email ?? "—"}
-                      signedAt={d.signed_at}
-                      secondaryAction={
-                        vetting ? (
-                          d.source === "ops" && !d.signed_at ? (
-                            <form action={removeDocument.bind(null, d.id)}>
-                              <button className="btn-secondary w-full !h-9">
-                                Delete
-                              </button>
-                            </form>
-                          ) : (
-                            <button
-                              type="button"
-                              disabled
-                              title="Required document — cannot be deleted"
-                              className="btn-secondary w-full !h-9"
-                            >
-                              Delete
-                            </button>
-                          )
-                        ) : null
-                      }
-                      action={
-                        <DocumentDialog
-                          docType={DOC_TYPE_LABELS[d.type]}
-                          title={d.title}
-                          content={d.content}
-                          signees={signeesFor(app, responses, d)}
-                          triggerLabel="View"
-                          triggerClassName="btn-secondary w-full !h-9"
-                        />
-                      }
-                    />
-                  ))}
-                </div>
-              )}
-
-              {vetting && (
-                <CataloguePicker
-                  label="Add undertaking from the form library"
-                  title="Undertaking & acknowledgement forms"
-                  hint="Attach a form for this learner to sign. Required forms are already attached and cannot be removed."
-                  items={docItems}
-                  addedIds={docs
-                    .map((d) => d.template_id)
-                    .filter((id): id is number => id !== null)}
-                  action={addDocument.bind(null, app.id)}
-                  idField="templateId"
-                  addedLabel="Undertaking"
-                  layout="cards"
-                />
-              )}
-
-              {offer && (
-                <div className="mt-4 rounded-2xl border border-[#cde1d2] bg-[#e2eee5] p-4">
-                  <p className="text-sm font-medium text-[#1f3d26]">
-                    🎉 Offer letter sent for {offer.program_name} (
-                    {offer.institute}) on {offer.created_at} UTC.
-                  </p>
-                  <p className="mt-3 whitespace-pre-wrap text-[12.5px] leading-relaxed text-[#1f3d26]/85">
-                    {offer.content}
-                  </p>
-                </div>
-              )}
-
-              {awaitingOffer && !(allSigned && certified) && (
-                <p className="mt-4 rounded-xl border border-line bg-paper px-3.5 py-2.5 text-[12.5px] text-body">
-                  {!allSigned
-                    ? "Waiting for the learner to sign their documents."
-                    : "Signed — now waiting for the learner to certify that their details are correct."}{" "}
-                  The offer letter can only be released once they have done both.
-                </p>
-              )}
-            </div>
-          )}
         </div>
 
         {inlineActivity && (
@@ -822,20 +841,31 @@ export default function OpsApplicationPage({
                     keeps a small alert glyph, which costs no colour. */}
                 {onLastTab && outstanding.length > 0 ? (
                   <span className="flex flex-wrap items-center gap-2">
-                    {outstanding.map((r) => (
-                      <Link
-                        key={r.key}
-                        href={`/ops/application/${app.id}?tab=${r.key}`}
-                        scroll={false}
-                        title={r.why}
-                        className="transition-opacity hover:opacity-75"
-                      >
+                    {outstanding.map((r) => {
+                      const chip = (
                         <CardChip tone="muted">
                           {r.blocking && <IconAlert className="h-3 w-3" />}
                           {r.todo}
                         </CardChip>
-                      </Link>
-                    ))}
+                      );
+                      // Documents have no tab any more — that one states the
+                      // fact and points at the header instead of linking.
+                      return r.key ? (
+                        <Link
+                          key={r.todo}
+                          href={`/ops/application/${app.id}?tab=${r.key}`}
+                          scroll={false}
+                          title={r.why}
+                          className="transition-opacity hover:opacity-75"
+                        >
+                          {chip}
+                        </Link>
+                      ) : (
+                        <span key={r.todo} title={r.why}>
+                          {chip}
+                        </span>
+                      );
+                    })}
                   </span>
                 ) : (
                 <span className="text-xs text-caption">
@@ -845,9 +875,7 @@ export default function OpsApplicationPage({
                       } · ready to send`
                     : tab === "profile"
                       ? "Comment on the counsellor's answers, fill the ops fields — changes save as you go"
-                      : tab === "documents"
-                        ? `${lockerVerified} of ${lockerUploaded} uploaded document(s) verified`
-                        : `${eligibleCount} of ${programs.length} recommendation(s) marked eligible`}
+                      : `${eligibleCount} of ${programs.length} recommendation(s) marked eligible`}
                 </span>
                 )}
                 <div className="ml-auto flex items-center gap-2">

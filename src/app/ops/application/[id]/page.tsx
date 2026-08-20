@@ -757,7 +757,10 @@ export default function OpsApplicationPage({
                           Verdict out of date
                         </CardChip>
                       ) : null}
-                      {p.shortlisted && (
+                      {/* Boolean(), not the raw column: SQLite hands booleans
+                          back as 0/1, and `0 && <chip/>` renders a literal 0
+                          on the card. */}
+                      {Boolean(p.shortlisted) && (
                         <CardChip tone="green">
                           <IconCheck className="h-3 w-3" />
                           Shortlisted by AC

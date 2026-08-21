@@ -414,6 +414,66 @@ export async function replyToRemark(remarkId: number, formData: FormData) {
  *
  * Available while the form is theirs: the draft, and a re-check handed back.
  */
+/**
+ * Ops' verdict on ONE answer: correct, or incorrect.
+ *
+ * The section verdict says whether a block of the form holds up; this says
+ * which answer inside it is the problem. Clicking the state it already has
+ * clears it — the same undo the section tick has, because a verdict left by a
+ * misclick has to be removable.
+ *
+ * A note is deliberately NOT a third state here. Notes are remarks, so that
+ * they keep behaving like every other comment: the counsellor can reply,
+ * acknowledge or resolve them, and info notes stay out of the open counts.
+ */
+export async function setFieldCheck(
+  applicationId: number,
+  fieldKey: string,
+  state: "correct" | "incorrect"
+) {
+  const user = requireUser("ops");
+  const app = getApplication(applicationId);
+  if (!app) return;
+  const field = FORM_FIELDS.find((f) => f.key === fieldKey);
+  if (!field) return;
+  // Ops rules on the counsellor's answers. The ops-owned fields are Ops' own
+  // to type, so there is nobody to rule against.
+  if (field.filledBy === "ops") return;
+  // The same window as commenting: vetting, or re-reading a learner's change.
+  const reRuling = Boolean(app.recheck_at) && app.recheck_state !== "ac";
+  if (app.status !== "under_review" && !reRuling) return;
+
+  const db = getDb();
+  const existing = db
+    .prepare(
+      "SELECT state FROM field_checks WHERE application_id = ? AND field_key = ?"
+    )
+    .get(applicationId, fieldKey) as { state: string } | undefined;
+
+  if (existing?.state === state) {
+    db.prepare(
+      "DELETE FROM field_checks WHERE application_id = ? AND field_key = ?"
+    ).run(applicationId, fieldKey);
+    logEvent(applicationId, user.id, `Verdict cleared on "${field.label}"`);
+  } else {
+    db.prepare(
+      `INSERT INTO field_checks (application_id, field_key, state, by_id, at)
+       VALUES (?, ?, ?, ?, datetime('now'))
+       ON CONFLICT (application_id, field_key)
+       DO UPDATE SET state = excluded.state, by_id = excluded.by_id, at = excluded.at`
+    ).run(applicationId, fieldKey, state, user.id);
+    logEvent(
+      applicationId,
+      user.id,
+      `Marked ${state}: "${field.label}"`,
+      state === "incorrect"
+        ? "The counsellor sees this against the field"
+        : undefined
+    );
+  }
+  dirty();
+}
+
 export async function toggleGroupCheck(applicationId: number, groupKey: string) {
   const user = requireUser("ac");
   const app = getApplication(applicationId);

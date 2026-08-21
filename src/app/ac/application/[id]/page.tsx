@@ -13,6 +13,7 @@ import {
   Timeline,
   Meta,
   FieldComments,
+  FieldVerdictMark,
   ChangedPin,
   DocumentDialog,
   DocumentTable,
@@ -46,6 +47,7 @@ import {
   getLearnerDocs,
   getOfferLetter,
   getGroupChecks,
+  getFieldChecks,
   listProgramCatalogue,
   recheckOf,
 } from "@/lib/queries";
@@ -171,6 +173,7 @@ export default function AcApplicationPage({
   const recheckEditing = recheck?.state === "ac";
   const handedBack = recheck?.state === "ac";
   const groupChecks = getGroupChecks(app.id);
+  const fieldChecks = getFieldChecks(app.id);
   const opsGroups = OPS_REVIEW_GROUPS;
   const verifiedGroups = opsGroups.filter(
     (g) => groupChecks[g.key]?.ops?.state === "verified"
@@ -478,6 +481,7 @@ export default function AcApplicationPage({
           mode={recheckEditing ? "review" : "fill"}
           remarks={recheckEditing ? wizardRemarks : []}
           changedFields={changedKeys}
+          fieldChecks={fieldChecks}
           groupBlock={(key, label, children) => {
             const g = REVIEW_GROUP_BY_KEY[key];
             if (!g) return children;
@@ -763,6 +767,13 @@ export default function AcApplicationPage({
                               {changedLabels.has(f.label) && (
                                 <ChangedPin at={recheck?.at} />
                               )}
+                              {/* Ops' verdict on this exact answer — read-only
+                                  here, it is their call to make. */}
+                              <FieldVerdictMark
+                                state={fieldChecks[f.key]?.state}
+                                byName={fieldChecks[f.key]?.by_name}
+                                at={fieldChecks[f.key]?.at}
+                              />
                               <FieldComments comments={commentsFor(f.key)} />
                             </div>
                             {f.type === "file" ? (

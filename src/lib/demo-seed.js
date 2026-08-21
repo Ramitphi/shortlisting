@@ -40,6 +40,7 @@ function seedDemo(db) {
     DELETE FROM programs;
     DELETE FROM remarks;
     DELETE FROM group_checks;
+    DELETE FROM field_checks;
     DELETE FROM form_responses;
     DELETE FROM applications;
     DELETE FROM sqlite_sequence
@@ -123,6 +124,11 @@ function seedDemo(db) {
       );
     });
   }
+
+  const insertFieldCheck = db.prepare(
+    `INSERT OR REPLACE INTO field_checks (application_id, field_key, state, by_id)
+     VALUES (?, ?, ?, ?)`
+  );
 
   const insertGroupCheck = db.prepare(
     `INSERT OR REPLACE INTO group_checks
@@ -328,6 +334,13 @@ function seedDemo(db) {
     // the counsellor cannot act on.
     insertRemark.run(vettingId, "board_12", OMAR, "Class 12: Marksheet is a photo of a photocopy — ask the learner for a clean colour scan.", "open");
     insertRemark.run(vettingId, "countries", OMAR, "Germany needs Anabin H+ — worth telling the learner before they set their heart on TU Munich.", "open");
+    // Mid-vetting: Omar has ruled on the answers he has checked so far. The
+    // two he has commented on are the two he marked wrong.
+    insertFieldCheck.run(vettingId, "full_name", "correct", OMAR);
+    insertFieldCheck.run(vettingId, "dob", "correct", OMAR);
+    insertFieldCheck.run(vettingId, "degree_level", "correct", OMAR);
+    insertFieldCheck.run(vettingId, "board_12", "incorrect", OMAR);
+    insertFieldCheck.run(vettingId, "countries", "incorrect", OMAR);
     insertEvent.run(vettingId, ARJUN, "Eligibility form submitted", `Submitted by Arjun Mehta on behalf of ${vetting.name}`);
     insertEvent.run(vettingId, ARJUN, "UT & Ack documents auto-generated", null);
     insertEvent.run(vettingId, OMAR, "Picked up for vetting", null);
@@ -362,6 +375,9 @@ function seedDemo(db) {
       rejected: ["doc_passport", "Back page is cut off — please re-scan both sides."],
     });
     insertRemark.run(flaggedId, "mobile", OMAR, "This number is one digit short — the passport copy shows a different one. Please reconfirm with the learner.", "open");
+    insertFieldCheck.run(flaggedId, "mobile", "incorrect", OMAR);
+    insertFieldCheck.run(flaggedId, "full_name", "correct", OMAR);
+    insertFieldCheck.run(flaggedId, "dob", "correct", OMAR);
     insertRemark.run(flaggedId, "backlogs", OMAR, "The transcript shows 3 backlogs but the form says 2. Please check.", "open");
     acConfirms(flaggedId);
     opsVerifies(flaggedId, {

@@ -233,6 +233,32 @@ export function getGroupChecks(
   return out;
 }
 
+/** Ops' verdict on one answer — see the field_checks table. */
+export interface FieldCheck {
+  application_id: number;
+  field_key: string;
+  state: "correct" | "incorrect";
+  by_id: number | null;
+  by_name: string | null;
+  at: string;
+}
+
+/** Every per-field verdict on an application, keyed by field. */
+export function getFieldChecks(
+  applicationId: number
+): Record<string, FieldCheck> {
+  const rows = getDb()
+    .prepare(
+      `SELECT f.*, u.name AS by_name FROM field_checks f
+       LEFT JOIN users u ON u.id = f.by_id
+       WHERE f.application_id = ?`
+    )
+    .all(applicationId) as FieldCheck[];
+  const out: Record<string, FieldCheck> = {};
+  for (const r of rows) out[r.field_key] = r;
+  return out;
+}
+
 export function getPrograms(applicationId: number): Program[] {
   return getDb()
     .prepare("SELECT * FROM programs WHERE application_id = ? ORDER BY created_at ASC")

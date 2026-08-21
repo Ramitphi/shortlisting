@@ -132,6 +132,19 @@ function migrate(db: BrowserDb) {
       PRIMARY KEY (application_id, group_key, actor_role)
     );
 
+    -- Ops' verdict on a SINGLE answer. The section verdict (group_checks) says
+    -- whether a block of the form holds up; this says which individual answer
+    -- inside it is right or wrong. A note is not a state — notes are remarks,
+    -- so that they keep behaving like every other comment.
+    CREATE TABLE IF NOT EXISTS field_checks (
+      application_id INTEGER NOT NULL REFERENCES applications(id),
+      field_key TEXT NOT NULL,
+      state TEXT NOT NULL CHECK (state IN ('correct','incorrect')),
+      by_id INTEGER REFERENCES users(id),
+      at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (application_id, field_key)
+    );
+
     CREATE TABLE IF NOT EXISTS notifications (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL REFERENCES users(id),

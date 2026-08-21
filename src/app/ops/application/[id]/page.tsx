@@ -10,6 +10,7 @@ import {
   CardChip,
   CertifiedChip,
   FieldComments,
+  FieldVerdict,
   ChangedPin,
   AiInsightLine,
   DocumentDialog,
@@ -50,6 +51,7 @@ import {
   getRemarks,
   getDocuments,
   getGroupChecks,
+  getFieldChecks,
   getLearnerDocs,
   recheckOf,
   listDocTemplates,
@@ -68,6 +70,7 @@ import {
   removeLearnerDoc,
   resolveRemark,
   sendOfferLetter,
+  setFieldCheck,
   setGroupReview,
   setProgramEligibility,
   updateFieldValue,
@@ -125,6 +128,7 @@ export default function OpsApplicationPage({
   // Which document slots are filled — the AI vet only speaks about a field
   // when its counterpart document is actually there to compare against.
   const groupChecks = getGroupChecks(app.id);
+  const fieldChecks = getFieldChecks(app.id);
   // Every section is ruled on, whatever the degree. Filtering the set by
   // degree_level was worse than the problem it solved: a blank degree hid the
   // section from Ops entirely, changing the degree after a "Not verified"
@@ -642,8 +646,28 @@ export default function OpsApplicationPage({
                                 })()}
                             </div>
                             {/* Ops fills these from the documents themselves,
-                                so there is nothing to flag to anyone else. */}
+                                so there is nothing to flag to anyone else.
+                                Everything else gets the three moves: right,
+                                wrong, or a note — the note being an ordinary
+                                comment so it behaves like all the others. */}
                             {canComment && f.filledBy !== "ops" && (
+                              <FieldVerdict
+                                state={fieldChecks[f.key]?.state}
+                                byName={fieldChecks[f.key]?.by_name}
+                                at={fieldChecks[f.key]?.at}
+                                correctAction={setFieldCheck.bind(
+                                  null,
+                                  app.id,
+                                  f.key,
+                                  "correct"
+                                )}
+                                incorrectAction={setFieldCheck.bind(
+                                  null,
+                                  app.id,
+                                  f.key,
+                                  "incorrect"
+                                )}
+                              >
                               <form
                                 key={`${f.key}-${fieldRemarks.length}`}
                                 action={addRemark.bind(null, app.id, f.key)}
@@ -652,7 +676,7 @@ export default function OpsApplicationPage({
                                 <input
                                   name="text"
                                   className="input !h-8 !w-52 !py-0 !text-[12.5px]"
-                                  placeholder="Leave a comment…"
+                                  placeholder="Leave a note…"
                                 />
                                 {/* Unchecked posts nothing, so the action
                                     defaults to 'action' — a job. Checked
@@ -674,6 +698,7 @@ export default function OpsApplicationPage({
                                   Add
                                 </button>
                               </form>
+                              </FieldVerdict>
                             )}
                           </div>
                         </div>

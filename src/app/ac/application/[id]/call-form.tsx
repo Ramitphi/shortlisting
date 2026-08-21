@@ -24,6 +24,7 @@ import {
 import {
   RemarkCard,
   ChangedPin,
+  FieldVerdictMark,
   FileTile,
   IconCheck,
   IconDoc,
@@ -102,6 +103,15 @@ const ChangedContext = createContext<ReadonlySet<string>>(new Set());
 const RenderedFieldsContext = createContext<(key: string) => () => void>(
   () => () => {}
 );
+
+/**
+ * Ops' per-field verdicts, so the counsellor sees which individual answer was
+ * called wrong while they are standing on the field fixing it — not only in
+ * the read-only list on the other tab.
+ */
+const FieldChecksContext = createContext<
+  Record<string, { state: "correct" | "incorrect"; by_name?: string | null; at?: string }>
+>({});
 
 function FieldRemarks({ fieldKey }: { fieldKey: string }) {
   const all = useContext(RemarksContext);
@@ -182,6 +192,7 @@ function Row({
   k?: string;
 }) {
   const changed = useContext(ChangedContext);
+  const checks = useContext(FieldChecksContext);
   return (
     <div className={wide ? "sm:col-span-2" : ""}>
       <label className="mb-1.5 flex items-center gap-2 text-[13px] font-medium text-ink">
@@ -190,6 +201,13 @@ function Row({
           {required && <span className="text-accent"> *</span>}
         </span>
         {k && changed.has(k) && <ChangedPin />}
+        {k && (
+          <FieldVerdictMark
+            state={checks[k]?.state}
+            byName={checks[k]?.by_name}
+            at={checks[k]?.at}
+          />
+        )}
       </label>
       {children}
       {hint && <p className="mt-1.5 text-[12px] leading-snug text-caption">{hint}</p>}
@@ -333,6 +351,7 @@ export function CallForm({
   sidebar,
   reviewBar,
   changedFields = [],
+  fieldChecks,
   groupBlock,
 }: {
   initial: Values;
@@ -352,6 +371,11 @@ export function CallForm({
   reviewBar?: React.ReactNode;
   /** FORM_FIELDS keys the learner changed after vetting — marked on the row. */
   changedFields?: readonly string[];
+  /** Ops' verdict per field, shown beside the label they ruled on. */
+  fieldChecks?: Record<
+    string,
+    { state: "correct" | "incorrect"; by_name?: string | null; at?: string }
+  >;
   /**
    * Wraps a section in its review group — the counsellor's "mark correct"
    * tick, the group's documents and the undertakings it triggers. Supplied by
@@ -366,6 +390,7 @@ export function CallForm({
 }) {
   const [step, setStep] = useState(0);
   const changedSet = useMemo(() => new Set(changedFields), [changedFields]);
+  const checksValue = useMemo(() => fieldChecks ?? {}, [fieldChecks]);
   const [v, setV] = useState<Values>(initial);
   const [pending, startTransition] = useTransition();
   // Every key the counsellor has touched, including ones they deliberately
@@ -490,6 +515,7 @@ export function CallForm({
   return (
     <ChangedContext.Provider value={changedSet}>
     <RemarksContext.Provider value={remarks}>
+    <FieldChecksContext.Provider value={checksValue}>
     <RenderedFieldsContext.Provider value={registerField}>
     <form
       id="call-form"
@@ -1181,6 +1207,7 @@ export function CallForm({
       )}
     </form>
     </RenderedFieldsContext.Provider>
+    </FieldChecksContext.Provider>
     </RemarksContext.Provider>
     </ChangedContext.Provider>
   );

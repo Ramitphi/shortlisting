@@ -73,16 +73,6 @@ export default function AcDashboard({
         subtitle: "Here’s where every learner stands today.",
       }}
     >
-      {searchParams.submitted && (
-        <div className="mb-4 rounded-xl border border-[#d6e0ee] bg-[#e9eef6] px-4 py-2.5 text-sm text-[#3d5a80]">
-          Eligibility form submitted — the Ops team has been notified.
-        </div>
-      )}
-      {searchParams.shortlisted && (
-        <div className="mb-4 rounded-xl border border-[#d5e6d8] bg-[#e8f2e9] px-4 py-2.5 text-sm text-[#3f6c45]">
-          Shortlist sent to the learner — they can now sign their documents.
-        </div>
-      )}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
         <StatTile icon={<IconUsers />} label="My Learners" value={all.length} />

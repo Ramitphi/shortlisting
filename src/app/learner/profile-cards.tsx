@@ -45,9 +45,18 @@ export function ProfileSectionCards({
         const fields = FORM_FIELDS.filter(
           (f) => f.section === section && f.type !== "file"
         );
-        const missing = fields.filter(
-          (f) => f.filledBy !== "ops" && !(responses[f.key] ?? "").trim()
-        ).length;
+        // Only what is actually REQUIRED counts as missing. Counting the
+        // optional rows told a learner three things were wrong when nothing
+        // was, and on a completed application there is nothing to do about it
+        // anyway — so it isn't shown there at all.
+        const missing = locked
+          ? 0
+          : fields.filter(
+              (f) =>
+                f.required &&
+                f.filledBy !== "ops" &&
+                !(responses[f.key] ?? "").trim()
+            ).length;
         const isEditing = editing === section;
 
         return (
@@ -90,6 +99,7 @@ export function ProfileSectionCards({
                   action={action}
                   only={section}
                   hideFiles
+                  doneHref={hrefFor(null)}
                 />
               </div>
             ) : (

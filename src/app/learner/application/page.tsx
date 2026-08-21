@@ -18,6 +18,7 @@ import {
   getOfferLetter,
   getPrograms,
   listApplications,
+  recheckOf,
 } from "@/lib/queries";
 import { learnerStatus } from "@/lib/domain";
 import { docRows } from "@/lib/documents";
@@ -54,7 +55,10 @@ export default function LearnerApplicationsList() {
           const offer = getOfferLetter(app.id);
           const locker = docRows(getLearnerDocs(app.id));
           const certified = Boolean(app.certified_at);
-          const status = learnerStatus(app.status, certified);
+          // A live re-check means WE are holding it, not them — without this
+          // the card shouts "Action needed" at a learner with nothing to do.
+          const recheck = recheckOf(app);
+          const status = learnerStatus(app.status, certified, Boolean(recheck));
 
           const toSign = docs.filter((d) => !d.signed_at).length;
           const signed = docs.length - toSign;
@@ -155,7 +159,7 @@ export default function LearnerApplicationsList() {
                   <span className="flex flex-wrap items-center gap-4 text-[13px]">
                     {offer && (
                       <Link
-                        href={`/learner/application/${app.id}`}
+                        href={`/learner/application/${app.id}?tab=review&step=3`}
                         className="flex items-center gap-1.5 font-medium text-accent hover:underline"
                       >
                         <IconCheck className="h-3.5 w-3.5" />
@@ -164,7 +168,7 @@ export default function LearnerApplicationsList() {
                     )}
                     {signed > 0 && (
                       <Link
-                        href={`/learner/application/${app.id}`}
+                        href={`/learner/application/${app.id}?tab=review&step=3`}
                         className="font-medium text-body hover:text-ink hover:underline"
                       >
                         {signed} signed document{signed === 1 ? "" : "s"}

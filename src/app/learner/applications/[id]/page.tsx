@@ -192,7 +192,7 @@ export default function V2ApplicationInsidePage({
           </h2>
           <p className="mb-4 mt-1 text-[13.5px] text-body">
             {pending > 0
-              ? `${pending} document${pending === 1 ? "" : "s"} need your signature.`
+              ? `${pending} document${pending === 1 ? " needs" : "s need"} your signature.`
               : docs.length > 0
                 ? "Everything is signed."
                 : "Nothing to sign yet."}

@@ -65,8 +65,13 @@ export default function OpsDashboard({
   const actionCount = all.filter(needsOpsAction).length;
   const recheckCount = all.filter(opsRecheck).length;
 
-  const submittedCount = count("under_review");
-  const vettingCount = count("under_review");
+  // These two tiles used to run the identical query and so always showed the
+  // same number twice. What actually separates them is whether anyone has
+  // picked the application up: unclaimed is a new submission, claimed is
+  // mid-review.
+  const underReview = all.filter((a) => a.status === "under_review");
+  const submittedCount = underReview.filter((a) => !a.ops_id).length;
+  const vettingCount = underReview.filter((a) => a.ops_id).length;
   const shortlistedCount = count("shortlisted");
   const firstName = user.name.split(" ")[0];
 
@@ -80,11 +85,6 @@ export default function OpsDashboard({
         subtitle: "The vetting pipeline at a glance.",
       }}
     >
-      {searchParams.reviewed && (
-        <div className="mb-4 rounded-xl border border-[#e1d5ee] bg-[#efe9f6] px-4 py-2.5 text-sm text-[#6b4d8f]">
-          Application marked as reviewed — the assigned AC has been notified.
-        </div>
-      )}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <StatTile icon={<IconLayers />} label="In Pipeline" value={all.length} />
@@ -98,14 +98,14 @@ export default function OpsDashboard({
         <StatTile
           icon={<IconDoc />}
           label="New Submissions"
-          value={count("under_review")}
+          value={submittedCount}
           tone="blue"
           delay={120}
         />
         <StatTile
           icon={<IconClipboardCheck />}
           label="Under Vetting"
-          value={count("under_review")}
+          value={vettingCount}
           tone="amber"
           delay={180}
         />

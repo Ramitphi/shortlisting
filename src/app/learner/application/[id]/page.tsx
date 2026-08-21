@@ -369,7 +369,7 @@ export default function LearnerApplicationPage({
                   {docs.length === 0
                     ? "Nothing to sign yet."
                     : pending > 0
-                      ? `${pending} document${pending === 1 ? "" : "s"} need your signature.`
+                      ? `${pending} document${pending === 1 ? " needs" : "s need"} your signature.`
                       : "Everything is signed."}
                 </p>
                 {docs.length === 0 ? (
@@ -392,13 +392,15 @@ export default function LearnerApplicationPage({
                   </div>
                   <CertifyDialog
                     action={certifyDetails.bind(null, app.id)}
-                    ready={allSigned && !recheck}
+                    ready={allSigned && !recheck && Boolean(programme)}
                     reason={
                       recheck
                         ? recheck.state === "ac"
                           ? "Your counsellor is going through these with you"
                           : "We're still checking the details you changed"
-                        : "Sign every document first"
+                        : !programme
+                          ? "We're still finalising your programme — your counsellor will be in touch"
+                          : "Sign every document first"
                     }
                   />
                 </div>

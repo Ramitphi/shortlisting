@@ -17,6 +17,11 @@ import { attachMissingForms, attachRequiredForms, claimApplication } from "./vet
 import {
   CLAUSES,
   FORM_FIELDS,
+  REVIEW_GROUP_BY_KEY,
+  commentableFieldOf,
+  triggeredClausesFor,
+  groupOfField,
+  missingForSubmit,
   LEARNER_DOC_BY_KEY,
   MAX_RECOMMENDED_PROGRAMS,
   matchScore,
@@ -143,12 +148,22 @@ export async function syncFromLsq(applicationId: number) {
      ON CONFLICT (application_id, field_key) DO UPDATE SET value = excluded.value`
   );
   const filled: string[] = [];
+  // A tick means "I read this section and it is right". LSQ writing into a
+  // section after that makes the tick a lie, so the sections the sync touched
+  // go back to unconfirmed and the counsellor re-reads what LSQ sent.
+  const untick = db.prepare(
+    "DELETE FROM group_checks WHERE application_id = ? AND group_key = ? AND actor_role = 'ac'"
+  );
   const tx = db.transaction(() => {
+    const touched = new Set<string>();
     for (const [key, value] of Object.entries(lead)) {
       if ((before[key] ?? "").trim() || !value) continue;
       upsert.run(applicationId, key, value);
       filled.push(FORM_FIELDS.find((f) => f.key === key)?.label ?? key);
+      const group = groupOfField(key);
+      if (group) touched.add(group.key);
     }
+    touched.forEach((key) => untick.run(applicationId, key));
   });
   tx();
 
@@ -170,11 +185,14 @@ export async function syncFromLsq(applicationId: number) {
 export async function saveForm(applicationId: number, formData: FormData) {
   const user = requireUser("ac");
   const app = getApplication(applicationId);
-  // Draft, or a re-check handed back to the counsellor — the edit board is
-  // theirs again in both, because somebody has to be able to act on a change.
-  const recheckEditing =
-    app?.recheck_state === "ac" && app.ac_id === user.id;
-  if (!app || !(canEditDetails(app.status, "ac") || recheckEditing)) return;
+  // Draft, or ANY live re-check — the page opens the edit board for both
+  // (page.tsx: `recheckEditing = Boolean(recheck)`), so this has to accept
+  // both or the board saves nothing and says nothing. Same rule as
+  // toggleGroupCheck, which is why the ticks used to persist while the field
+  // edits beside them vanished.
+  const recheckEditing = Boolean(app?.recheck_at) && app?.ac_id === user.id;
+  if (!app || app.ac_id !== user.id) return;
+  if (!(canEditDetails(app.status, "ac") || recheckEditing)) return;
 
   const db = getDb();
   const upsert = db.prepare(
@@ -200,9 +218,22 @@ export async function saveForm(applicationId: number, formData: FormData) {
 export async function submitForm(applicationId: number, formData: FormData) {
   const user = requireUser("ac");
   const app = getApplication(applicationId);
-  if (!app || !canTransition(app.status, "under_review", "ac")) return;
+  if (!app || app.ac_id !== user.id) return;
+  if (!canTransition(app.status, "under_review", "ac")) return;
 
+  // Save first, then check what we actually have: the button is disabled
+  // while anything is missing, but the rule that matters is this one — an
+  // application without programmes or a date of birth is one Ops can only
+  // send straight back.
   await saveForm(applicationId, formData);
+  if (
+    missingForSubmit(
+      getFormResponses(applicationId),
+      getPrograms(applicationId).length
+    ).length > 0
+  ) {
+    return;
+  }
   setStatus(applicationId, "under_review");
   logEvent(applicationId, user.id, "Eligibility form submitted", `Submitted by ${user.name} on behalf of ${app.learner_name}`);
   const triggered = String(formData.get("triggered_clauses") ?? "")
@@ -245,6 +276,11 @@ export async function certifyDetails(applicationId: number) {
   // Certification covers the undertakings, so they have to be signed first.
   const docs = getDocuments(applicationId);
   if (docs.length === 0 || !docs.every((d) => d.signed_at)) return;
+  // And there has to be a programme to certify INTO. A re-check that rules
+  // the shortlisted programme out takes the shortlist off (setProgramEligibility)
+  // while the status stays `shortlisted`, and certifying there promised an
+  // offer letter that sendOfferLetter would then refuse to issue.
+  if (!getPrograms(applicationId).some((p) => p.shortlisted)) return;
 
   getDb()
     .prepare("UPDATE applications SET certified_at = datetime('now') WHERE id = ?")
@@ -289,11 +325,186 @@ export async function addRemark(applicationId: number, fieldKey: string, formDat
   const user = requireUser("ops");
   const text = String(formData.get("text") ?? "").trim();
   if (!text) return;
+  // Not every comment is a job. Ops says which this is: 'action' has to be
+  // dealt with before the shortlist goes out, 'info' is context to read.
+  const kind = formData.get("kind") === "info" ? "info" : "action";
   getDb()
-    .prepare("INSERT INTO remarks (application_id, field_key, author_id, text) VALUES (?, ?, ?, ?)")
-    .run(applicationId, fieldKey, user.id, text);
+    .prepare(
+      "INSERT INTO remarks (application_id, field_key, author_id, text, kind) VALUES (?, ?, ?, ?, ?)"
+    )
+    .run(applicationId, fieldKey, user.id, text, kind);
   const field = FORM_FIELDS.find((f) => f.key === fieldKey);
-  logEvent(applicationId, user.id, `Remark added on "${field?.label ?? fieldKey}"`, text);
+  logEvent(
+    applicationId,
+    user.id,
+    `${kind === "info" ? "Note" : "Comment"} added on "${field?.label ?? fieldKey}"`,
+    text
+  );
+  dirty();
+}
+
+/**
+ * The counsellor's two ways of answering a comment without "resolving" it:
+ * a thumbs-up that says seen-and-agreed, or a written reply Ops can read.
+ * Both leave a trace on the comment; neither closes it.
+ */
+export async function acknowledgeRemark(remarkId: number) {
+  const user = requireUser("ac");
+  const r = getDb()
+    .prepare("SELECT application_id FROM remarks WHERE id = ?")
+    .get(remarkId) as { application_id: number } | undefined;
+  if (!r) return;
+  const app = getApplication(r.application_id);
+  if (!app || app.ac_id !== user.id) return;
+  getDb()
+    .prepare("UPDATE remarks SET acknowledged_at = datetime('now') WHERE id = ?")
+    .run(remarkId);
+  dirty();
+}
+
+export async function replyToRemark(remarkId: number, formData: FormData) {
+  const user = requireUser("ac");
+  // Several remark cards can share one <form> (the wizard is one big form),
+  // so each reply box is named for its own remark. A shared name="text" made
+  // every Send read the topmost box instead of the one being typed in.
+  const text = String(
+    formData.get(`reply_${remarkId}`) ?? formData.get("text") ?? ""
+  ).trim();
+  if (!text) return;
+  const r = getDb()
+    .prepare("SELECT application_id, field_key, author_id FROM remarks WHERE id = ?")
+    .get(remarkId) as
+    | { application_id: number; field_key: string; author_id: number }
+    | undefined;
+  if (!r) return;
+  const app = getApplication(r.application_id);
+  if (!app || app.ac_id !== user.id) return;
+  getDb()
+    .prepare(
+      "UPDATE remarks SET reply = ?, replied_at = datetime('now') WHERE id = ?"
+    )
+    .run(text, remarkId);
+  const field = FORM_FIELDS.find((f) => f.key === r.field_key);
+  logEvent(
+    r.application_id,
+    user.id,
+    `Replied to Ops on "${field?.label ?? r.field_key}"`,
+    text
+  );
+  notify(
+    r.author_id,
+    `${app.learner_name}: the counsellor replied on "${field?.label ?? r.field_key}"`,
+    `/ops/application/${r.application_id}`
+  );
+  dirty();
+}
+
+// ---------- review groups: the counsellor's tick, Ops' verdict ----------
+
+/**
+ * The counsellor confirms a whole GROUP is correct — "Class 10 is right" —
+ * rather than ticking every field. Clicking again unticks it, because a tick
+ * you cannot take back is a tick nobody trusts.
+ *
+ * Available while the form is theirs: the draft, and a re-check handed back.
+ */
+export async function toggleGroupCheck(applicationId: number, groupKey: string) {
+  const user = requireUser("ac");
+  const app = getApplication(applicationId);
+  if (!app || app.ac_id !== user.id) return;
+  if (!REVIEW_GROUP_BY_KEY[groupKey]) return;
+  const mayCheck = app.status === "draft" || Boolean(app.recheck_at);
+  if (!mayCheck) return;
+
+  const db = getDb();
+  const existing = db
+    .prepare(
+      "SELECT state FROM group_checks WHERE application_id = ? AND group_key = ? AND actor_role = 'ac'"
+    )
+    .get(applicationId, groupKey) as { state: string } | undefined;
+
+  if (existing) {
+    db.prepare(
+      "DELETE FROM group_checks WHERE application_id = ? AND group_key = ? AND actor_role = 'ac'"
+    ).run(applicationId, groupKey);
+  } else {
+    db.prepare(
+      `INSERT INTO group_checks (application_id, group_key, actor_role, state, by_id)
+       VALUES (?, ?, 'ac', 'checked', ?)`
+    ).run(applicationId, groupKey, user.id);
+    logEvent(
+      applicationId,
+      user.id,
+      `Confirmed correct: ${REVIEW_GROUP_BY_KEY[groupKey].label}`
+    );
+  }
+  dirty();
+}
+
+/**
+ * Ops' verdict on a group: verified, or not verified with a reason. Only the
+ * groups flagged `opsReview` are Ops' to rule on — the rest are the
+ * counsellor's own confirmation and Ops never touches them.
+ */
+export async function setGroupReview(
+  applicationId: number,
+  groupKey: string,
+  formData: FormData
+) {
+  const user = requireUser("ops");
+  const app = getApplication(applicationId);
+  const group = REVIEW_GROUP_BY_KEY[groupKey];
+  if (!app || !group || !group.opsReview) return;
+  // Vetting, or re-reading a learner's change.
+  const reRuling = Boolean(app.recheck_at) && app.recheck_state !== "ac";
+  if (app.status !== "under_review" && !reRuling) return;
+
+  const verdict = String(formData.get("verdict"));
+  if (verdict !== "verified" && verdict !== "not_verified") return;
+  const comment = String(formData.get("comment") ?? "").trim();
+  // "Not verified" without a reason is a dead end for whoever reads it next.
+  if (verdict === "not_verified" && !comment) return;
+
+  getDb()
+    .prepare(
+      `INSERT INTO group_checks (application_id, group_key, actor_role, state, comment, by_id, at)
+       VALUES (?, ?, 'ops', ?, ?, ?, datetime('now'))
+       ON CONFLICT (application_id, group_key, actor_role)
+       DO UPDATE SET state = excluded.state, comment = excluded.comment,
+                     by_id = excluded.by_id, at = excluded.at`
+    )
+    .run(applicationId, groupKey, verdict, comment || null, user.id);
+
+  logEvent(
+    applicationId,
+    user.id,
+    `${group.label}: ${verdict === "verified" ? "verified" : "not verified"}`,
+    comment || undefined
+  );
+  // Not verified is something the counsellor has to act on, so it also lands
+  // as a comment against a field in the group — one their board renders a
+  // comment slot on, see commentableFieldOf.
+  //
+  // Flipping to verified withdraws it: leaving the old complaint open would
+  // block the counsellor from handing the re-check back over a point Ops has
+  // since agreed with. Re-ruling not-verified replaces it rather than
+  // stacking another copy.
+  const pin = commentableFieldOf(group);
+  const db2 = getDb();
+  db2
+    .prepare(
+      `DELETE FROM remarks
+       WHERE application_id = ? AND field_key = ? AND status = 'open'
+         AND author_id = ? AND text LIKE ?`
+    )
+    .run(applicationId, pin, user.id, `${group.label}: %`);
+  if (verdict === "not_verified") {
+    db2
+      .prepare(
+        "INSERT INTO remarks (application_id, field_key, author_id, text, kind) VALUES (?, ?, ?, ?, 'action')"
+      )
+      .run(applicationId, pin, user.id, `${group.label}: ${comment}`);
+  }
   dirty();
 }
 
@@ -379,10 +590,19 @@ export async function updateFieldValue(
     user.role === "ops" &&
     app.status === "under_review" &&
     field.filledBy === "ops";
+  // The counsellor's board is open on `reviewed`, during a re-check, and
+  // after Ops rules the shortlisted programme out (the shortlist comes off
+  // and there is a choice to make again). This has to admit all three or the
+  // inputs the page renders report "Saved" and write nothing.
+  const shortlistWithdrawn =
+    app.status === "shortlisted" &&
+    !getPrograms(applicationId).some((p) => p.shortlisted);
   const acResolving =
     user.role === "ac" &&
     app.ac_id === user.id &&
-    (app.status === "reviewed" || app.recheck_state === "ac") &&
+    (app.status === "reviewed" ||
+      Boolean(app.recheck_at) ||
+      shortlistWithdrawn) &&
     field.filledBy !== "ops";
   if (!opsFilling && !acResolving) return;
 
@@ -392,12 +612,7 @@ export async function updateFieldValue(
 
   // The input already refuses these; this makes sure nothing else can write
   // them either. A Class 10 percentage of 104 is a typo, not a value.
-  if (field.type === "number" && value !== "") {
-    const n = Number(value);
-    if (Number.isNaN(n)) return;
-    if (field.min !== undefined && n < field.min) return;
-    if (field.max !== undefined && n > field.max) return;
-  }
+  if (outOfBounds(field, value)) return;
 
   getDb()
     .prepare(
@@ -581,8 +796,9 @@ export async function removeDocument(docId: number) {
 export async function addProgram(applicationId: number, formData: FormData) {
   const user = requireUser("ac");
   const app = getApplication(applicationId);
-  const mayEdit =
-    app?.status === "draft" || app?.recheck_state === "ac";
+  // Any live re-check, not just one handed back: the counsellor's board is
+  // open for the whole re-check, and a control that renders has to work.
+  const mayEdit = app?.status === "draft" || Boolean(app?.recheck_at);
   if (!app || app.ac_id !== user.id || !mayEdit) return;
   if (getPrograms(applicationId).length >= MAX_RECOMMENDED_PROGRAMS) return;
   const catalogueId = Number(formData.get("catalogueId"));
@@ -634,6 +850,71 @@ export async function addProgram(applicationId: number, formData: FormData) {
 }
 
 /** The counsellor can withdraw a recommendation while the form is still theirs. */
+/**
+ * Ops adds a programme from the catalogue.
+ *
+ * Normally recommending is the counsellor's job. The exception is the loop
+ * this whole re-check machinery exists for: the learner changes an answer,
+ * every programme they were recommended goes not-eligible, and the
+ * application dead-ends. Ops is the one with the catalogue open and the
+ * verdicts in hand, so they can put a live option back — marked as theirs,
+ * already ruled eligible, and the counsellor is told it is there.
+ */
+export async function opsAddProgram(applicationId: number, formData: FormData) {
+  const user = requireUser("ops");
+  const app = getApplication(applicationId);
+  if (!app) return;
+  const reRuling = Boolean(app.recheck_at) && app.recheck_state !== "ac";
+  if (app.status !== "under_review" && !reRuling) return;
+  if (getPrograms(applicationId).length >= MAX_RECOMMENDED_PROGRAMS) return;
+
+  const catalogueId = Number(formData.get("catalogueId"));
+  if (!catalogueId) return;
+  const db = getDb();
+  const item = db
+    .prepare("SELECT * FROM program_catalogue WHERE id = ?")
+    .get(catalogueId) as
+    | {
+        id: number;
+        name: string;
+        institute: string;
+        duration: string | null;
+        fee: string | null;
+        notes: string | null;
+      }
+    | undefined;
+  if (!item) return;
+  if (getPrograms(applicationId).some((p) => p.catalogue_id === item.id)) return;
+
+  db.prepare(
+    `INSERT INTO programs
+     (application_id, name, institute, duration, fee, notes, added_by,
+      shortlisted, catalogue_id, source, eligibility, eligibility_note)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 'ops', 'eligible', ?)`
+  ).run(
+    applicationId,
+    item.name,
+    item.institute,
+    item.duration,
+    item.fee,
+    item.notes,
+    user.id,
+    item.id,
+    "Added by Ops and ruled eligible against the learner's current details"
+  );
+  logEvent(
+    applicationId,
+    user.id,
+    `Ops added an eligible programme: ${item.name}`,
+    item.institute
+  );
+  const msg = `Ops added ${item.name} for ${app.learner_name} — eligible, ready to shortlist`;
+  const link = `/ac/application/${applicationId}`;
+  if (app.ac_id) notify(app.ac_id, msg, link);
+  else notifyRole("ac", msg, link);
+  dirty();
+}
+
 export async function removeProgram(programId: number) {
   const user = requireUser("ac");
   const p = getDb()
@@ -643,8 +924,9 @@ export async function removeProgram(programId: number) {
     | undefined;
   if (!p || p.shortlisted) return;
   const app = getApplication(p.application_id);
-  const mayEdit =
-    app?.status === "draft" || app?.recheck_state === "ac";
+  // Any live re-check, not just one handed back: the counsellor's board is
+  // open for the whole re-check, and a control that renders has to work.
+  const mayEdit = app?.status === "draft" || Boolean(app?.recheck_at);
   if (!app || app.ac_id !== user.id || !mayEdit) return;
   getDb().prepare("DELETE FROM programs WHERE id = ?").run(programId);
   logEvent(p.application_id, user.id, `Recommendation withdrawn: ${p.name}`);
@@ -679,15 +961,18 @@ export async function setProgramEligibility(
 
   const verdict = String(formData.get("verdict"));
   if (verdict !== "eligible" && verdict !== "not_eligible") return;
+  // Why, in Ops' words — the counsellor quotes this to the learner.
+  const note = String(formData.get("note") ?? "").trim();
   getDb()
     .prepare(
-      "UPDATE programs SET eligibility = ?, eligibility_stale = 0 WHERE id = ?"
+      "UPDATE programs SET eligibility = ?, eligibility_stale = 0, eligibility_note = ? WHERE id = ?"
     )
-    .run(verdict, programId);
+    .run(verdict, note || null, programId);
   logEvent(
     p.application_id,
     user.id,
-    `Programme marked ${verdict === "eligible" ? "eligible" : "not eligible"}: ${p.name}`
+    `Programme marked ${verdict === "eligible" ? "eligible" : "not eligible"}: ${p.name}`,
+    note || undefined
   );
 
   // The one that hurts: the programme the learner was shortlisted for is no
@@ -774,8 +1059,8 @@ export async function shortlistProgram(applicationId: number, formData: FormData
   const reChoosing =
     app?.status === "shortlisted" &&
     !getPrograms(applicationId).some((p) => p.shortlisted);
-  if (!app || (!canTransition(app.status, "shortlisted", "ac") && !reChoosing))
-    return;
+  if (!app || app.ac_id !== user.id) return;
+  if (!canTransition(app.status, "shortlisted", "ac") && !reChoosing) return;
   const id = Number(formData.get("programId"));
   if (!id) return;
 
@@ -826,6 +1111,26 @@ export async function shortlistProgram(applicationId: number, formData: FormData
  * back in front of Ops as a re-check that has to be cleared before the
  * learner can certify again or the offer letter can go out.
  */
+/** A number field's value is only acceptable inside its declared bounds. */
+function outOfBounds(field: (typeof FORM_FIELDS)[number], value: string) {
+  if (field.type !== "number" || value === "") return false;
+  const n = Number(value);
+  if (Number.isNaN(n)) return true;
+  if (field.min !== undefined && n < field.min) return true;
+  if (field.max !== undefined && n > field.max) return true;
+  return false;
+}
+
+/** The posted fields as a plain record, for the shared rule helpers. */
+function formDataValues(formData: FormData): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const f of FORM_FIELDS) {
+    const v = formData.get(f.key);
+    if (v !== null) out[f.key] = String(v);
+  }
+  return out;
+}
+
 export async function updateLearnerDetails(
   applicationId: number,
   formData: FormData
@@ -850,12 +1155,22 @@ export async function updateLearnerDetails(
       const v = formData.get(f.key);
       if (v === null) continue;
       const next = String(v);
+      // Same bounds as everywhere else — the learner's form had none.
+      if (outOfBounds(f, next)) continue;
       if ((before[f.key] ?? "") !== next) {
         changed.push(f.label);
         changedKeys.push(f.key);
       }
       upsert.run(applicationId, f.key, next);
     }
+    // The declarations follow the answers. Only the counsellor's wizard used
+    // to write this, so a learner who edited their way into needing a new
+    // undertaking never got one — and attachMissingForms reads exactly this.
+    upsert.run(
+      applicationId,
+      "triggered_clauses",
+      triggeredClausesFor({ ...before, ...formDataValues(formData) }).join("|")
+    );
   });
   tx();
 
@@ -980,6 +1295,12 @@ export async function clearRecheck(applicationId: number) {
   // Closing the re-check over the top of one would let the offer letter out
   // on a programme nobody has re-ruled.
   if (getPrograms(applicationId).some((p) => p.eligibility_stale)) return;
+  // And something has to survive the re-ruling. Closing with everything ruled
+  // out strands the application: the catalogue picker is only on screen while
+  // a re-check is open, so shutting it is the one move nobody can undo.
+  // Add an eligible programme from the picker instead (see opsAddProgram).
+  if (!getPrograms(applicationId).some((p) => p.eligibility === "eligible"))
+    return;
 
   const fields = app.recheck_fields ?? "";
   getDb()
@@ -989,6 +1310,11 @@ export async function clearRecheck(applicationId: number) {
        WHERE id = ?`
     )
     .run(applicationId);
+  // The change may have triggered a declaration that did not apply before —
+  // a backlog appearing, a pursuing status, a financing plan. Closing the
+  // re-check is the moment those undertakings have to exist, because the next
+  // thing that happens is the learner being asked to sign.
+  attachMissingForms(applicationId, user.id);
   logEvent(
     applicationId,
     user.id,
@@ -1031,7 +1357,10 @@ export async function raiseRecheckRemarks(applicationId: number) {
   // vetting is not feedback on what the learner just did, and handing that to
   // the counsellor would send them to the learner with the wrong question.
   const open = getRemarks(applicationId).filter(
-    (r) => r.status === "open" && r.created_at >= app.recheck_at!
+    (r) =>
+      r.status === "open" &&
+      r.kind !== "info" &&
+      r.created_at >= app.recheck_at!
   );
   if (open.length === 0) return;
 
@@ -1093,7 +1422,10 @@ export async function returnRecheckToOps(
   // back with the same open list they sent, and the round trip taught nobody
   // anything. Older remarks are not part of this conversation.
   const open = getRemarks(applicationId).filter(
-    (r) => r.status === "open" && r.created_at >= app.recheck_at!
+    (r) =>
+      r.status === "open" &&
+      r.kind !== "info" &&
+      r.created_at >= app.recheck_at!
   );
   if (open.length > 0) return;
 
@@ -1185,7 +1517,10 @@ export async function sendOfferLetter(applicationId: number, formData: FormData)
   notify(app.learner_id, `Your offer letter for ${chosen.name} (${chosen.institute}) is here!`, "/learner");
   if (app.ac_id) notify(app.ac_id, `Offer letter sent to ${app.learner_name} for ${chosen.name}`, `/ac/application/${applicationId}`);
   dirty();
-  goto(`/ops/application/${applicationId}?tab=undertaking&toast=offer`);
+  // "undertaking" was a tab of its own once; the undertakings live on
+  // Eligibility now, and redirecting to a tab that no longer resolves dropped
+  // Ops on the default one with no sign the letter had gone.
+  goto(`/ops/application/${applicationId}?tab=eligibility&toast=offer`);
 }
 
 // ---------- Admin ----------

@@ -23,6 +23,7 @@ import {
   DotStatus,
   ProfileSummary,
   RecheckNotice,
+  ReviewGroupBlock,
   IconBuilding,
   IconCalendar,
   IconCap,
@@ -30,6 +31,7 @@ import {
   IconClock,
   IconDoc,
   IconRefresh,
+  IconShield,
   IconSignature,
   IconSparkle,
   IconWallet,
@@ -43,27 +45,34 @@ import {
   getDocuments,
   getLearnerDocs,
   getOfferLetter,
+  getGroupChecks,
   listProgramCatalogue,
   recheckOf,
 } from "@/lib/queries";
 import {
+  acknowledgeRemark,
   addProgram,
   openApplication,
   removeProgram,
   saveForm,
   submitForm,
   removeLearnerDoc,
+  replyToRemark,
   resolveRemark,
   returnRecheckToOps,
   shortlistProgram,
   syncFromLsq,
+  toggleGroupCheck,
   updateFieldValue,
   uploadLearnerDoc,
   verifyLearnerDoc,
 } from "@/lib/actions";
 import {
+  CLAUSES,
   DOC_CATEGORIES,
   FORM_FIELDS,
+  OPS_REVIEW_GROUPS,
+  REVIEW_GROUP_BY_KEY,
   FORM_SECTIONS,
   DOC_TYPE_LABELS,
   MAX_RECOMMENDED_PROGRAMS,
@@ -127,7 +136,12 @@ export default function AcApplicationPage({
   const shortlistWithdrawn =
     app.status === "shortlisted" && !programs.some((p) => p.shortlisted);
   const canShortlist = app.status === "reviewed" || shortlistWithdrawn;
-  const openRemarks = remarks.filter((r) => r.status === "open");
+  // "Open" means someone is waiting on the counsellor. Info remarks are Ops
+  // thinking out loud — they stay visible on the field but never gate a CTA
+  // or inflate a badge, otherwise "3 comments" would mean nothing.
+  const openRemarks = remarks.filter(
+    (r) => r.status === "open" && r.kind !== "info"
+  );
   const certified = Boolean(app.certified_at);
 
   const resolvedRemarks = remarks.filter((r) => r.status === "resolved");
@@ -139,7 +153,10 @@ export default function AcApplicationPage({
   const recheck = recheckOf(app);
   /** Ops' comments on THIS change — not every remark ever left open. */
   const recheckComments = recheck
-    ? remarks.filter((r) => r.status === "open" && r.created_at >= recheck.at)
+    ? remarks.filter(
+        (r) =>
+          r.status === "open" && r.kind !== "info" && r.created_at >= recheck.at
+      )
     : [];
   /** The labels the learner moved — marked wherever the fields are read. */
   const changedLabels = new Set(recheck?.fields ?? []);
@@ -150,6 +167,15 @@ export default function AcApplicationPage({
   // the phone to them. Read-only-for-everyone was the hole in this loop.
   const recheckEditing = Boolean(recheck);
   const handedBack = recheck?.state === "ac";
+  const groupChecks = getGroupChecks(app.id);
+  const verifiedGroups = OPS_REVIEW_GROUPS.filter(
+    (g) => groupChecks[g.key]?.ops?.state === "verified"
+  ).length;
+  const allGroupsVerified = verifiedGroups === OPS_REVIEW_GROUPS.length;
+  const triggeredClauses = (responses.triggered_clauses ?? "")
+    .split("|")
+    .filter(Boolean);
+
   /** The same changed fields, as wizard field keys, for the edit board. */
   const changedKeys = FORM_FIELDS.filter((f) => changedLabels.has(f.label)).map(
     (f) => f.key
@@ -165,6 +191,11 @@ export default function AcApplicationPage({
         at: r.created_at,
         text: r.text,
         resolved: r.status === "resolved",
+        kind: r.kind ?? "action",
+        acknowledgedAt: r.acknowledged_at,
+        reply: r.reply,
+        acknowledgeAction: acknowledgeRemark.bind(null, r.id),
+        replyAction: replyToRemark.bind(null, r.id),
         resolveAction: resolveRemark.bind(null, r.id),
       }))
     : [];
@@ -188,6 +219,18 @@ export default function AcApplicationPage({
         at: r.created_at,
         text: r.text,
         resolved: r.status === "resolved",
+        kind: r.kind ?? "action",
+        acknowledgedAt: r.acknowledged_at,
+        reply: r.reply,
+        // The two ways to answer Ops without closing the comment.
+        acknowledgeAction:
+          canResolve && r.status === "open"
+            ? acknowledgeRemark.bind(null, r.id)
+            : undefined,
+        replyAction:
+          canResolve && r.status === "open"
+            ? replyToRemark.bind(null, r.id)
+            : undefined,
         actions:
           canResolve && r.status === "open" ? (
             <form action={resolveRemark.bind(null, r.id)}>
@@ -312,6 +355,25 @@ export default function AcApplicationPage({
               </h1>
               <StatusBadge status={app.status} />
               <CertifiedChip at={app.certified_at} />
+              {app.status !== "draft" && (
+                <CardChip
+                  tone={allGroupsVerified ? "green" : "muted"}
+                  tooltip={
+                    allGroupsVerified
+                      ? "Ops verified every section of this profile"
+                      : `Ops has verified ${verifiedGroups} of ${OPS_REVIEW_GROUPS.length} sections`
+                  }
+                >
+                  {allGroupsVerified ? (
+                    <IconCheck className="h-3 w-3" />
+                  ) : (
+                    <IconShield className="h-3 w-3" />
+                  )}
+                  {allGroupsVerified
+                    ? "Verified"
+                    : `${verifiedGroups}/${OPS_REVIEW_GROUPS.length} verified`}
+                </CardChip>
+              )}
             </div>
             <p className="mt-1 text-[14.5px] text-body">{app.learner_email}</p>
           </div>
@@ -393,6 +455,28 @@ export default function AcApplicationPage({
           mode={recheckEditing ? "review" : "fill"}
           remarks={recheckEditing ? wizardRemarks : []}
           changedFields={changedKeys}
+          groupBlock={(key, label, children) => {
+            const g = REVIEW_GROUP_BY_KEY[key];
+            if (!g) return children;
+            return (
+              <ReviewGroupBlock
+                key={key}
+                group={g}
+                acCheck={groupChecks[key]?.ac}
+                opsCheck={groupChecks[key]?.ops}
+                viewer="ac"
+                inForm
+                canTick
+                toggleAction={toggleGroupCheck.bind(null, app.id, key)}
+                docs={locker.filter((r) => g.docs.includes(r.key))}
+                triggered={g.clauses
+                  .filter((c) => triggeredClauses.includes(c))
+                  .map((c) => CLAUSES[c]?.title ?? c)}
+              >
+                {children}
+              </ReviewGroupBlock>
+            );
+          }}
           reviewBar={
             recheckEditing ? (
               <>
@@ -471,7 +555,12 @@ export default function AcApplicationPage({
                           {p.match.score}% match
                         </CardChip>
                       )}
-                      <PickRemove action={removeProgram.bind(null, p.id)} />
+                      {/* removeProgram always refuses the shortlisted one —
+                          it is what the learner is signing against — so the
+                          control does not render there either. */}
+                      {!p.shortlisted && (
+                        <PickRemove action={removeProgram.bind(null, p.id)} />
+                      )}
                     </div>
                   ))}
                 </div>
@@ -813,7 +902,14 @@ export default function AcApplicationPage({
                           {/* Footer */}
                           <span className="mt-3.5 flex items-center justify-between gap-3 border-t border-line pt-3">
                             <span className="flex min-w-0 items-center gap-1.5 text-[12px] text-caption">
-                              {p.notes ? (
+                              {p.eligibility_note ? (
+                                <>
+                                  <IconShield className="h-3.5 w-3.5 shrink-0 text-caption" />
+                                  <span className="truncate" title={p.eligibility_note}>
+                                    Ops: {p.eligibility_note}
+                                  </span>
+                                </>
+                              ) : p.notes ? (
                                 <>
                                   <IconSparkle className="h-3.5 w-3.5 shrink-0 text-accent" />
                                   <span className="truncate">{p.notes}</span>
@@ -854,8 +950,16 @@ export default function AcApplicationPage({
                               <DotStatus color="bg-caption/50">
                                 {p.institute}
                               </DotStatus>
+                              {p.eligibility_note && (
+                                <p className="mt-1 text-[12px] leading-snug text-body">
+                                  Ops: {p.eligibility_note}
+                                </p>
+                              )}
                             </div>
-                            <CardChip tone={p.eligibility === "not_eligible" ? "red" : "muted"}>
+                            <CardChip
+                              tone={p.eligibility === "not_eligible" ? "red" : "muted"}
+                              tooltip={p.eligibility_note ?? undefined}
+                            >
                               {p.eligibility === "not_eligible"
                                 ? "Not eligible — Ops"
                                 : "Eligibility pending"}

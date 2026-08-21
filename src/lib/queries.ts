@@ -3,7 +3,9 @@ import type {
   AppStatus,
   DocType,
   DocVerification,
+  GroupState,
   RecheckState,
+  RemarkKind,
 } from "./domain";
 export type { RecheckState };
 import type { User } from "./auth";
@@ -43,6 +45,24 @@ export interface Remark {
   text: string;
   status: "open" | "resolved";
   created_at: string;
+  /** 'action' = do something about it; 'info' = context to read. */
+  kind?: RemarkKind;
+  /** The counsellor thumbed it up — seen and agreed, no reply needed. */
+  acknowledged_at?: string | null;
+  reply?: string | null;
+  replied_at?: string | null;
+}
+
+/** How one review group stands, per side of the desk. */
+export interface GroupCheck {
+  application_id: number;
+  group_key: string;
+  actor_role: "ac" | "ops";
+  state: GroupState;
+  comment: string | null;
+  by_id: number | null;
+  by_name?: string;
+  at: string;
 }
 
 export interface Program {
@@ -63,6 +83,8 @@ export interface Program {
   eligibility: "pending" | "eligible" | "not_eligible";
   /** The verdict was made before the learner changed the answers behind it. */
   eligibility_stale?: number;
+  /** Ops' reason for the verdict — shown wherever the verdict is. */
+  eligibility_note?: string | null;
 }
 
 export interface CatalogueProgram {
@@ -186,6 +208,29 @@ export function getRemarks(applicationId: number): Remark[] {
        WHERE r.application_id = ? ORDER BY r.created_at ASC`
     )
     .all(applicationId) as Remark[];
+}
+
+/**
+ * Every group verdict on an application, keyed group → role. Both sides are
+ * read together because the UI shows them together: the counsellor's tick and
+ * Ops' verdict sit on the same group header.
+ */
+export function getGroupChecks(
+  applicationId: number
+): Record<string, Partial<Record<"ac" | "ops", GroupCheck>>> {
+  const rows = getDb()
+    .prepare(
+      `SELECT g.*, u.name AS by_name FROM group_checks g
+       LEFT JOIN users u ON u.id = g.by_id
+       WHERE g.application_id = ?`
+    )
+    .all(applicationId) as GroupCheck[];
+  const out: Record<string, Partial<Record<"ac" | "ops", GroupCheck>>> = {};
+  for (const r of rows) {
+    out[r.group_key] = out[r.group_key] ?? {};
+    out[r.group_key][r.actor_role] = r;
+  }
+  return out;
 }
 
 export function getPrograms(applicationId: number): Program[] {

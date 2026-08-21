@@ -462,3 +462,12 @@ export function IconRefresh({ className }: { className?: string }) {
     </Icon>
   );
 }
+
+export function IconThumbUp({ className }: { className?: string }) {
+  return (
+    <Icon className={className}>
+      <path d="M7 10.5v9H4.5a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1H7Z" />
+      <path d="M7 10.5 11 3a2 2 0 0 1 2 2v4h5.3a1.8 1.8 0 0 1 1.76 2.16l-1.2 6A1.8 1.8 0 0 1 17.1 19.5H7" />
+    </Icon>
+  );
+}

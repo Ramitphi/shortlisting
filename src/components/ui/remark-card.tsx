@@ -19,14 +19,20 @@ function initials(name: string) {
  * same thing twice.
  */
 export function RemarkCard({
+  remarkId,
   author,
   at,
   text,
   resolved = false,
   locked = false,
   action,
+  reply,
+  acknowledged = false,
+  replyAction,
   children,
 }: {
+  /** Names this card's reply box, so sibling cards in one form don't collide. */
+  remarkId?: number;
   author: string;
   /** "2026-08-04 13:40:12" */
   at: string;
@@ -36,6 +42,12 @@ export function RemarkCard({
   locked?: boolean;
   /** The resolve/delete control, rendered top-right as an icon. */
   action?: React.ReactNode;
+  /** The counsellor's written answer, once they have given one. */
+  reply?: string | null;
+  /** They thumbed it up — seen and agreed, nothing to type. */
+  acknowledged?: boolean;
+  /** Posts a written answer back to Ops. */
+  replyAction?: (formData: FormData) => void;
   /** Extra controls under the note. */
   children?: React.ReactNode;
 }) {
@@ -84,6 +96,35 @@ export function RemarkCard({
           >
             {text}
           </p>
+          {/* Answering is not resolving: a thumbs-up or a written reply
+              tells Ops it was read without closing anything. */}
+          {acknowledged && (
+            <p className="mt-1.5 flex items-center gap-1 text-[11.5px] font-medium text-[#3f6c45]">
+              <IconCheck className="h-3 w-3" />
+              Acknowledged by the counsellor
+            </p>
+          )}
+          {reply && (
+            <p className="mt-1.5 rounded-lg bg-paper px-2.5 py-1.5 text-[12px] leading-relaxed text-body">
+              <b className="font-semibold text-ink">Reply:</b> {reply}
+            </p>
+          )}
+          {!resolved && !locked && replyAction && !reply && (
+            <span className="mt-2 flex items-center gap-1.5">
+              <input
+                name={remarkId ? `reply_${remarkId}` : "text"}
+                placeholder="Reply to Ops…"
+                className="input !h-7 !w-full !py-0 !text-[12px]"
+              />
+              <button
+                formAction={replyAction}
+                formNoValidate
+                className="btn-secondary !h-7 shrink-0 !px-2.5 !text-[12px]"
+              >
+                Send
+              </button>
+            </span>
+          )}
           {children}
         </div>
 

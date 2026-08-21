@@ -5,14 +5,19 @@ import {
   createContext,
   useContext,
   useMemo,
+  useRef,
   useState,
   useTransition,
 } from "react";
 import {
+  ageFrom,
   CLAUSES,
+  FORM_FIELDS,
+  triggeredClausesFor,
   COUNTRIES,
   COUNTRY_FLAGS,
   DEGREE_LEVELS,
+  missingForSubmit,
 } from "@/lib/domain";
 import {
   RemarkCard,
@@ -26,6 +31,7 @@ import {
   IconPlus,
   IconShield,
   IconSparkle,
+  IconThumbUp,
 } from "@/components/ui";
 
 const GENDER_ICONS: Record<string, React.ReactNode> = {
@@ -60,17 +66,6 @@ function sanitisePhone(raw: string): string {
   return (plus ? "+" : "") + digits;
 }
 
-function ageFrom(dob: string): number | null {
-  if (!dob) return null;
-  const d = new Date(dob);
-  if (Number.isNaN(d.getTime())) return null;
-  const now = new Date();
-  let age = now.getFullYear() - d.getFullYear();
-  const m = now.getMonth() - d.getMonth();
-  if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
-  return age;
-}
-
 /* ---------- small field primitives (call-form scale) ---------- */
 
 /**
@@ -97,6 +92,7 @@ function FieldRemarks({ fieldKey }: { fieldKey: string }) {
       {mine.map((r) => (
         <RemarkCard
           key={r.id}
+          remarkId={r.id}
           author={r.author}
           at={r.at}
           text={r.text}
@@ -104,17 +100,33 @@ function FieldRemarks({ fieldKey }: { fieldKey: string }) {
           locked={r.locked}
           action={
             r.resolved || r.locked ? null : (
-              <button
-                formAction={r.resolveAction}
-                formNoValidate
-                title="Mark resolved"
-                aria-label="Mark resolved"
-                className="flex h-6 w-6 items-center justify-center rounded-full border border-line-strong text-caption transition-colors hover:border-[#4c9257] hover:bg-[#e8f2e9] hover:text-[#3f6c45]"
-              >
-                <IconCheck className="h-3.5 w-3.5" />
-              </button>
+              <span className="flex items-center gap-1">
+                {r.acknowledgeAction && !r.acknowledgedAt && (
+                  <button
+                    formAction={r.acknowledgeAction}
+                    formNoValidate
+                    title="Seen and agreed"
+                    aria-label="Acknowledge"
+                    className="flex h-6 w-6 items-center justify-center rounded-full border border-line-strong text-caption transition-colors hover:border-[#4c9257] hover:bg-[#e8f2e9] hover:text-[#3f6c45]"
+                  >
+                    <IconThumbUp className="h-3.5 w-3.5" />
+                  </button>
+                )}
+                <button
+                  formAction={r.resolveAction}
+                  formNoValidate
+                  title="Mark resolved"
+                  aria-label="Mark resolved"
+                  className="flex h-6 w-6 items-center justify-center rounded-full border border-line-strong text-caption transition-colors hover:border-[#4c9257] hover:bg-[#e8f2e9] hover:text-[#3f6c45]"
+                >
+                  <IconCheck className="h-3.5 w-3.5" />
+                </button>
+              </span>
             )
           }
+          reply={r.reply}
+          acknowledged={Boolean(r.acknowledgedAt)}
+          replyAction={r.replyAction}
         />
       ))}
     </div>
@@ -260,10 +272,21 @@ export interface StepRemark {
   at: string;
   text: string;
   resolved: boolean;
+  /** 'info' is context to read, not work to do — it never flags a step. */
+  kind?: "action" | "info";
+  acknowledgedAt?: string | null;
+  reply?: string | null;
+  acknowledgeAction?: (formData: FormData) => void;
+  replyAction?: (formData: FormData) => void;
   /** Shortlist sent — read-only history. */
   locked?: boolean;
   resolveAction: (formData: FormData) => void;
 }
+
+/** Every field the counsellor owns — the ops-filled ones are theirs to type. */
+const AC_FIELD_KEYS = new Set(
+  FORM_FIELDS.filter((f) => f.filledBy !== "ops").map((f) => f.key)
+);
 
 export function CallForm({
   initial,
@@ -276,6 +299,7 @@ export function CallForm({
   sidebar,
   reviewBar,
   changedFields = [],
+  groupBlock,
 }: {
   initial: Values;
   saveAction: (formData: FormData) => void;
@@ -294,23 +318,41 @@ export function CallForm({
   reviewBar?: React.ReactNode;
   /** FORM_FIELDS keys the learner changed after vetting — marked on the row. */
   changedFields?: readonly string[];
+  /**
+   * Wraps a section in its review group — the counsellor's "mark correct"
+   * tick, the group's documents and the undertakings it triggers. Supplied by
+   * the page, which owns the data; the wizard just says which group a block
+   * of fields belongs to.
+   */
+  groupBlock?: (
+    groupKey: string,
+    label: string,
+    children: React.ReactNode
+  ) => React.ReactNode;
 }) {
   const [step, setStep] = useState(0);
   const changedSet = useMemo(() => new Set(changedFields), [changedFields]);
   const [v, setV] = useState<Values>(initial);
   const [pending, startTransition] = useTransition();
-  const set = (k: string, val: string) => setV((p) => ({ ...p, [k]: val }));
+  // Every key the counsellor has touched, including ones they deliberately
+  // cleared — "empty" and "not filled in yet" are different things and the
+  // merge below has to be able to tell them apart.
+  const touched = useRef(new Set<string>());
+  const set = (k: string, val: string) => {
+    touched.current.add(k);
+    setV((p) => ({ ...p, [k]: val }));
+  };
 
   // Values can now arrive UNDERNEATH the wizard — "Auto-sync with LSQ" writes
   // straight to the application. Adopt fresh values for fields the counsellor
-  // hasn't typed into yet, and only those: a merge limited to locally-empty
-  // keys can never clobber in-progress typing.
+  // hasn't typed into yet, and only those: a merge limited to untouched keys
+  // can neither clobber in-progress typing nor undo a deliberate clear.
   useEffect(() => {
     setV((prev) => {
       let changed = false;
       const next = { ...prev };
       for (const [k, val] of Object.entries(initial)) {
-        if (val && !(next[k] ?? "").trim()) {
+        if (val && !(next[k] ?? "").trim() && !touched.current.has(k)) {
           next[k] = val;
           changed = true;
         }
@@ -330,50 +372,15 @@ export function CallForm({
   const wantsMbbs = v.mbbs_intent === "Yes";
 
 
-  // Clause engine — mirrors the trigger column of the spec.
-  const clauses = useMemo(() => {
-    const ids: string[] = [];
-    if (isMinor) ids.push("CON-Parents-01");
-    if (age !== null && ((isBachelors && age > 30) || (isMasters && age > 45)))
-      ids.push("ACK-Age/Visa-01");
-    if (v.status_12 === "Pursuing") ids.push("UT-uG Doc-01");
-    if (v.has_marksheet_12 === "Not yet available")
-      ids.push("UT-uG Doc/Result-03");
-    if (isMasters) {
-      if (v.bachelor_status?.startsWith("Pursuing")) ids.push("UT-PG Doc-02");
-      if (
-        v.bachelor_docs === "Yes - Partial Documents" ||
-        v.bachelor_docs === "No"
-      )
-        ids.push("UT-PG Doc/Result-04");
-      if (Number(v.backlogs ?? 0) > 0) ids.push("UT-Backlog-01");
-      if (
-        v.pg_docs === "Yes - Partial Documents" ||
-        (v.pg_docs === "No" && v.pg_status && v.pg_status !== "No")
-      )
-        ids.push("UT-PG Doc-02");
-    }
-    if (v.finance_plan) ids.push("UT/ACK-Loan-01");
-    return Array.from(new Set(ids));
-  }, [v, age, isMinor, isMasters, isBachelors]);
+  // Clause engine — shared with the server so a learner's own edit triggers
+  // the same declarations this call does. See triggeredClausesFor.
+  const clauses = useMemo(() => triggeredClausesFor(v), [v]);
 
-  const missing = useMemo(() => {
-    const need: string[] = [];
-    if (!v.full_name) need.push("Learner name");
-    if (!v.mobile) need.push("Mobile number");
-    if (!v.gender) need.push("Gender");
-    if (!v.dob) need.push("Date of birth");
-    if (isMinor && !v.guardian_email) need.push("Guardian email");
-    if (!degree) need.push("Degree level");
-    if (!countries.length) need.push("Country");
-    if (!v.marksheet_10) need.push("Class 10 marksheet");
-    if (!v.board_12) need.push("Class 12 board");
-    if (!v.status_12) need.push("Class 12 status");
-    if (isMasters && !v.bachelor_status) need.push("Bachelor's status");
-    if (!v.finance_plan) need.push("Financing plan");
-    if (programmesCount === 0) need.push("Recommended programmes");
-    return need;
-  }, [v, isMinor, isMasters, degree, countries, programmesCount]);
+  // Same rule the server enforces on submit — see missingForSubmit.
+  const missing = useMemo(
+    () => missingForSubmit(v, programmesCount),
+    [v, programmesCount]
+  );
 
   // A tick has to mean the step's required fields are filled. Ticking a step
   // just because you clicked Next claims work that hasn't happened.
@@ -395,6 +402,19 @@ export function CallForm({
     ];
   }, [v, degree, countries, isMinor, isMasters, missing, programmesCount]);
 
+  /** Group wrapper: the page's block when it supplies one, else a heading. */
+  const group = (key: string, label: string, children: React.ReactNode) =>
+    groupBlock ? (
+      groupBlock(key, label, children)
+    ) : (
+      <section className="border-t border-line pt-5">
+        <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.07em] text-caption">
+          {label}
+        </h3>
+        {children}
+      </section>
+    );
+
   const openCount = remarks.filter((r) => !r.resolved).length;
   const resolving = mode === "review";
 
@@ -408,36 +428,11 @@ export function CallForm({
       id="call-form"
       className="-mb-12 grid min-h-[calc(100dvh-12.2rem)] grid-rows-[1fr_auto] gap-6"
     >  {/* -mb-12 cancels main's bottom padding so the sticky bar can reach the viewport edge */}
-      {/* Persist every value, including fields on steps not currently mounted */}
+      {/* Persist every value, including fields on steps not currently mounted.
+          Derived from FORM_FIELDS rather than a hand-kept list — the list
+          silently lost "Applying for MBBS", so that answer was never saved. */}
       {Object.entries(v).map(([k, val]) =>
-        [
-          "full_name",
-          "mobile",
-          "gender",
-          "dob",
-          "guardian_name",
-          "guardian_email",
-          "guardian_phone",
-          "degree_level",
-          "countries",
-          "marksheet_10",
-          "board_12",
-          "status_12",
-          "completion_12",
-          "has_marksheet_12",
-          "marksheet_12",
-          "neet_status",
-          "bachelor_status",
-          "bachelor_completion",
-          "bachelor_docs",
-          "bachelor_files",
-          "backlogs",
-          "pg_status",
-          "pg_docs",
-          "work_exp_months",
-          "cv_file",
-          "finance_plan",
-        ].includes(k) ? (
+        AC_FIELD_KEYS.has(k) ? (
           <input key={`h-${k}`} type="hidden" name={k} value={val} />
         ) : null
       )}
@@ -464,7 +459,10 @@ export function CallForm({
               const done = !resolving && stepDone[i];
               // Point the counsellor straight at the steps Ops flagged.
               const flags = remarks.filter(
-                (r) => r.section === SECTION_BY_STEP[i] && !r.resolved
+                (r) =>
+                  r.section === SECTION_BY_STEP[i] &&
+                  !r.resolved &&
+                  r.kind !== "info"
               ).length;
               return (
                 <button
@@ -522,6 +520,8 @@ export function CallForm({
             <p className="mb-5 mt-1 text-sm text-body">
               Confirm the details you have from the lead form while on the call.
             </p>
+            {group("profile", "Profile details", (
+              <>
 
             <div className="grid gap-5 sm:grid-cols-2">
               <Row label="Full name" required k="full_name" hint="Exactly as on the passport or official ID.">
@@ -638,7 +638,9 @@ export function CallForm({
                 />
               </Row>
             </div>
-          </div>
+              </>
+            ))}
+</div>
           </>
         )}
 
@@ -655,22 +657,23 @@ export function CallForm({
             </p>
 
             <div className="space-y-6">
-              <section>
-                <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.07em] text-caption">
-                  Class 10
-                </h3>
+              {group("class10", "Class 10", (
+                <>
                 <FileTile
                   name="_marksheet_10"
                   label="Class 10 marksheet (front & back)"
                   value={v.marksheet_10 ?? ""}
                   onChange={(val) => set("marksheet_10", val)}
                 />
-              </section>
+                {/* File tiles carry remarks too. Every Class 10 field is
+                    either an upload or ops-filled, so without this an Ops
+                    comment on that section had nowhere to land. */}
+                <FieldRemarks fieldKey="marksheet_10" />
+                </>
+              ))}
 
-              <section className="border-t border-line pt-5">
-                <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.07em] text-caption">
-                  Class 12
-                </h3>
+              {group("class12", "Class 12", (
+                <>
                 <div className="space-y-5">
                   <Row label="Board / category" required k="board_12">
                     <Choice
@@ -720,12 +723,15 @@ export function CallForm({
                         />
                       </Row>
                       {v.has_marksheet_12 === "Yes" && (
+                        <>
                         <FileTile
                           name="_marksheet_12"
                           label="Class 12 marksheet (front & back)"
                           value={v.marksheet_12 ?? ""}
                           onChange={(val) => set("marksheet_12", val)}
                         />
+                        <FieldRemarks fieldKey="marksheet_12" />
+                        </>
                       )}
                     </>
                   )}
@@ -755,14 +761,13 @@ export function CallForm({
                     </Row>
                   )}
                 </div>
-              </section>
+                </>
+              ))}
 
               {isMasters && (
                 <>
-                  <section className="border-t border-line pt-5">
-                    <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.07em] text-caption">
-                      Bachelor&apos;s degree
-                    </h3>
+                  {group("bachelor", "Bachelor's degree", (
+                    <>
                     <div className="space-y-5">
                       <Row label="Status" required k="bachelor_status">
                         <Choice
@@ -806,12 +811,15 @@ export function CallForm({
                             />
                           </Row>
                           {v.bachelor_docs?.startsWith("Yes") && (
+                            <>
                             <FileTile
                               name="_bachelor_files"
                               label="CMM / transcript & grading scale"
                               value={v.bachelor_files ?? ""}
                               onChange={(val) => set("bachelor_files", val)}
                             />
+                            <FieldRemarks fieldKey="bachelor_files" />
+                            </>
                           )}
                         </>
                       )}
@@ -829,12 +837,11 @@ export function CallForm({
                         />
                       </Row>
                     </div>
-                  </section>
+                    </>
+                  ))}
 
-                  <section className="border-t border-line pt-5">
-                    <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.07em] text-caption">
-                      After bachelor&apos;s
-                    </h3>
+                  {group("after_bachelor", "After bachelor's", (
+                    <>
                     <div className="space-y-5">
                       <Row
                         label="Any degree after bachelor's?" k="pg_status"
@@ -875,15 +882,19 @@ export function CallForm({
                         />
                       </Row>
                       {Number(v.work_exp_months ?? 0) > 0 && (
+                        <>
                         <FileTile
                           name="_cv"
                           label="Updated CV / resume"
                           value={v.cv_file ?? ""}
                           onChange={(val) => set("cv_file", val)}
                         />
+                        <FieldRemarks fieldKey="cv_file" />
+                        </>
                       )}
                     </div>
-                  </section>
+                    </>
+                  ))}
                 </>
               )}
             </div>
@@ -901,6 +912,8 @@ export function CallForm({
             <p className="mb-5 mt-1 text-sm text-body">
               How the learner plans to fund tuition and living costs on campus.
             </p>
+            {group("financing", "Financing", (
+              <>
             <Row
               label="Financing plan" k="finance_plan"
               required
@@ -919,7 +932,9 @@ export function CallForm({
                 co-applicant documents during vetting.
               </p>
             )}
-          </div>
+              </>
+            ))}
+</div>
           </>
         )}
 
@@ -1049,7 +1064,16 @@ export function CallForm({
                 Next
               </button>
             ) : (
-              <button className="btn-primary" formAction={submitAction}>
+              <button
+                className="btn-primary"
+                formAction={submitAction}
+                disabled={missing.length > 0}
+                title={
+                  missing.length > 0
+                    ? `Still needed: ${missing.join(", ")}`
+                    : ""
+                }
+              >
                 Submit for Vetting
               </button>
             )}

@@ -21,6 +21,7 @@ function seedDemo(db) {
     DELETE FROM learner_documents;
     DELETE FROM programs;
     DELETE FROM remarks;
+    DELETE FROM group_checks;
     DELETE FROM form_responses;
     DELETE FROM applications;
     DELETE FROM sqlite_sequence
@@ -119,6 +120,35 @@ function seedDemo(db) {
     });
   }
 
+  const insertGroupCheck = db.prepare(
+    `INSERT OR REPLACE INTO group_checks
+     (application_id, group_key, actor_role, state, comment, by_id)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  );
+
+  const AC_GROUPS = [
+    "profile",
+    "class10",
+    "class12",
+    "bachelor",
+    "after_bachelor",
+    "financing",
+  ];
+  const OPS_GROUPS = ["profile", "class10", "class12", "bachelor"];
+
+  /** The counsellor confirmed these sections while filling the form. */
+  function acConfirms(appId, groups = AC_GROUPS) {
+    for (const g of groups) insertGroupCheck.run(appId, g, "ac", "checked", null, ARJUN);
+  }
+
+  /** Ops' verdicts: verified all, or all-but-one with a reason. */
+  function opsVerifies(appId, { except = null, reason = null } = {}) {
+    for (const g of OPS_GROUPS) {
+      if (g === except) insertGroupCheck.run(appId, g, "ops", "not_verified", reason, OMAR);
+      else insertGroupCheck.run(appId, g, "ops", "verified", null, OMAR);
+    }
+  }
+
   function fillForm(appId, learner, overrides = {}) {
     const values = {
       full_name: learner.name,
@@ -165,6 +195,46 @@ function seedDemo(db) {
     }
   })();
 
+  /** Templates keyed by the clause that triggers them, for the seed below. */
+  const templatesByClause = (() => {
+    try {
+      const rows = db
+        .prepare(
+          "SELECT id, type, title, content, clause_id FROM document_templates WHERE clause_id IS NOT NULL"
+        )
+        .all();
+      return Object.fromEntries(rows.map((r) => [r.clause_id, r]));
+    } catch {
+      return {};
+    }
+  })();
+
+  /**
+   * The undertakings a seeded application's answers actually trigger.
+   *
+   * Without this the seed declared clauses in `triggered_clauses` that no
+   * document backed, so the review screens named declarations the learner was
+   * never given anything to sign. The live app does this through
+   * attachRequiredForms; the seed has to match it.
+   */
+  function addClauseDocs(appId, learnerName, clauses, signature = null) {
+    const signedAt = signature ? "2026-08-03 09:10:00" : null;
+    for (const id of String(clauses || "").split("|").filter(Boolean)) {
+      const t = templatesByClause[id];
+      if (!t) continue;
+      insertDoc.run(
+        appId,
+        t.type,
+        t.title,
+        `I, ${learnerName}, ${t.content.replace(/^I /, "")}`,
+        1,
+        signedAt,
+        signature,
+        t.id
+      );
+    }
+  }
+
   function addDefaultDocs(appId, learnerName, signature = null) {
     const signedAt = signature ? "2026-08-03 09:10:00" : null;
     insertDoc.run(
@@ -207,11 +277,13 @@ function seedDemo(db) {
       work_exp_months: "60",
     });
     addDefaultDocs(submittedId, submitted.name);
+    addClauseDocs(submittedId, submitted.name, "UT/ACK-Loan-01");
     // Nothing verified: nobody has opened it yet.
     addLockerDocs(submittedId, ARJUN, { count: 6 });
     // The counsellor's call-time recommendations, awaiting Ops' verdicts.
     insertProgram.run(submittedId, "MS in Data Science", "University of Melbourne", "24 months", "₹32L", "STEM background required", ARJUN, 0, "pending");
     insertProgram.run(submittedId, "Master of Business Analytics", "Monash University", "18 months", "₹28L", "Quantitative background preferred", ARJUN, 0, "pending");
+    acConfirms(submittedId);
     insertEvent.run(submittedId, ARJUN, "Eligibility form submitted", `Submitted by Arjun Mehta on behalf of ${submitted.name}`);
     insertEvent.run(submittedId, ARJUN, "UT & Ack documents auto-generated", null);
     insertNotif.run(OMAR, `New learner details submitted: ${submitted.name} (by Arjun Mehta)`, `/ops/application/${submittedId}`, 0);
@@ -228,12 +300,28 @@ function seedDemo(db) {
       triggered_clauses: "UT/ACK-Loan-01",
     });
     addDefaultDocs(vettingId, vetting.name);
+    addClauseDocs(vettingId, vetting.name, "UT/ACK-Loan-01");
     // Omar is part-way through the pile — the state you land in mid-vetting.
     addLockerDocs(vettingId, ARJUN, { count: 8, verifiedUpto: 4 });
     // Mid-vetting: Omar has ruled on one recommendation, two still pending.
     insertProgram.run(vettingId, "MS in Software Engineering", "Aalto University", "24 months", "₹14L", "Portfolio reviewed", ARJUN, 0, "eligible");
     insertProgram.run(vettingId, "MS in Computer Science", "TU Munich", "24 months", "₹8L", "Anabin H+ institutions only", ARJUN, 0, "pending");
     insertProgram.run(vettingId, "MS in Data Engineering", "University of Warsaw", "24 months", "₹12L", "Good value option", ARJUN, 0, "pending");
+    acConfirms(vettingId);
+    // Ops is mid-review: identity and Class 10 done, Class 12 queried, the
+    // bachelor's group not looked at yet.
+    insertGroupCheck.run(vettingId, "profile", "ops", "verified", null, OMAR);
+    insertGroupCheck.run(vettingId, "class10", "ops", "verified", null, OMAR);
+    insertGroupCheck.run(
+      vettingId,
+      "class12",
+      "ops",
+      "not_verified",
+      "Marksheet is a photo of a photocopy — ask the learner for a clean colour scan.",
+      OMAR
+    );
+    insertRemark.run(vettingId, "school_name", OMAR, "Class 12: Marksheet is a photo of a photocopy — ask the learner for a clean colour scan.", "open");
+    insertRemark.run(vettingId, "countries", OMAR, "Germany needs Anabin H+ — worth telling the learner before they set their heart on TU Munich.", "open");
     insertEvent.run(vettingId, ARJUN, "Eligibility form submitted", `Submitted by Arjun Mehta on behalf of ${vetting.name}`);
     insertEvent.run(vettingId, ARJUN, "UT & Ack documents auto-generated", null);
     insertEvent.run(vettingId, OMAR, "Picked up for vetting", null);
@@ -255,6 +343,11 @@ function seedDemo(db) {
       triggered_clauses: "UT-PG Doc/Result-04|UT-Backlog-01|UT/ACK-Loan-01",
     });
     addDefaultDocs(flaggedId, flagged.name);
+    addClauseDocs(
+      flaggedId,
+      flagged.name,
+      "UT-PG Doc/Result-04|UT-Backlog-01|UT/ACK-Loan-01"
+    );
     // One came back — the rejected row and its reason are what the learner
     // sees on their own documents tab.
     addLockerDocs(flaggedId, ARJUN, {
@@ -264,6 +357,11 @@ function seedDemo(db) {
     });
     insertRemark.run(flaggedId, "mobile", OMAR, "This number is one digit short — the passport copy shows a different one. Please reconfirm with the learner.", "open");
     insertRemark.run(flaggedId, "backlogs", OMAR, "The transcript shows 3 backlogs but the form says 2. Please check.", "open");
+    acConfirms(flaggedId);
+    opsVerifies(flaggedId, {
+      except: "profile",
+      reason: "Mobile number does not match the passport copy.",
+    });
     insertEvent.run(flaggedId, ARJUN, "Eligibility form submitted", `Submitted by Arjun Mehta on behalf of ${flagged.name}`);
     insertEvent.run(flaggedId, ARJUN, "UT & Ack documents auto-generated", null);
     insertProgram.run(flaggedId, "MS in Data Engineering", "TU Munich", "18 months", "\u20b94.1L", "Matches the German track", ARJUN, 0, "eligible");
@@ -291,9 +389,17 @@ function seedDemo(db) {
     // Ops found both, fixed both, and closed their own notes.
     insertRemark.run(reviewedId, "mobile", OMAR, "Added the alternate number from the application form.", "resolved");
     insertRemark.run(reviewedId, "work_exp_months", OMAR, "CV shows 30 months against 24 on the form — confirmed with the counsellor.", "resolved");
+    // Not everything Ops writes is a job: this one is context to read.
+    insertRemark.run(reviewedId, "finance_plan", OMAR, "FYI — loan sanction usually takes 2 weeks with this lender, so start early.", "open");
+    db.prepare("UPDATE remarks SET kind = 'info' WHERE application_id = ? AND field_key = 'finance_plan'").run(reviewedId);
     insertProgram.run(reviewedId, "Advanced Certification in Cloud Computing", "IIT Madras", "11 months", "₹2.9L", "Strong infrastructure background", ARJUN, 0, "eligible");
     insertProgram.run(reviewedId, "PG Program in DevOps & SRE", "upGrad", "10 months", "₹2.2L", "Matches current role trajectory", ARJUN, 0, "eligible");
     insertProgram.run(reviewedId, "MS in Computer Science (online)", "Woolf University", "24 months", "₹5.5L", "Stretch option if budget allows", ARJUN, 0, "eligible");
+    acConfirms(reviewedId);
+    opsVerifies(reviewedId);
+    db.prepare(
+      "UPDATE programs SET eligibility_note = ? WHERE application_id = ? AND name LIKE 'Advanced Certification%'"
+    ).run("Scores and experience clear the bar comfortably.", reviewedId);
     insertEvent.run(reviewedId, ARJUN, "Eligibility form submitted", `Submitted by Arjun Mehta on behalf of ${reviewed.name}`);
     insertEvent.run(reviewedId, OMAR, "Picked up for vetting", null);
     insertEvent.run(reviewedId, OMAR, "Comment added on \"Work Experience After Bachelor's (months)\"", "CV shows 30 months, form says 24");
@@ -319,6 +425,11 @@ function seedDemo(db) {
     addLockerDocs(shortlistedId, ARJUN, { count: 8, verifiedUpto: 8 });
     insertProgram.run(shortlistedId, "PG Diploma in Digital Marketing", "MICA", "11 months", "₹3.2L", "Communications background is a strong fit", ARJUN, 1, "eligible");
     insertProgram.run(shortlistedId, "Performance Marketing Certification", "Kraftshala", "6 months", "₹1.1L", "Faster, lower-cost alternative", ARJUN, 0, "eligible");
+    acConfirms(shortlistedId);
+    opsVerifies(shortlistedId);
+    db.prepare(
+      "UPDATE programs SET eligibility_note = ? WHERE application_id = ? AND shortlisted = 1"
+    ).run("Communications background and 4 years' experience both check out.", shortlistedId);
     insertEvent.run(shortlistedId, ARJUN, "Eligibility form submitted", `Submitted by Arjun Mehta on behalf of ${shortlisted.name}`);
     insertEvent.run(shortlistedId, OMAR, "Marked as reviewed by Ops", null);
     insertEvent.run(shortlistedId, ARJUN, "Program shortlisted & sent to learner", "PG Diploma in Digital Marketing");
@@ -332,6 +443,8 @@ function seedDemo(db) {
     addLockerDocs(completedId, ARJUN, { count: 8, verifiedUpto: 8 });
     const programId = insertProgram.run(completedId, "PG Diploma in Data Science", "IIIT Bangalore", "12 months", "₹3.5L", "Strong CS background + 4 yrs experience", ARJUN, 1, "eligible").lastInsertRowid;
     insertProgram.run(completedId, "MS in Machine Learning & AI", "LJMU (online)", "18 months", "₹4.8L", null, ARJUN, 0, "eligible");
+    acConfirms(completedId);
+    opsVerifies(completedId);
     insertRemark.run(completedId, "bachelor_score", OMAR, "Please confirm if this is CGPA on a 10-point scale — attach marksheet.", "resolved");
     insertEvent.run(completedId, ARJUN, "Eligibility form submitted", `Submitted by Arjun Mehta on behalf of ${completed.name}`);
     insertEvent.run(completedId, OMAR, "Marked as reviewed by Ops", null);
@@ -339,6 +452,11 @@ function seedDemo(db) {
     insertEvent.run(completedId, completed.id, "Document signed: Program Eligibility Undertaking", `Signed as "${completed.name}"`);
     insertEvent.run(completedId, completed.id, "All documents signed", "Learner details certified — awaiting offer letter from Ops");
     insertEvent.run(completedId, OMAR, "Offer letter sent to learner", "PG Diploma in Data Science — IIIT Bangalore");
+    // The timeline says they certified and the offer letter proves Ops acted
+    // on it, so the flag has to be set too — an offer cannot exist without it.
+    db.prepare(
+      "UPDATE applications SET certified_at = '2026-08-03 09:20:00' WHERE id = ?"
+    ).run(completedId);
     insertOffer.run(
       completedId,
       programId,

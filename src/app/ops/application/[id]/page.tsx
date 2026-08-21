@@ -23,6 +23,7 @@ import {
   Meta,
   ProfileSummary,
   RecheckNotice,
+  ReviewGroupBlock,
   StatusBadge,
   Timeline,
   IconBuilding,
@@ -33,6 +34,7 @@ import {
   IconDoc,
   IconPlus,
   IconSend,
+  IconShield,
   IconSignature,
   IconSparkle,
   IconTrash,
@@ -47,6 +49,7 @@ import {
   getPrograms,
   getRemarks,
   getDocuments,
+  getGroupChecks,
   getLearnerDocs,
   recheckOf,
   listDocTemplates,
@@ -61,9 +64,11 @@ import {
   removeDocument,
   markReviewed,
   openApplication,
+  opsAddProgram,
   removeLearnerDoc,
   resolveRemark,
   sendOfferLetter,
+  setGroupReview,
   setProgramEligibility,
   updateFieldValue,
   uploadLearnerDoc,
@@ -76,10 +81,13 @@ import { CataloguePicker, type PickerItem } from "./catalogue-picker";
 import { OpsField } from "./ops-field";
 import { SendOfferDialog } from "./send-offer-dialog";
 import {
+  CLAUSES,
   DOC_CATEGORIES,
   FORM_FIELDS,
-  FORM_SECTIONS,
+  OPS_REVIEW_GROUPS,
+  REVIEW_GROUPS,
   DOC_TYPE_LABELS,
+  MAX_RECOMMENDED_PROGRAMS,
   matchScore,
   canEditDetails,
   pendingFor,
@@ -116,6 +124,18 @@ export default function OpsApplicationPage({
   const locker = docRows(getLearnerDocs(app.id));
   // Which document slots are filled — the AI vet only speaks about a field
   // when its counterpart document is actually there to compare against.
+  const groupChecks = getGroupChecks(app.id);
+  const verifiedGroups = OPS_REVIEW_GROUPS.filter(
+    (g) => groupChecks[g.key]?.ops?.state === "verified"
+  ).length;
+  const allGroupsVerified = verifiedGroups === OPS_REVIEW_GROUPS.length;
+  // Ruled on either way — a "not verified" section is finished business too.
+  const ruledGroups = OPS_REVIEW_GROUPS.filter((g) =>
+    ["verified", "not_verified"].includes(groupChecks[g.key]?.ops?.state ?? "")
+  ).length;
+  const triggeredClauses = (responses.triggered_clauses ?? "")
+    .split("|")
+    .filter(Boolean);
   const uploadedKeys = new Set(
     locker.filter((r) => r.filename).map((r) => r.key)
   );
@@ -141,7 +161,10 @@ export default function OpsApplicationPage({
   // it. `openRemarks` is every open comment on the application, which during
   // a re-check can include leftovers from vetting.
   const recheckComments = recheck
-    ? remarks.filter((r) => r.status === "open" && r.created_at >= recheck.at)
+    ? remarks.filter(
+        (r) =>
+          r.status === "open" && r.kind !== "info" && r.created_at >= recheck.at
+      )
         .length
     : 0;
   // The labels the learner moved, for the "changed" marks on the fields.
@@ -157,7 +180,11 @@ export default function OpsApplicationPage({
   const inlineActivity = activityInline();
   const lockerUploaded = locker.filter((r) => r.filename).length;
   const lockerVerified = locker.filter((r) => r.verification === "verified").length;
-  const openRemarks = remarks.filter((r) => r.status === "open").length;
+  // Info remarks are context Ops left for the counsellor, not a task —
+  // they never count towards "open remark(s)" or gate the review CTA.
+  const openRemarks = remarks.filter(
+    (r) => r.status === "open" && r.kind !== "info"
+  ).length;
   const certified = Boolean(app.certified_at);
   const shortlistedPrograms = programs.filter((p) => p.shortlisted);
   const allSigned = docs.length > 0 && docs.every((d) => d.signed_at);
@@ -179,6 +206,25 @@ export default function OpsApplicationPage({
       degreeLevel: cat?.degree_level,
     };
   });
+
+  // The catalogue, scored for THIS learner — the same engine and the same
+  // list the counsellor recommends from, so both desks argue from one number.
+  const programItems: (PickerItem & { score: number })[] = catalogue
+    .map((c) => {
+      const { score, reasons } = matchScore(c, responses);
+      return {
+        id: c.id,
+        title: c.name,
+        subtitle: c.institute,
+        facts: [`${score}% match`, c.country, c.degree_level, c.duration, c.fee]
+          .filter(Boolean) as string[],
+        note: c.notes,
+        warning: reasons.length > 0 ? reasons.join(" · ") : null,
+        keywords: `${c.country} ${c.degree_level}`,
+        score,
+      };
+    })
+    .sort((a, b) => b.score - a.score);
 
   const docItems: PickerItem[] = templates.map((t) => ({
     id: t.id,
@@ -214,6 +260,9 @@ export default function OpsApplicationPage({
         at: r.created_at,
         text: r.text,
         resolved: r.status === "resolved",
+        kind: r.kind ?? "action",
+        acknowledgedAt: r.acknowledged_at,
+        reply: r.reply,
         actions:
           canComment && r.status === "open" ? (
             <span className="flex items-center gap-0.5">
@@ -273,6 +322,18 @@ export default function OpsApplicationPage({
           : "The counsellor shortlists only among the eligible, so mark at least one. Tap to review.",
     },
     {
+      // Every section has to carry a verdict before this goes back. "Not
+      // verified" is a perfectly good answer — it is *no* answer that leaves
+      // the counsellor holding a profile nobody actually ruled on.
+      key: "profile" as TabKey,
+      blocking: true,
+      done: ruledGroups === OPS_REVIEW_GROUPS.length,
+      todo: `${OPS_REVIEW_GROUPS.length - ruledGroups} section${
+        OPS_REVIEW_GROUPS.length - ruledGroups === 1 ? "" : "s"
+      } not ruled on`,
+      why: "Mark each section Verified or Not verified — the counsellor sees the verdicts, not your intentions. Tap to review.",
+    },
+    {
       // The locker lives in the header now, so this one states the fact
       // rather than linking: `href: null` keeps it a plain chip.
       key: null,
@@ -319,6 +380,26 @@ export default function OpsApplicationPage({
               </h1>
               <StatusBadge status={app.status} />
               <CertifiedChip at={app.certified_at} />
+              {/* Instagram-style: one mark beside the name that says whether
+                  this learner's details have actually been checked. Green
+                  only when every group Ops owns is verified. */}
+              <CardChip
+                tone={allGroupsVerified ? "green" : "muted"}
+                tooltip={
+                  allGroupsVerified
+                    ? "Every section Ops verifies has been verified"
+                    : `${verifiedGroups} of ${OPS_REVIEW_GROUPS.length} sections verified`
+                }
+              >
+                {allGroupsVerified ? (
+                  <IconCheck className="h-3 w-3" />
+                ) : (
+                  <IconShield className="h-3 w-3" />
+                )}
+                {allGroupsVerified
+                  ? "Verified"
+                  : `${verifiedGroups}/${OPS_REVIEW_GROUPS.length} verified`}
+              </CardChip>
             </div>
             <p className="mt-1 text-[14.5px] text-body">
               {app.learner_email} · Counsellor: {app.ac_name ?? "—"}
@@ -461,18 +542,35 @@ export default function OpsApplicationPage({
                       ? "Check each field against the documents. The counsellor's answers are theirs to fix — leave a comment on anything wrong. The fields marked ops (scores, university) are yours to fill from the documents."
                       : "Submitted learner details."}
               </p>
-              {FORM_SECTIONS.map((section) => (
-                <div key={section} className="mb-6">
-                  <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.07em] text-caption">
-                    {section}
-                  </h3>
-                  <div className="divide-y divide-line rounded-xl border border-line">
-                    {FORM_FIELDS.filter((f) => f.section === section).map((f) => {
+              {/* Grouped, because that is how a person reads a form: "Class 10"
+                  is the marksheet AND the score AND the year, ruled on once.
+                  Only a few groups are Ops' to verify — the rest are the
+                  counsellor's own confirmation, shown but not touched. */}
+              <div className="space-y-4">
+              {REVIEW_GROUPS.map((group) => (
+                <ReviewGroupBlock
+                  key={group.key}
+                  group={group}
+                  acCheck={groupChecks[group.key]?.ac}
+                  opsCheck={groupChecks[group.key]?.ops}
+                  viewer="ops"
+                  canReview={group.opsReview && canComment}
+                  reviewAction={setGroupReview.bind(null, app.id, group.key)}
+                  docs={locker.filter((r) => group.docs.includes(r.key))}
+                  triggered={group.clauses
+                    .filter((c) => triggeredClauses.includes(c))
+                    .map((c) => CLAUSES[c]?.title ?? c)}
+                >
+                  <div className="divide-y divide-line">
+                    {group.fields
+                      .map((k) => FORM_FIELDS.find((f) => f.key === k))
+                      .filter((f): f is (typeof FORM_FIELDS)[number] => Boolean(f))
+                      .map((f) => {
                       const fieldRemarks = remarks.filter(
                         (r) => r.field_key === f.key
                       );
                       return (
-                        <div key={f.key} className="p-3.5">
+                        <div key={f.key} className="py-3 first:pt-0 last:pb-0">
                           <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2">
@@ -537,6 +635,22 @@ export default function OpsApplicationPage({
                                   className="input !h-8 !w-52 !py-0 !text-[12.5px]"
                                   placeholder="Leave a comment…"
                                 />
+                                {/* Unchecked posts nothing, so the action
+                                    defaults to 'action' — a job. Checked
+                                    makes it an 'info' note: context to read,
+                                    nothing to do, never counted as open. */}
+                                <label
+                                  className="flex shrink-0 items-center gap-1 text-[11.5px] text-caption"
+                                  title="Info only — context, nothing for the counsellor to action"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    name="kind"
+                                    value="info"
+                                    className="h-3.5 w-3.5 accent-[#AE383E]"
+                                  />
+                                  info
+                                </label>
                                 <button className="btn-secondary !h-8 !px-3 !text-[12.5px]">
                                   Add
                                 </button>
@@ -547,8 +661,9 @@ export default function OpsApplicationPage({
                       );
                     })}
                   </div>
-                </div>
+                </ReviewGroupBlock>
               ))}
+              </div>
               {openRemarks > 0 && (
                 <p className="text-xs text-[#8a6d2f]">
                   {openRemarks} open remark(s) — these travel with the
@@ -768,34 +883,45 @@ export default function OpsApplicationPage({
                       )}
                       {p.shortlisted && !reRuling ? null : vetting || reRuling ? (
                         /* Ops' verdict — the pick from the counsellor's list. */
-                        <span className="flex items-center gap-2">
-                          <form action={setProgramEligibility.bind(null, p.id)}>
-                            <input type="hidden" name="verdict" value="eligible" />
-                            <button
-                              className={
-                                p.eligibility === "eligible"
-                                  ? "btn-success !h-8 !px-3 !text-[12.5px]"
-                                  : "btn-secondary !h-8 !px-3 !text-[12.5px]"
-                              }
-                            >
-                              <IconCheck className="h-3.5 w-3.5" />
-                              Eligible
-                            </button>
-                          </form>
-                          <form action={setProgramEligibility.bind(null, p.id)}>
-                            <input type="hidden" name="verdict" value="not_eligible" />
-                            <button
-                              className={
-                                p.eligibility === "not_eligible"
-                                  ? "btn !h-8 bg-accent !px-3 !text-[12.5px] text-white"
-                                  : "btn-secondary !h-8 !px-3 !text-[12.5px]"
-                              }
-                            >
-                              <IconX className="h-3.5 w-3.5" />
-                              Not eligible
-                            </button>
-                          </form>
-                        </span>
+                        /* Ops' verdict — the pick from the counsellor's
+                           list, with the reason beside it. ONE form: both
+                           buttons post it, and which button was pressed is
+                           what decides the verdict. */
+                        <form
+                          action={setProgramEligibility.bind(null, p.id)}
+                          className="flex flex-wrap items-center gap-2"
+                        >
+                          <input
+                            name="note"
+                            defaultValue={p.eligibility_note ?? ""}
+                            placeholder="Why (optional)…"
+                            className="input !h-8 !w-44 !py-0 !text-[12.5px]"
+                          />
+                          <button
+                            name="verdict"
+                            value="eligible"
+                            className={
+                              p.eligibility === "eligible"
+                                ? "btn-success !h-8 !px-3 !text-[12.5px]"
+                                : "btn-secondary !h-8 !px-3 !text-[12.5px]"
+                            }
+                          >
+                            <IconCheck className="h-3.5 w-3.5" />
+                            Eligible
+                          </button>
+                          <button
+                            name="verdict"
+                            value="not_eligible"
+                            className={
+                              p.eligibility === "not_eligible"
+                                ? "btn !h-8 bg-accent !px-3 !text-[12.5px] text-white"
+                                : "btn-secondary !h-8 !px-3 !text-[12.5px]"
+                            }
+                          >
+                            <IconX className="h-3.5 w-3.5" />
+                            Not eligible
+                          </button>
+                        </form>
                       ) : p.eligibility === "eligible" ? (
                         <CardChip tone="green">
                           <IconCheck className="h-3 w-3" />
@@ -813,6 +939,32 @@ export default function OpsApplicationPage({
                   </div>
                 ))}
               </div>
+
+              {/* The dead-end guard. If the learner's own change knocked out
+                  everything the counsellor recommended, somebody has to be
+                  able to put a live option back — and Ops is the one holding
+                  the catalogue and the verdicts. */}
+              {(vetting || reRuling) &&
+                programs.length < MAX_RECOMMENDED_PROGRAMS && (
+                  <div className="mt-4">
+                    <CataloguePicker
+                      label={
+                        eligibleCount === 0
+                          ? "Nothing is eligible — add a programme that is"
+                          : "Add a programme from the catalogue"
+                      }
+                      title="Programme catalogue — scored for this learner"
+                      hint="Anything you add is marked eligible and goes straight to the counsellor to shortlist."
+                      items={programItems}
+                      addedIds={programs
+                        .map((p) => p.catalogue_id)
+                        .filter((id): id is number => id !== null)}
+                      action={opsAddProgram.bind(null, app.id)}
+                      idField="catalogueId"
+                      addedLabel="Programme"
+                    />
+                  </div>
+                )}
             </div>
           )}
         </div>
@@ -834,7 +986,10 @@ export default function OpsApplicationPage({
         <div className="sticky bottom-0 z-20 mt-auto py-3.5">
           <div className="pointer-events-none absolute inset-y-0 left-1/2 w-screen -translate-x-1/2 border-t border-line bg-white/90 backdrop-blur-md" />
           <div className="relative flex flex-wrap items-center gap-3">
-            {vetting ? (
+            {/* A learner change can land mid-vetting; the re-check has to take
+                precedence or its two exits never render and Ops is stuck with
+                the vetting bar on an application nobody can move. */}
+            {vetting && !reRuling ? (
               <>
                 {/* What's outstanding, as chips in the line the bar already
                     had — the chip IS the link, so there is no label-plus-CTA
@@ -898,7 +1053,13 @@ export default function OpsApplicationPage({
                         disabled={blocked}
                         title={
                           blocked
-                            ? "Recommend at least one programme first — see the note above"
+                            ? // Name the actual blocker. There is more than one
+                              // now, and "see the note above" sent Ops looking
+                              // for the wrong thing.
+                              outstanding
+                                .filter((r) => r.blocking)
+                                .map((r) => r.todo)
+                                .join(" · ")
                             : ""
                         }
                       >
@@ -922,7 +1083,7 @@ export default function OpsApplicationPage({
               <div className="flex w-full flex-wrap items-center gap-3">
                 <span className="text-xs text-caption">
                   {staleVerdicts > 0
-                    ? `${staleVerdicts} verdict${staleVerdicts === 1 ? "" : "s"} to re-rule on the Programs tab`
+                    ? `${staleVerdicts} verdict${staleVerdicts === 1 ? "" : "s"} to re-rule on the Eligibility tab`
                     : recheckComments > 0
                       ? `${recheckComments} comment${recheckComments === 1 ? "" : "s"} raised on the change`
                       : "Re-read the marked fields — comment on what's wrong, or close the re-check"}
@@ -946,11 +1107,13 @@ export default function OpsApplicationPage({
                   <form action={clearRecheck.bind(null, app.id)}>
                     <button
                       className="btn-success whitespace-nowrap"
-                      disabled={staleVerdicts > 0}
+                      disabled={staleVerdicts > 0 || eligibleCount === 0}
                       title={
                         staleVerdicts > 0
                           ? "Rule on the programmes again first — the change moved the answers your verdicts were based on"
-                          : ""
+                          : eligibleCount === 0
+                            ? "Nothing is eligible any more — add a programme that is from the catalogue on the Eligibility tab, or the application has nowhere left to go"
+                            : ""
                       }
                     >
                       <IconCheck className="h-4 w-4" />

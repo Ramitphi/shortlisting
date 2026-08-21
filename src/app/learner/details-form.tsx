@@ -45,6 +45,7 @@ export function LearnerDetailsForm({
   action,
   only,
   hideFiles = false,
+  doneHref,
 }: {
   initial: Values;
   locked: boolean;
@@ -59,6 +60,12 @@ export function LearnerDetailsForm({
   only?: string;
   /** Uploads live in the Documents locker now — hide the in-form file tiles. */
   hideFiles?: boolean;
+  /**
+   * Where to go once it saves. Edit mode is a URL state, so without this the
+   * card stays open after saving with "Cancel" as its only way out — which
+   * reads like the save did not take.
+   */
+  doneHref?: string;
 }) {
   const [v, setV] = useState<Values>(initial);
   const [dirty, setDirty] = useState(false);
@@ -135,7 +142,20 @@ export function LearnerDetailsForm({
           </select>
         ) : (
           <input
-            type={f.type === "month" ? "month" : f.type === "date" ? "date" : "text"}
+            // Numbers render as numbers here too, with the same bounds the
+            // counsellor's form enforces — a percentage over 100 is a typo
+            // whichever side of the desk types it.
+            type={
+              f.type === "month"
+                ? "month"
+                : f.type === "date"
+                  ? "date"
+                  : f.type === "number"
+                    ? "number"
+                    : "text"
+            }
+            min={f.type === "number" ? f.min : undefined}
+            max={f.type === "number" ? f.max : undefined}
             value={value}
             onChange={(e) => set(f.key, e.target.value)}
             className={inputCls}
@@ -151,6 +171,7 @@ export function LearnerDetailsForm({
         setDirty(false);
         toast("Details updated");
         await action(formData);
+        if (doneHref) router.push(doneHref, { scroll: false });
         router.refresh();
       }}
     >

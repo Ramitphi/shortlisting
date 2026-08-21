@@ -5,16 +5,13 @@ import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui";
 
 /**
- * The counsellor walks the tabs in order and only sends at the end, so the
- * programme selection has to survive every tab change in between.
+ * The counsellor walks the tabs in order and only sends at the end.
  *
- * Tabs are server navigations, so the choice is carried in the URL (?sel=1,2)
- * rather than held in state that a navigation would discard. The final send
- * reads it back from there.
- *
- * The order comes in as a prop rather than being hardcoded here: this bar has
- * already been broken once by a tab being inserted into the middle of a walk
- * it thought it knew.
+ * The pick is read off the radios at click time. It used to be carried in the
+ * URL (?sel=) by the step that left the old Programmes tab — when that tab was
+ * folded into Eligibility, nothing wrote ?sel any more and the send button
+ * could never enable. Reading the form at the moment of the click has no such
+ * dependency on which tabs happen to exist.
  */
 export function AcFlowBar({
   appId,
@@ -48,6 +45,14 @@ export function AcFlowBar({
     router.push(`/ac/application/${appId}?${q}`, { scroll: false });
   };
 
+  /** The radio the counsellor has ticked, read live rather than from the URL. */
+  const pickedNow = () => {
+    const form = document.getElementById("shortlist-form") as
+      | HTMLFormElement
+      | null;
+    return Number(form ? new FormData(form).get("programId") : 0) || selected;
+  };
+
   const back = prev ? (
     <button type="button" className="btn-secondary" onClick={() => go(prev)}>
       Back
@@ -64,18 +69,9 @@ export function AcFlowBar({
           onClick={() => {
             // Leaving the programmes tab is the only moment the radios exist —
             // read the choice now, because after the navigation they're gone.
-            if (tab !== "programs") return go(next);
-            const form = document.getElementById("shortlist-form") as
-              | HTMLFormElement
-              | null;
-            const picked = Number(
-              form ? new FormData(form).get("programId") : 0
-            );
-            if (!picked) {
-              toast("Pick a programme to send", "info");
-              return;
-            }
-            go(next, picked);
+            // Carry the pick if one has been made; picking happens on the
+            // last tab now, so mid-walk there is usually nothing to carry.
+            go(next, pickedNow());
           }}
         >
           Next
@@ -89,13 +85,18 @@ export function AcFlowBar({
       {back}
       <button
         type="button"
-        disabled={!hasPrograms || !selected || busy}
-        title={!selected ? "Go back and pick a programme" : ""}
+        disabled={!hasPrograms || busy}
+        title={hasPrograms ? "" : "No eligible programme to send"}
         className="btn-primary"
         onClick={async () => {
+          const picked = pickedNow();
+          if (!picked) {
+            toast("Pick a programme to send", "info");
+            return;
+          }
           setBusy(true);
           const data = new FormData();
-          data.set("programId", String(selected));
+          data.set("programId", String(picked));
           await action(data);
           router.refresh();
         }}

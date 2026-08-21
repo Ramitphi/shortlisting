@@ -26,3 +26,4 @@ export { FieldComments, ChangedPin, type FieldComment } from "./field-comments";
 export { MultiSelect } from "./multi-select";
 export { AiStar, AiInsightLine } from "./ai-insight";
 export { ProfileSummary } from "./profile-summary";
+export { ReviewGroupBlock } from "./review-group";

@@ -61,6 +61,9 @@ export function SideSheet({
         createPortal(
           <>
             <div
+              // Dialogs opened from inside the sheet (view a document, reject
+              // one, the OTP step) portal to <body> and so are siblings of
+              // this scrim — they sit at z-[90]+ to land on top of it.
               className="scrim-in fixed inset-0 z-[70] bg-ink/40 backdrop-blur-[2px]"
               onClick={() => setOpen(false)}
             />

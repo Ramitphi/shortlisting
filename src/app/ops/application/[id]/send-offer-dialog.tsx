@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { IconCap, IconCheck, useToast } from "@/components/ui";
+import { IconCap, IconCheck } from "@/components/ui";
 
 /**
  * The last click of the journey gets a pause: a small confirmation naming
@@ -33,7 +33,6 @@ export function SendOfferDialog({
   const [sure, setSure] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [busy, startTransition] = useTransition();
-  const toast = useToast();
   const router = useRouter();
   useEffect(() => setMounted(true), []);
 
@@ -41,7 +40,9 @@ export function SendOfferDialog({
     startTransition(async () => {
       const fd = new FormData();
       fd.set("programId", String(programme.id));
-      toast("Offer letter sent");
+      // No optimistic toast here: the action redirects with ?toast=offer and
+      // the toast host raises it. Announcing it twice — once before the send
+      // had even been allowed — was one message too many and one too early.
       await action(fd);
       setOpen(false);
       router.refresh();

@@ -117,6 +117,21 @@ function migrate(db: BrowserDb) {
       UNIQUE (application_id, doc_key)
     );
 
+    -- How each review group stands, for BOTH sides of the desk: the
+    -- counsellor ticks a group as correct, Ops rules it verified or not with
+    -- a comment. One row per (application, group, role) — the two verdicts
+    -- are independent and both are worth keeping.
+    CREATE TABLE IF NOT EXISTS group_checks (
+      application_id INTEGER NOT NULL REFERENCES applications(id),
+      group_key TEXT NOT NULL,
+      actor_role TEXT NOT NULL CHECK (actor_role IN ('ac','ops')),
+      state TEXT NOT NULL CHECK (state IN ('checked','verified','not_verified')),
+      comment TEXT,
+      by_id INTEGER REFERENCES users(id),
+      at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (application_id, group_key, actor_role)
+    );
+
     CREATE TABLE IF NOT EXISTS notifications (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL REFERENCES users(id),
@@ -212,6 +227,17 @@ function migrateColumns(db: BrowserDb) {
   // Whose move the re-check is: 'ops' = waiting to be re-read, 'ac' = Ops
   // raised comments and the counsellor is resolving them with the learner.
   addColumn(db, "applications", "recheck_state", "TEXT");
+  // Why a programme was ruled in or out — the verdict without the reason is
+  // an argument nobody can have.
+  addColumn(db, "programs", "eligibility_note", "TEXT");
+  // Not every comment is a job. 'info' is context to read; 'action' is
+  // something the counsellor has to do before the shortlist goes out.
+  addColumn(db, "remarks", "kind", "TEXT NOT NULL DEFAULT 'action'");
+  // A comment can be answered two ways: a thumbs-up that says "seen and
+  // agreed", or a written reply. Both leave a trace; neither is a resolve.
+  addColumn(db, "remarks", "acknowledged_at", "TEXT");
+  addColumn(db, "remarks", "reply", "TEXT");
+  addColumn(db, "remarks", "replied_at", "TEXT");
 }
 
 function seedCatalogues(db: BrowserDb) {

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { IconAlert, IconCheck, IconRefresh } from "./icons";
+import { IconAlert, IconCheck, IconRefresh, IconThumbUp } from "./icons";
 
 export interface FieldComment {
   id: number;
@@ -11,8 +11,18 @@ export interface FieldComment {
   at: string;
   text: string;
   resolved: boolean;
+  /** 'info' is context to read; 'action' is something to do. */
+  kind?: "action" | "info";
+  /** The counsellor thumbed it up — seen and agreed. */
+  acknowledgedAt?: string | null;
+  /** The counsellor's written answer, if they gave one. */
+  reply?: string | null;
   /** Resolve / delete controls, for whoever is allowed them. */
   actions?: React.ReactNode;
+  /** 👍 — one click, no typing. Rendered only when supplied. */
+  acknowledgeAction?: () => void | Promise<void>;
+  /** Written answer back to Ops. Rendered only when supplied. */
+  replyAction?: (formData: FormData) => void | Promise<void>;
 }
 
 /**
@@ -30,7 +40,11 @@ export function FieldComments({ comments }: { comments: FieldComment[] }) {
   const [box, setBox] = useState<DOMRect | null>(null);
   const pin = useRef<HTMLButtonElement>(null);
 
-  const openCount = comments.filter((c) => !c.resolved).length;
+  // Info notes are context, not work: they never make the pin amber and they
+  // never appear in the "open" count.
+  const openCount = comments.filter(
+    (c) => !c.resolved && c.kind !== "info"
+  ).length;
 
   const reposition = () => setBox(pin.current?.getBoundingClientRect() ?? null);
 
@@ -121,8 +135,60 @@ export function FieldComments({ comments }: { comments: FieldComment[] }) {
                       )}
                     </div>
                     <p className="mt-1 text-[12.5px] leading-relaxed text-body">
+                      {c.kind === "info" && (
+                        <span className="mr-1.5 rounded px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-caption ring-1 ring-line">
+                          info
+                        </span>
+                      )}
                       {c.text}
                     </p>
+
+                    {/* What the counsellor said back — a thumbs-up, a written
+                        reply, or both. Neither closes the comment; they just
+                        stop Ops wondering whether anyone read it. */}
+                    {c.acknowledgedAt && (
+                      <p className="mt-1.5 flex items-center gap-1 text-[11.5px] text-[#3f6c45]">
+                        <IconThumbUp className="h-3 w-3" />
+                        Acknowledged
+                      </p>
+                    )}
+                    {c.reply && (
+                      <p className="mt-1.5 rounded-lg bg-paper px-2.5 py-1.5 text-[12px] leading-relaxed text-body">
+                        <b className="font-semibold text-ink">Reply:</b>{" "}
+                        {c.reply}
+                      </p>
+                    )}
+
+                    {!c.resolved && (c.acknowledgeAction || c.replyAction) && (
+                      <div className="mt-2 flex items-center gap-1.5">
+                        {c.acknowledgeAction && !c.acknowledgedAt && (
+                          <form action={c.acknowledgeAction}>
+                            <button
+                              className="flex h-6 items-center gap-1 rounded-lg border border-line px-2 text-[11.5px] text-body transition-colors hover:border-[#4c9257] hover:bg-[#e8f2e9] hover:text-[#3f6c45]"
+                              title="Seen and agreed"
+                            >
+                              <IconThumbUp className="h-3 w-3" />
+                              Acknowledge
+                            </button>
+                          </form>
+                        )}
+                        {c.replyAction && (
+                          <form
+                            action={c.replyAction}
+                            className="flex flex-1 items-center gap-1"
+                          >
+                            <input
+                              name="text"
+                              placeholder="Reply…"
+                              className="input !h-6 !w-full !py-0 !text-[11.5px]"
+                            />
+                            <button className="h-6 shrink-0 rounded-lg border border-line px-2 text-[11.5px] text-body transition-colors hover:bg-muted hover:text-ink">
+                              Send
+                            </button>
+                          </form>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

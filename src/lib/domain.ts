@@ -554,3 +554,229 @@ export function pendingFor(
       return null;
   }
 }
+
+// ── Review groups ───────────────────────────────────────────────────────────
+// The form is not reviewed a field at a time — nobody ticks thirty boxes. It
+// is reviewed in the groups a person actually thinks in: "Class 10" is the
+// marksheet AND the score AND the year, confirmed once.
+//
+// One structure carries four things that were previously scattered:
+//   · what the counsellor ticks off as correct (after an LSQ sync or by hand)
+//   · which groups Ops actually has to verify — only a few do
+//   · the documents that evidence the group, shown against it
+//   · the undertakings those answers trigger, shown at the point of cause
+
+export interface ReviewGroup {
+  key: string;
+  label: string;
+  /** FORM_FIELDS keys this group covers. */
+  fields: string[];
+  /** LEARNER_DOCS keys that evidence it. */
+  docs: string[];
+  /** CLAUSES ids these answers can trigger. */
+  clauses: string[];
+  /** Ops verifies this group. Most groups are the counsellor's alone. */
+  opsReview: boolean;
+}
+
+export const REVIEW_GROUPS: ReviewGroup[] = [
+  {
+    key: "profile",
+    label: "Profile details",
+    fields: [
+      "full_name",
+      "mobile",
+      "gender",
+      "dob",
+      "guardian_name",
+      "guardian_email",
+      "guardian_phone",
+      "degree_level",
+      "countries",
+      "mbbs_intent",
+      "neet_status",
+    ],
+    docs: ["doc_passport", "doc_aadhaar"],
+    clauses: ["CON-Parents-01", "ACK-Age/Visa-01"],
+    opsReview: true,
+  },
+  {
+    key: "class10",
+    label: "Class 10",
+    fields: ["marksheet_10", "score_10", "completion_10"],
+    docs: ["doc_10_marksheet"],
+    clauses: [],
+    opsReview: true,
+  },
+  {
+    key: "class12",
+    label: "Class 12",
+    fields: [
+      "board_12",
+      "status_12",
+      "completion_12",
+      "has_marksheet_12",
+      "marksheet_12",
+      "school_name",
+      "score_12",
+    ],
+    docs: ["doc_12_marksheet"],
+    clauses: ["UT-uG Doc-01", "UT-uG Doc/Result-03"],
+    opsReview: true,
+  },
+  {
+    key: "bachelor",
+    label: "Bachelor's degree",
+    fields: [
+      "bachelor_status",
+      "bachelor_completion",
+      "bachelor_docs",
+      "bachelor_files",
+      "backlogs",
+      "bachelor_score",
+      "bachelor_university",
+      "bachelor_mode",
+    ],
+    docs: ["doc_ug_degree", "doc_ug_marksheet"],
+    clauses: ["UT-PG Doc-02", "UT-PG Doc/Result-04", "UT-Backlog-01"],
+    opsReview: true,
+  },
+  {
+    key: "after_bachelor",
+    label: "After graduation",
+    fields: [
+      "pg_status",
+      "pg_docs",
+      "work_exp_months",
+      "cv_file",
+      "career_gap_months",
+    ],
+    docs: ["doc_work_ex", "doc_score_card"],
+    clauses: [],
+    opsReview: false,
+  },
+  {
+    key: "financing",
+    label: "Financing",
+    fields: ["finance_plan"],
+    docs: ["doc_bank_statement"],
+    clauses: ["UT/ACK-Loan-01"],
+    opsReview: false,
+  },
+];
+
+export const REVIEW_GROUP_BY_KEY: Record<string, ReviewGroup> =
+  Object.fromEntries(REVIEW_GROUPS.map((g) => [g.key, g]));
+
+/** The groups Ops has to rule on — the gate for "everything verified". */
+export const OPS_REVIEW_GROUPS = REVIEW_GROUPS.filter((g) => g.opsReview);
+
+export function groupOfField(fieldKey: string): ReviewGroup | undefined {
+  return REVIEW_GROUPS.find((g) => g.fields.includes(fieldKey));
+}
+
+/**
+ * The field to pin a group-level comment to: the first one in the group the
+ * counsellor's board actually renders a comment slot on. File tiles and
+ * ops-owned fields don't have one, so a remark left there is invisible — and
+ * an invisible remark the counsellor cannot resolve deadlocks the re-check
+ * (Class 10's first field is a file upload, which is how this was found).
+ */
+export function commentableFieldOf(group: ReviewGroup): string {
+  const field = group.fields.find((key) => {
+    const f = FORM_FIELDS.find((x) => x.key === key);
+    return f && f.type !== "file" && f.filledBy !== "ops";
+  });
+  return field ?? group.fields[0];
+}
+
+/** How a group stands, for the chip that says so. */
+export type GroupState = "checked" | "verified" | "not_verified";
+
+/** A remark is either something to act on, or something to know. */
+export type RemarkKind = "action" | "info";
+
+/** Age from a yyyy-mm-dd date of birth; null when it isn't a real date. */
+export function ageFrom(dob: string): number | null {
+  if (!dob) return null;
+  const d = new Date(dob);
+  if (Number.isNaN(d.getTime())) return null;
+  const now = new Date();
+  let age = now.getFullYear() - d.getFullYear();
+  const m = now.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+  return age;
+}
+
+/**
+ * What is still missing before an application can go to Ops — the one list
+ * behind both the disabled Submit button and the server action that refuses
+ * the submit. Ops cannot recommend programmes or invent a date of birth, so
+ * an application that arrives without these is one they can only send back.
+ */
+export function missingForSubmit(
+  responses: Record<string, string>,
+  programmesCount: number
+): string[] {
+  const v = (k: string) => (responses[k] ?? "").trim();
+  const age = ageFrom(v("dob"));
+  const isMinor = age !== null && age < 18;
+  const degree = v("degree_level");
+
+  const need: string[] = [];
+  if (!v("full_name")) need.push("Learner name");
+  if (!v("mobile")) need.push("Mobile number");
+  if (!v("gender")) need.push("Gender");
+  if (!v("dob")) need.push("Date of birth");
+  if (isMinor && !v("guardian_email")) need.push("Guardian email");
+  if (!degree) need.push("Degree level");
+  if (!v("countries")) need.push("Country");
+  if (!v("marksheet_10")) need.push("Class 10 marksheet");
+  if (!v("board_12")) need.push("Class 12 board");
+  if (!v("status_12")) need.push("Class 12 status");
+  if (degree === "Masters" && !v("bachelor_status"))
+    need.push("Bachelor's status");
+  if (!v("finance_plan")) need.push("Financing plan");
+  if (programmesCount === 0) need.push("Recommended programmes");
+  return need;
+}
+
+/**
+ * Which declarations the answers trigger — the trigger column of the spec.
+ *
+ * Shared because it has to run twice: the counsellor's wizard computes it live
+ * on the call, and the learner's own later edit has to recompute it, or a
+ * change that newly requires an undertaking would never produce one.
+ */
+export function triggeredClausesFor(responses: Record<string, string>): string[] {
+  const v = (k: string) => (responses[k] ?? "").trim();
+  const age = ageFrom(v("dob"));
+  const degree = v("degree_level");
+  const isMasters = degree === "Masters";
+  const isBachelors = degree === "Bachelors";
+  const isMinor = age !== null && age < 18;
+
+  const ids: string[] = [];
+  if (isMinor) ids.push("CON-Parents-01");
+  if (age !== null && ((isBachelors && age > 30) || (isMasters && age > 45)))
+    ids.push("ACK-Age/Visa-01");
+  if (v("status_12") === "Pursuing") ids.push("UT-uG Doc-01");
+  if (v("has_marksheet_12") === "Not yet available")
+    ids.push("UT-uG Doc/Result-03");
+  if (isMasters) {
+    if (v("bachelor_status").startsWith("Pursuing")) ids.push("UT-PG Doc-02");
+    const bDocs = v("bachelor_docs");
+    if (bDocs === "Yes - Partial Documents" || bDocs === "No")
+      ids.push("UT-PG Doc/Result-04");
+    if (Number(v("backlogs") || 0) > 0) ids.push("UT-Backlog-01");
+    const pgDocs = v("pg_docs");
+    const pgStatus = v("pg_status");
+    if (
+      pgDocs === "Yes - Partial Documents" ||
+      (pgDocs === "No" && pgStatus && pgStatus !== "No")
+    )
+      ids.push("UT-PG Doc-02");
+  }
+  if (v("finance_plan")) ids.push("UT/ACK-Loan-01");
+  return Array.from(new Set(ids));
+}

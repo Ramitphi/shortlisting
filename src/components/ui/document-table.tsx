@@ -292,9 +292,17 @@ function Row({
         ) : row.verification === "verified" ? (
           <CardChip
             tone="green"
-            tooltip={`Verified by ${row.verifiedByName ?? "Ops"}${
-              row.verifiedAt ? ` on ${row.verifiedAt.slice(0, 10)}` : ""
-            }`}
+            // Staff see who checked it; the learner sees only that it was
+            // checked — same reasoning as the tally above.
+            tooltip={
+              canVerify
+                ? `Verified by ${row.verifiedByName ?? "Ops"}${
+                    row.verifiedAt ? ` on ${row.verifiedAt.slice(0, 10)}` : ""
+                  }`
+                : `Verified${
+                    row.verifiedAt ? ` on ${row.verifiedAt.slice(0, 10)}` : ""
+                  }`
+            }
           >
             <IconCheck className="h-3 w-3" />
             Verified
@@ -450,7 +458,7 @@ function RejectDialog({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-ink/45 p-4 backdrop-blur-[2px]"
+      className="fixed inset-0 z-[90] flex items-center justify-center bg-ink/45 p-4 backdrop-blur-[2px]"
       onClick={onClose}
     >
       <div

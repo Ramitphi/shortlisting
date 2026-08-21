@@ -85,7 +85,6 @@ import {
   DOC_CATEGORIES,
   FORM_FIELDS,
   OPS_REVIEW_GROUPS,
-  reviewGroupsFor,
   REVIEW_GROUPS,
   DOC_TYPE_LABELS,
   MAX_RECOMMENDED_PROGRAMS,
@@ -126,8 +125,14 @@ export default function OpsApplicationPage({
   // Which document slots are filled — the AI vet only speaks about a field
   // when its counterpart document is actually there to compare against.
   const groupChecks = getGroupChecks(app.id);
-  // Only the sections this learner's degree actually has — see reviewGroupsFor.
-  const opsGroups = reviewGroupsFor(responses, OPS_REVIEW_GROUPS);
+  // Every section is ruled on, whatever the degree. Filtering the set by
+  // degree_level was worse than the problem it solved: a blank degree hid the
+  // section from Ops entirely, changing the degree after a "Not verified"
+  // shrank the denominator until the badge went green over a rejection, and a
+  // section could rejoin the set after the review window shut. The thing it
+  // was fixing — a comment pinned to a field this board does not render — is
+  // handled where it belongs, by the catch-all on the counsellor's board.
+  const opsGroups = OPS_REVIEW_GROUPS;
   const verifiedGroups = opsGroups.filter(
     (g) => groupChecks[g.key]?.ops?.state === "verified"
   ).length;
@@ -139,8 +144,12 @@ export default function OpsApplicationPage({
   const triggeredClauses = (responses.triggered_clauses ?? "")
     .split("|")
     .filter(Boolean);
+  // Same rule as the table: a rejected upload backs nothing, so it must not
+  // tell Ops a score is "consistent with" the document they just rejected.
   const uploadedKeys = new Set(
-    locker.filter((r) => r.filename).map((r) => r.key)
+    locker
+      .filter((r) => r.filename && r.verification !== "rejected")
+      .map((r) => r.key)
   );
 
   // Ops holds the pen while vetting: they correct the fields, verify the
@@ -177,7 +186,8 @@ export default function OpsApplicationPage({
     app.status,
     "ops",
     Boolean(app.certified_at),
-    recheck?.state ?? null
+    recheck?.state ?? null,
+    programs.some((p) => p.shortlisted)
   );
   // Inline right rail, or behind a header button — switched from the FAB.
   const inlineActivity = activityInline();
@@ -556,7 +566,7 @@ export default function OpsApplicationPage({
                   Only a few groups are Ops' to verify — the rest are the
                   counsellor's own confirmation, shown but not touched. */}
               <div className="space-y-4">
-              {reviewGroupsFor(responses).map((group) => (
+              {REVIEW_GROUPS.map((group) => (
                 <ReviewGroupBlock
                   key={group.key}
                   group={group}
@@ -783,9 +793,13 @@ export default function OpsApplicationPage({
 
               {awaitingOffer && !(allSigned && certified) && (
                 <p className="mt-4 rounded-xl border border-line bg-paper px-3.5 py-2.5 text-[12.5px] text-body">
-                  {!allSigned
-                    ? "Waiting for the learner to sign their documents."
-                    : "Signed — now waiting for the learner to certify that their details are correct."}{" "}
+                  {shortlistedPrograms.length === 0
+                    ? // Nothing is waiting on the learner: their programme was
+                      // ruled out and the counsellor has to choose again.
+                      "The shortlisted programme was ruled out — the counsellor has to send another before the learner can sign anything."
+                    : !allSigned
+                      ? "Waiting for the learner to sign their documents."
+                      : "Signed — now waiting for the learner to certify that their details are correct."}{" "}
                   The offer letter can only be released once they have done both.
                 </p>
               )}

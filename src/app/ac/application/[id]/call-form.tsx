@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   createContext,
   useContext,
   useMemo,
@@ -105,7 +106,12 @@ const RenderedFieldsContext = createContext<(key: string) => () => void>(
 function FieldRemarks({ fieldKey }: { fieldKey: string }) {
   const all = useContext(RemarksContext);
   const register = useContext(RenderedFieldsContext);
-  useEffect(() => register(fieldKey), [fieldKey, register]);
+  // Layout effect, not a passive one: `stranded` is computed from this
+  // registry, and a passive effect leaves the first commit thinking nothing
+  // is mounted — which paints every open remark in the catch-all AND under
+  // its own field for one frame. This tree never renders on the server, so
+  // there is no hydration cost to paying it before paint.
+  useLayoutEffect(() => register(fieldKey), [fieldKey, register]);
   const mine = all.filter((r) => r.fieldKey === fieldKey);
   if (mine.length === 0) return null;
   return <RemarkList items={mine} />;

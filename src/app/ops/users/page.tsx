@@ -14,7 +14,12 @@ import {
   IconSend,
 } from "@/components/ui";
 import { listApplications } from "@/lib/queries";
-import { ALL_STATUSES, STATUS_LABELS, type AppStatus } from "@/lib/domain";
+import {
+  ALL_STATUSES,
+  opsNeedsAction,
+  STATUS_LABELS,
+  type AppStatus,
+} from "@/lib/domain";
 
 
 const OPS_ACTION: AppStatus[] = ["under_review"];
@@ -45,12 +50,12 @@ export default function OpsUsersPage({
     : undefined;
 
   let apps = all;
-  if (view === "action") apps = apps.filter((a) => OPS_ACTION.includes(a.status));
+  if (view === "action") apps = apps.filter(opsNeedsAction);
   if (view === "closed") apps = apps.filter((a) => CLOSED.includes(a.status));
   if (statusFilter) apps = apps.filter((a) => a.status === statusFilter);
 
   const count = (s: AppStatus) => all.filter((a) => a.status === s).length;
-  const actionCount = all.filter((a) => OPS_ACTION.includes(a.status)).length;
+  const actionCount = all.filter(opsNeedsAction).length;
 
   const href = (params: Record<string, string | undefined>) => {
     const sp = new URLSearchParams();
@@ -234,7 +239,7 @@ export default function OpsUsersPage({
                     <Link
                       href={`/ops/application/${a.id}`}
                       className={
-                        OPS_ACTION.includes(a.status)
+                        opsNeedsAction(a)
                           ? "btn-primary !py-1.5"
                           : "btn-secondary !py-1.5"
                       }

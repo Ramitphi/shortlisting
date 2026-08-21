@@ -10,6 +10,24 @@ function seedDemo(db) {
   const ARJUN = 2; // Academic Counsellor
   const OMAR = 4; // Ops
 
+  // A seventh learner so every demo state has an application of its own.
+  db.prepare(
+    `INSERT OR IGNORE INTO users (name, email, role)
+     VALUES ('Kabir Nair', 'kabir.learner@example.com', 'learner')`
+  ).run();
+
+  const learners = db
+    .prepare("SELECT id, name, email FROM users WHERE role = 'learner' ORDER BY id")
+    .all();
+
+  // CHECK BEFORE DELETING. This used to throw after the wipe, and the wipe is
+  // persisted to IndexedDB on its own — one demoted learner (the admin screen
+  // lets you change any role) left the demo permanently empty with no way back
+  // from inside the app, because Reset then threw here every time.
+  if (learners.length < 7) {
+    throw new Error(`Need at least 7 learners, found ${learners.length}.`);
+  }
+
   // Clear everything except users, then rebuild applications from scratch.
   // Resetting the autoincrement counters keeps demo ids readable (applications 1-6).
   db.exec(`
@@ -27,20 +45,6 @@ function seedDemo(db) {
     DELETE FROM sqlite_sequence
       WHERE name IN ('applications','remarks','programs','documents','learner_documents','notifications','events','offer_letters');
   `);
-
-  // A seventh learner so every demo state has an application of its own.
-  db.prepare(
-    `INSERT OR IGNORE INTO users (name, email, role)
-     VALUES ('Kabir Nair', 'kabir.learner@example.com', 'learner')`
-  ).run();
-
-  const learners = db
-    .prepare("SELECT id, name, email FROM users WHERE role = 'learner' ORDER BY id")
-    .all();
-
-  if (learners.length < 7) {
-    throw new Error(`Need at least 7 learners, found ${learners.length}.`);
-  }
 
   const insertApp = db.prepare(
     "INSERT INTO applications (learner_id, ac_id, ops_id, status) VALUES (?, ?, ?, ?)"
@@ -476,6 +480,16 @@ function seedDemo(db) {
   // matches, so the matching-score chip renders on seeded data too.
   db.exec(
     "UPDATE programs SET catalogue_id = (SELECT id FROM program_catalogue c WHERE c.name = programs.name AND c.institute = programs.institute) WHERE catalogue_id IS NULL"
+  );
+  // Learners added from the admin screen get a draft on creation, and the
+  // wipe above takes it away — the seed only rebuilds the seven it knows.
+  // Give every learner without an application one back, which is the same
+  // rule createUser applies.
+  db.exec(
+    `INSERT INTO applications (learner_id, ac_id, status)
+     SELECT u.id, 2, 'draft' FROM users u
+     WHERE u.role = 'learner'
+       AND NOT EXISTS (SELECT 1 FROM applications a WHERE a.learner_id = u.id)`
   );
   return out;
 }

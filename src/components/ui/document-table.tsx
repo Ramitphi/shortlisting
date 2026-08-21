@@ -150,7 +150,14 @@ export function DocumentTable({
                   <Row
                     key={row.key}
                     row={row}
-                    insight={row.filename ? insightFor?.(row.key) ?? null : null}
+                    // A rejected file is not evidence of anything — showing
+                    // "matches the application" under a red Rejected chip
+                    // argued with the rejection.
+                    insight={
+                      row.filename && row.verification !== "rejected"
+                        ? insightFor?.(row.key) ?? null
+                        : null
+                    }
                     canUpload={canUpload}
                     canVerify={canVerify}
                     onUpload={(filename) => {
@@ -356,10 +363,27 @@ function Row({
                   </button>
                 </>
               )}
-              {/* Remove only. Nobody replaces a document for any reason other
-                  than putting a better one in its place, so Remove and then
-                  Upload is the same journey with one fewer control. */}
-              {canUpload && (
+              {/* A rejected document keeps its Upload: the replacement lands
+                  in place and the rejection reason stays on screen until it
+                  does. Removing it first would delete the very instruction the
+                  learner was told to act on. */}
+              {canUpload && row.verification === "rejected" && (
+                <PickFile
+                  onPick={onUpload}
+                  title="Upload a replacement"
+                  className="btn-secondary !h-8 !px-3 !text-[12.5px]"
+                  icon={
+                    <>
+                      <IconCloudUpload className="h-4 w-4" />
+                      Replace
+                    </>
+                  }
+                />
+              )}
+              {/* Remove and then Upload is the same journey with one fewer
+                  control — but a verified document is only the reviewing
+                  team's to pull, so the learner does not get a dead button. */}
+              {canUpload && (canVerify || row.verification !== "verified") && (
                 <button
                   type="button"
                   onClick={onRemove}

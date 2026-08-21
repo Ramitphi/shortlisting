@@ -118,7 +118,10 @@ export default function LearnerApplicationPage({
   // Certify button that would be refused.
   const recheck = recheckOf(app);
   const detailsLocked = app.status === "completed";
-  const lockerMissing = locker.filter((r) => !r.filename && !r.optional).length;
+  // Rejected counts as outstanding — the learner has been asked to replace it.
+  const lockerMissing = locker.filter(
+    (r) => (!r.filename || r.verification === "rejected") && !r.optional
+  ).length;
   const programme = programs[0];
 
   const section = SECTIONS[searchParams.tab ?? ""] ?? "review";
@@ -368,9 +371,15 @@ export default function LearnerApplicationPage({
                 <p className="mb-4 mt-1 text-[13.5px] text-body">
                   {docs.length === 0
                     ? "Nothing to sign yet."
-                    : pending > 0
-                      ? `${pending} document${pending === 1 ? " needs" : "s need"} your signature.`
-                      : "Everything is signed."}
+                    : !canSign
+                      ? // The documents exist from the moment the counsellor
+                        // submits, but signDocument only accepts them once the
+                        // programme is shortlisted — so until then this is a
+                        // preview, not a to-do list with no way to do it.
+                        "These are the undertakings your application needs. We'll ask you to sign them once your programme is confirmed."
+                      : pending > 0
+                        ? `${pending} document${pending === 1 ? " needs" : "s need"} your signature.`
+                        : "Everything is signed."}
                 </p>
                 {docs.length === 0 ? (
                   <EmptyState text="Your undertakings appear here once your details have been checked." />
@@ -386,9 +395,11 @@ export default function LearnerApplicationPage({
                       ? recheck.state === "ac"
                         ? "Your counsellor is going through a few of these with you. You can keep signing — certifying opens up once that's settled."
                         : "We're checking the details you changed. You can keep signing — certifying opens up once the check is done."
-                      : pending > 0
-                        ? `Sign the remaining ${pending} document${pending === 1 ? "" : "s"} to finish.`
-                        : "All signed — certify that your details are correct to complete your application."}
+                      : !programme
+                        ? "Your programme is being re-confirmed — we'll let you know as soon as you can certify."
+                        : pending > 0
+                          ? `Sign the remaining ${pending} document${pending === 1 ? "" : "s"} to finish.`
+                          : "All signed — certify that your details are correct to complete your application."}
                   </div>
                   <CertifyDialog
                     action={certifyDetails.bind(null, app.id)}

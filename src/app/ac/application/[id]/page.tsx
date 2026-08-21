@@ -72,7 +72,6 @@ import {
   DOC_CATEGORIES,
   FORM_FIELDS,
   OPS_REVIEW_GROUPS,
-  reviewGroupsFor,
   REVIEW_GROUP_BY_KEY,
   FORM_SECTIONS,
   DOC_TYPE_LABELS,
@@ -166,12 +165,13 @@ export default function AcApplicationPage({
   // so somebody has to be able to ACT on it — fix fields, swap programme
   // recommendations — and that somebody is the counsellor, who is the one on
   // the phone to them. Read-only-for-everyone was the hole in this loop.
-  const recheckEditing = Boolean(recheck);
+  // Matches saveForm exactly: the board is editable once Ops hands the
+  // re-check over. While Ops is still re-reading it, the counsellor sees the
+  // details and Ops' comments but cannot type into them — the pen is Ops'.
+  const recheckEditing = recheck?.state === "ac";
   const handedBack = recheck?.state === "ac";
   const groupChecks = getGroupChecks(app.id);
-  // Same set Ops was asked to rule on, or the badge reads "3/4 verified" on a
-  // learner where the fourth section does not apply.
-  const opsGroups = reviewGroupsFor(responses, OPS_REVIEW_GROUPS);
+  const opsGroups = OPS_REVIEW_GROUPS;
   const verifiedGroups = opsGroups.filter(
     (g) => groupChecks[g.key]?.ops?.state === "verified"
   ).length;
@@ -333,7 +333,13 @@ export default function AcApplicationPage({
   // Two presentations, switched from the role-switcher FAB. Inline is the
   // built design (right rail); the drawer is the alternative being compared —
   // no column at all, opened from a button beside the learner's name.
-  const pending = pendingFor(app.status, "ac", certified, recheck?.state ?? null);
+  const pending = pendingFor(
+    app.status,
+    "ac",
+    certified,
+    recheck?.state ?? null,
+    programs.some((p) => p.shortlisted)
+  );
   const inline = activityInline();
   const timeline = inline ? (
     <div className="card fade-up p-5" style={{ animationDelay: "120ms" }}>

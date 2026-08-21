@@ -41,11 +41,19 @@ export function attachRequiredForms(applicationId: number, actorId: number) {
     // Templates are written first-person ("I hereby undertake…"), so the lead
     // "I" is dropped before the name goes in — otherwise every generated
     // document read "I, Neha Gupta, I hereby undertake…".
+    //
+    // And the guardian consent is the GUARDIAN speaking, so it carries their
+    // name: "I, <minor>, As the parent or legal guardian…" named the wrong
+    // person as the declarant.
+    const declarant =
+      t.clause_id === "CON-Parents-01"
+        ? responses.guardian_name || "the parent or legal guardian"
+        : learner;
     insert.run(
       applicationId,
       t.type,
       t.title,
-      `I, ${learner}, ${t.content.replace(/^I /, "")}`,
+      `I, ${declarant}, ${t.content.replace(/^I /, "")}`,
       t.id
     );
   }
@@ -102,6 +110,36 @@ export function attachMissingForms(applicationId: number, actorId: number) {
     clause_id: string | null;
     always_required: number;
   }[];
+  // Detach first. A learner who edits their way OUT of a declaration — the
+  // backlog count back to zero, a status no longer "Pursuing" — was left with
+  // an undertaking nobody could remove (Ops may only detach what Ops attached)
+  // and certifying needs every document signed, so it blocked them for good.
+  // Only untouched auto-generated ones go: anything signed is a record.
+  const stale = getDocuments(applicationId).filter(
+    (d) =>
+      d.auto_generated &&
+      !d.signed_at &&
+      d.template_id !== null &&
+      (() => {
+        const t = templates.find((x) => x.id === d.template_id);
+        return Boolean(
+          t && t.always_required !== 1 && t.clause_id && !triggered.includes(t.clause_id)
+        );
+      })()
+  );
+  if (stale.length > 0) {
+    const drop = db.prepare("DELETE FROM documents WHERE id = ?");
+    for (const d of stale) {
+      drop.run(d.id);
+      logEvent(
+        applicationId,
+        actorId,
+        `Undertaking no longer required: ${d.title}`,
+        "The answers that triggered it have changed"
+      );
+    }
+  }
+
   const needed = templates.filter(
     (t) =>
       !existing.has(t.id) &&
@@ -119,11 +157,19 @@ export function attachMissingForms(applicationId: number, actorId: number) {
     // Templates are written first-person ("I hereby undertake…"), so the lead
     // "I" is dropped before the name goes in — otherwise every generated
     // document read "I, Neha Gupta, I hereby undertake…".
+    //
+    // And the guardian consent is the GUARDIAN speaking, so it carries their
+    // name: "I, <minor>, As the parent or legal guardian…" named the wrong
+    // person as the declarant.
+    const declarant =
+      t.clause_id === "CON-Parents-01"
+        ? responses.guardian_name || "the parent or legal guardian"
+        : learner;
     insert.run(
       applicationId,
       t.type,
       t.title,
-      `I, ${learner}, ${t.content.replace(/^I /, "")}`,
+      `I, ${declarant}, ${t.content.replace(/^I /, "")}`,
       t.id
     );
   }

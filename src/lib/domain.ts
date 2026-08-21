@@ -506,12 +506,46 @@ export type DocVerification = "pending" | "verified" | "rejected";
  * chain is closed, or when the viewer is the one being waited on — their
  * sticky action bar already says so.
  */
+/**
+ * Ops' move: a status they own, or a re-check that has not been handed to the
+ * counsellor. The dashboard and the user hub both need this — the hub used to
+ * count statuses only, so an open re-check sat top of the dashboard while the
+ * hub said "0 waiting on you".
+ */
+export function opsNeedsAction(a: {
+  status: AppStatus;
+  recheck_at?: string | null;
+  recheck_state?: RecheckState | null;
+}): boolean {
+  const recheck = Boolean(a.recheck_at) && a.recheck_state !== "ac";
+  return a.status === "under_review" || recheck;
+}
+
+/** The counsellor's move: a status they own, or a re-check handed to them. */
+export function acNeedsAction(a: {
+  status: AppStatus;
+  recheck_state?: RecheckState | null;
+}): boolean {
+  return (
+    a.status === "draft" ||
+    a.status === "reviewed" ||
+    a.recheck_state === "ac"
+  );
+}
+
 export function pendingFor(
   status: AppStatus,
   role: Role,
   certified = false,
   /** An open re-check, and whose move it is — null when there isn't one. */
-  recheck: RecheckState | null = null
+  recheck: RecheckState | null = null,
+  /**
+   * Whether a programme is still shortlisted. Ops ruling the shortlisted one
+   * out during a re-check takes the shortlist off while the status stays
+   * `shortlisted` — and nothing is then waiting on the learner, whatever the
+   * status says. The counsellor has to choose again.
+   */
+  hasShortlist = true
 ): string | null {
   // The learner is told what is happening, never who is holding it. "With the
   // Ops team" is an internal handoff and reads to them as a delay to chase.
@@ -547,6 +581,10 @@ export function pendingFor(
         ? null
         : "Waiting for the counsellor to send the shortlist";
     case "shortlisted":
+      if (!hasShortlist)
+        return role === "ac"
+          ? null
+          : "Shortlist withdrawn — waiting for the counsellor to choose another programme";
       return certified
         ? "Learner certified their details — ready for the offer letter"
         : "Waiting for the learner to sign and certify their details";
@@ -783,18 +821,3 @@ export function triggeredClausesFor(responses: Record<string, string>): string[]
   return Array.from(new Set(ids));
 }
 
-/**
- * The review groups that apply to THIS learner.
- *
- * A Bachelors or Profile-Building applicant has no bachelor's degree to check,
- * so every field in that section reads "—". Asking Ops to rule on it produced
- * a "Not verified" verdict on a section that does not exist, and pinned a
- * comment to a field the counsellor's form never shows for that degree.
- */
-export function reviewGroupsFor(
-  responses: Record<string, string>,
-  groups: ReviewGroup[] = REVIEW_GROUPS
-): ReviewGroup[] {
-  const isMasters = (responses.degree_level ?? "").trim() === "Masters";
-  return groups.filter((g) => (g.key === "bachelor" ? isMasters : true));
-}

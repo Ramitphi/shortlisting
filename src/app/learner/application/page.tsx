@@ -62,8 +62,11 @@ export default function LearnerApplicationsList() {
 
           const toSign = docs.filter((d) => !d.signed_at).length;
           const signed = docs.length - toSign;
+          // A rejected document has a filename but is not "in": the learner has
+          // been asked to replace it. Counting it as done painted a green
+          // "All in" over the exact thing they were told to fix.
           const missingUploads = locker.filter(
-            (r) => !r.filename && !r.optional
+            (r) => (!r.filename || r.verification === "rejected") && !r.optional
           ).length;
           const docsLine =
             app.status === "shortlisted" && !certified && toSign > 0

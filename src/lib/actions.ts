@@ -18,7 +18,6 @@ import {
   CLAUSES,
   FORM_FIELDS,
   REVIEW_GROUP_BY_KEY,
-  reviewGroupsFor,
   commentableFieldOf,
   triggeredClausesFor,
   groupOfField,
@@ -191,13 +190,13 @@ export async function saveForm(applicationId: number, formData: FormData) {
   // both or the board saves nothing and says nothing. Same rule as
   // toggleGroupCheck, which is why the ticks used to persist while the field
   // edits beside them vanished.
-  // A live re-check re-opens the board — but not while the application is
-  // still in Ops' hands for first-pass vetting. There the pen is theirs, and
-  // "any live re-check" would have handed it back mid-sentence.
+  // ONE rule, matched exactly by the page: the counsellor edits when Ops has
+  // handed the re-check over (state 'ac'), never while Ops still holds it.
+  // "Any live re-check" let them overwrite the form under Ops mid-vetting;
+  // adding a status test instead made the board editable in a state this
+  // refused. The handover is the thing that decides, so test the handover.
   const recheckEditing =
-    Boolean(app?.recheck_at) &&
-    app?.ac_id === user.id &&
-    app?.status !== "under_review";
+    app?.recheck_state === "ac" && app?.ac_id === user.id;
   if (!app || app.ac_id !== user.id) return;
   if (!(canEditDetails(app.status, "ac") || recheckEditing)) return;
 
@@ -462,13 +461,6 @@ export async function setGroupReview(
   const app = getApplication(applicationId);
   const group = REVIEW_GROUP_BY_KEY[groupKey];
   if (!app || !group || !group.opsReview) return;
-  // A section this learner's degree does not have is not theirs to rule on.
-  if (
-    !reviewGroupsFor(getFormResponses(applicationId)).some(
-      (g) => g.key === groupKey
-    )
-  )
-    return;
   // Vetting, or re-reading a learner's change.
   const reRuling = Boolean(app.recheck_at) && app.recheck_state !== "ac";
   if (app.status !== "under_review" && !reRuling) return;
@@ -505,9 +497,13 @@ export async function setGroupReview(
   // stacking another copy.
   const pin = commentableFieldOf(group);
   const db2 = getDb();
+  // Resolved, not deleted. The counsellor may have replied to it or thumbed
+  // it up, and deleting took their answer with it and left no trace that Ops
+  // had ever objected — the timeline entry above is the only record either
+  // way, and the conversation deserves to survive its own resolution.
   db2
     .prepare(
-      `DELETE FROM remarks
+      `UPDATE remarks SET status = 'resolved'
        WHERE application_id = ? AND field_key = ? AND status = 'open'
          AND author_id = ? AND text LIKE ?`
     )
@@ -794,7 +790,15 @@ export async function addDocument(applicationId: number, formData: FormData) {
     `INSERT INTO documents
      (application_id, type, title, content, auto_generated, template_id, source)
      VALUES (?, ?, ?, ?, 0, ?, 'ops')`
-  ).run(applicationId, tpl.type, tpl.title, `I, ${learner}, ${tpl.content}`, tpl.id);
+    // Same first-person trim the other two attach paths use, or an Ops-added
+    // undertaking reads "I, Neha Gupta, I hereby undertake…".
+  ).run(
+    applicationId,
+    tpl.type,
+    tpl.title,
+    `I, ${learner}, ${tpl.content.replace(/^I /, "")}`,
+    tpl.id
+  );
   logEvent(applicationId, user.id, `Document attached: ${tpl.title}`);
   dirty();
 }
@@ -821,9 +825,8 @@ export async function removeDocument(docId: number) {
 export async function addProgram(applicationId: number, formData: FormData) {
   const user = requireUser("ac");
   const app = getApplication(applicationId);
-  // Any live re-check, not just one handed back: the counsellor's board is
-  // open for the whole re-check, and a control that renders has to work.
-  const mayEdit = app?.status === "draft" || Boolean(app?.recheck_at);
+  // Same rule as saveForm: theirs to change once Ops hands it over.
+  const mayEdit = app?.status === "draft" || app?.recheck_state === "ac";
   if (!app || app.ac_id !== user.id || !mayEdit) return;
   if (getPrograms(applicationId).length >= MAX_RECOMMENDED_PROGRAMS) return;
   const catalogueId = Number(formData.get("catalogueId"));
@@ -891,7 +894,13 @@ export async function opsAddProgram(applicationId: number, formData: FormData) {
   if (!app) return;
   const reRuling = Boolean(app.recheck_at) && app.recheck_state !== "ac";
   if (app.status !== "under_review" && !reRuling) return;
-  if (getPrograms(applicationId).length >= MAX_RECOMMENDED_PROGRAMS) return;
+  // The cap counts LIVE options offered to the learner. With nothing eligible
+  // there are none, and this picker is the documented way out of that state —
+  // the same exception the Ops page makes when it renders it. Without this,
+  // the escape hatch was a button that refused and toasted success.
+  const existing = getPrograms(applicationId);
+  const nothingEligible = !existing.some((p) => p.eligibility === "eligible");
+  if (!nothingEligible && existing.length >= MAX_RECOMMENDED_PROGRAMS) return;
 
   const catalogueId = Number(formData.get("catalogueId"));
   if (!catalogueId) return;
@@ -949,9 +958,8 @@ export async function removeProgram(programId: number) {
     | undefined;
   if (!p || p.shortlisted) return;
   const app = getApplication(p.application_id);
-  // Any live re-check, not just one handed back: the counsellor's board is
-  // open for the whole re-check, and a control that renders has to work.
-  const mayEdit = app?.status === "draft" || Boolean(app?.recheck_at);
+  // Same rule as saveForm: theirs to change once Ops hands it over.
+  const mayEdit = app?.status === "draft" || app?.recheck_state === "ac";
   if (!app || app.ac_id !== user.id || !mayEdit) return;
   getDb().prepare("DELETE FROM programs WHERE id = ?").run(programId);
   logEvent(p.application_id, user.id, `Recommendation withdrawn: ${p.name}`);
@@ -1371,14 +1379,22 @@ export async function clearRecheck(applicationId: number) {
   // attachMissingForms above may just have added an undertaking their change
   // triggered, and certifying is blocked until everything is signed — so the
   // message has to match what they will actually find on screen.
+  // Only promise signing and certifying where those controls actually exist:
+  // both need a shortlisted programme, and signDocument refuses at any status
+  // before `shortlisted`.
+  const canAct =
+    app.status === "shortlisted" &&
+    getPrograms(applicationId).some((p) => p.shortlisted);
   const unsigned = getDocuments(applicationId).filter((d) => !d.signed_at).length;
   notify(
     app.learner_id,
-    unsigned > 0
-      ? `Your updated details have been checked — ${unsigned} document${
-          unsigned === 1 ? "" : "s"
-        } to sign, then you can certify`
-      : "Your updated details have been checked — you can certify your application now",
+    !canAct
+      ? "Your updated details have been checked — we're carrying on with your application"
+      : unsigned > 0
+        ? `Your updated details have been checked — ${unsigned} document${
+            unsigned === 1 ? "" : "s"
+          } to sign, then you can certify`
+        : "Your updated details have been checked — you can certify your application now",
     "/learner"
   );
   dirty();
@@ -1515,16 +1531,23 @@ export async function signDocument(docId: number, formData: FormData) {
     .run(signature, docId);
   logEvent(doc.application_id, user.id, `Document signed: ${doc.title}`, `Signed as "${signature}"`);
 
-  // Signing everything is the learner-side approval: it certifies the details.
-  // The offer letter is NOT auto-issued — Ops reviews the certified details
-  // and sends it explicitly (see sendOfferLetter below).
+  // Signing is NOT certifying. Certification is a separate act the learner
+  // still has to perform (certifyDetails), and sendOfferLetter refuses without
+  // it — so announcing "certified" here sent Ops to a screen with no offer
+  // button and left a permanent timeline entry asserting something that had
+  // not happened. The "send the offer letter" prompt belongs to certifyDetails.
   const docs = getDocuments(doc.application_id);
   if (docs.every((d) => d.signed_at)) {
-    logEvent(doc.application_id, user.id, "All documents signed", "Learner details certified — awaiting offer letter from Ops");
-    const opsMsg = `${app.learner_name} signed all documents — review the certified details and send the offer letter`;
+    logEvent(
+      doc.application_id,
+      user.id,
+      "All documents signed",
+      "Awaiting the learner's certification"
+    );
+    const opsMsg = `${app.learner_name} signed all documents — waiting on their certification before the offer letter can go out`;
     if (app.ops_id) notify(app.ops_id, opsMsg, `/ops/application/${doc.application_id}`);
     else notifyRole("ops", opsMsg, `/ops/application/${doc.application_id}`);
-    if (app.ac_id) notify(app.ac_id, `${app.learner_name} signed all documents — Ops will send the offer letter`, `/ac/application/${doc.application_id}`);
+    if (app.ac_id) notify(app.ac_id, `${app.learner_name} signed all documents — they still have to certify their details`, `/ac/application/${doc.application_id}`);
   }
   dirty();
 }

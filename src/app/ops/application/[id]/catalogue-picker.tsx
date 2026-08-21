@@ -165,8 +165,12 @@ export function CataloguePicker({
                             <form
                               action={async (formData: FormData) => {
                                 setOpen(false);
-                                toast(`${addedLabel} added`);
+                                // Announce it AFTER it lands: a server action
+                                // can refuse, and a toast fired first turns
+                                // every future guard mismatch into a silent
+                                // no-op that claims success.
                                 await action(formData);
+                                toast(`${addedLabel} added`);
                                 router.refresh();
                               }}
                             >
@@ -232,8 +236,8 @@ export function CataloguePicker({
                       <form
                         action={async (formData: FormData) => {
                           setOpen(false);
-                          toast(`${addedLabel} added`);
                           await action(formData);
+                          toast(`${addedLabel} added`);
                           router.refresh();
                         }}
                       >

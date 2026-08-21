@@ -14,7 +14,12 @@ import {
   IconUsers,
 } from "@/components/ui";
 import { listApplications } from "@/lib/queries";
-import { ALL_STATUSES, STATUS_LABELS, type AppStatus } from "@/lib/domain";
+import {
+  acNeedsAction,
+  ALL_STATUSES,
+  STATUS_LABELS,
+  type AppStatus,
+} from "@/lib/domain";
 
 
 type Bucket = "all" | "active" | "closed" | AppStatus;
@@ -85,7 +90,9 @@ export default function AcUsersPage({
         <StatTile
           icon={<IconPen />}
           label="Needs Action"
-          value={count("draft") + count("reviewed")}
+          // Same rule as the dashboard: a re-check handed back is their move
+          // too, and omitting it made the hub disagree with /ac.
+          value={all.filter(acNeedsAction).length}
           tone="amber"
           delay={60}
         />
@@ -197,7 +204,10 @@ export default function AcUsersPage({
                     <div className="text-xs text-caption">{a.learner_email}</div>
                   </td>
                   <td className="px-4 py-3">
-                    <StatusBadge status={a.status} />
+                    <StatusBadge
+                      status={a.status}
+                      recheckLabel={a.recheck_state === "ac" ? "Re-check" : undefined}
+                    />
                   </td>
                   <td className="px-4 py-3 text-caption">{a.updated_at} UTC</td>
                   <td className="px-4 py-3 text-right">

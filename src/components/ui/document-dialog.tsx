@@ -21,7 +21,10 @@ export interface Signee {
   email: string;
   /** Who they are signing for, e.g. themselves or the organisation. */
   onBehalfOf: string;
-  /** Only the learner actually signs; others are listed for the record. */
+  /**
+   * Who actually signs this document — the learner for everything except the
+   * guardian consent, which is the guardian's own declaration.
+   */
   signs?: boolean;
   signedAt?: string | null;
   signatureName?: string | null;

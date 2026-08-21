@@ -41,15 +41,21 @@ export function signeesFor(
   const guardianName = responses.guardian_name;
   const guardianEmail = responses.guardian_email;
 
+  // The guardian consent is the guardian's own declaration — they are the one
+  // making it, so they are the one who signs it. Everything else is the
+  // learner's. Without this the minor was signing a paragraph that begins
+  // "As the parent or legal guardian of the applicant".
+  const guardianSigns = doc.title === "Parent / Legal Guardian Consent";
+
   const signees: Signee[] = [
     {
       role: "Learner",
       name: learnerName,
       email: app.learner_email ?? "—",
       onBehalfOf: guardianName ? `${learnerName} (minor)` : "Themselves",
-      signs: true,
-      signedAt: doc.signed_at,
-      signatureName: doc.signature_name,
+      signs: !guardianSigns,
+      signedAt: guardianSigns ? undefined : doc.signed_at,
+      signatureName: guardianSigns ? undefined : doc.signature_name,
     },
   ];
 
@@ -60,7 +66,9 @@ export function signeesFor(
       name: guardianName || "—",
       email: guardianEmail || "—",
       onBehalfOf: learnerName,
-      signs: false,
+      signs: guardianSigns,
+      signedAt: guardianSigns ? doc.signed_at : undefined,
+      signatureName: guardianSigns ? doc.signature_name : undefined,
     });
   }
 

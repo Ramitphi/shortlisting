@@ -26,7 +26,7 @@ export function RemarkCard({
   resolved = false,
   locked = false,
   action,
-  reply,
+  thread = [],
   acknowledged = false,
   replyAction,
   children,
@@ -42,8 +42,8 @@ export function RemarkCard({
   locked?: boolean;
   /** The resolve/delete control, rendered top-right as an icon. */
   action?: React.ReactNode;
-  /** The counsellor's written answer, once they have given one. */
-  reply?: string | null;
+  /** The conversation under this remark, oldest first. */
+  thread?: { id: number; author: string; at: string; text: string }[];
   /** They thumbed it up — seen and agreed, nothing to type. */
   acknowledged?: boolean;
   /** Posts a written answer back to Ops. */
@@ -98,18 +98,28 @@ export function RemarkCard({
           </p>
           {/* Answering is not resolving: a thumbs-up or a written reply
               tells Ops it was read without closing anything. */}
-          {acknowledged && (
-            <p className="mt-1.5 flex items-center gap-1 text-[11.5px] font-medium text-[#3f6c45]">
-              <IconCheck className="h-3 w-3" />
-              Acknowledged by the counsellor
-            </p>
+          {/* The thread. Each reply stacks under the one before it, so the
+              exchange reads top to bottom like the conversation it is. */}
+          {thread.length > 0 && (
+            <div className="mt-2 space-y-1.5 border-l-2 border-line pl-2.5">
+              {thread.map((m) => (
+                <div key={m.id}>
+                  <div className="flex items-center gap-1.5">
+                    <span className="truncate text-[11.5px] font-semibold text-ink">
+                      {m.author}
+                    </span>
+                    <span className="text-[11px] text-caption">
+                      {m.at.slice(11, 16)}
+                    </span>
+                  </div>
+                  <p className="text-[12px] leading-relaxed text-body">
+                    {m.text}
+                  </p>
+                </div>
+              ))}
+            </div>
           )}
-          {reply && (
-            <p className="mt-1.5 rounded-lg bg-paper px-2.5 py-1.5 text-[12px] leading-relaxed text-body">
-              <b className="font-semibold text-ink">Reply:</b> {reply}
-            </p>
-          )}
-          {!resolved && !locked && replyAction && !reply && (
+          {!resolved && !locked && replyAction && (
             <span className="mt-2 flex items-center gap-1.5">
               <input
                 name={remarkId ? `reply_${remarkId}` : "text"}

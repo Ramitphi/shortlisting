@@ -233,6 +233,36 @@ export function getGroupChecks(
   return out;
 }
 
+/** One message in the conversation under a remark. */
+export interface RemarkReply {
+  id: number;
+  remark_id: number;
+  author_id: number;
+  author_name: string | null;
+  author_role: string | null;
+  text: string;
+  created_at: string;
+}
+
+/** Every reply on an application, keyed by the remark it hangs under. */
+export function getRemarkReplies(
+  applicationId: number
+): Record<number, RemarkReply[]> {
+  const rows = getDb()
+    .prepare(
+      `SELECT rr.*, u.name AS author_name, u.role AS author_role
+       FROM remark_replies rr
+       JOIN remarks r ON r.id = rr.remark_id
+       LEFT JOIN users u ON u.id = rr.author_id
+       WHERE r.application_id = ?
+       ORDER BY rr.created_at ASC, rr.id ASC`
+    )
+    .all(applicationId) as RemarkReply[];
+  const out: Record<number, RemarkReply[]> = {};
+  for (const r of rows) (out[r.remark_id] ??= []).push(r);
+  return out;
+}
+
 /** Ops' verdict on one answer — see the field_checks table. */
 export interface FieldCheck {
   application_id: number;

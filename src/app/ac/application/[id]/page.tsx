@@ -48,6 +48,7 @@ import {
   getOfferLetter,
   getGroupChecks,
   getFieldChecks,
+  getRemarkReplies,
   listProgramCatalogue,
   recheckOf,
 } from "@/lib/queries";
@@ -122,6 +123,7 @@ export default function AcApplicationPage({
 
   const responses = getFormResponses(app.id);
   const remarks = getRemarks(app.id);
+  const remarkReplies = getRemarkReplies(app.id);
   const programs = getPrograms(app.id);
   const docs = getDocuments(app.id);
   const offer = getOfferLetter(app.id);
@@ -141,8 +143,16 @@ export default function AcApplicationPage({
   // "Open" means someone is waiting on the counsellor. Info remarks are Ops
   // thinking out loud — they stay visible on the field but never gate a CTA
   // or inflate a badge, otherwise "3 comments" would mean nothing.
+  // The counsellor's outstanding work is what they have not ANSWERED — a
+  // thumbs-up or a reply. They cannot resolve a comment any more (that is Ops'
+  // call), so counting unresolved ones would have left a badge they had no way
+  // to clear.
   const openRemarks = remarks.filter(
-    (r) => r.status === "open" && r.kind !== "info"
+    (r) =>
+      r.status === "open" &&
+      r.kind !== "info" &&
+      !r.acknowledged_at &&
+      (remarkReplies[r.id] ?? []).length === 0
   );
   const certified = Boolean(app.certified_at);
 
@@ -154,10 +164,16 @@ export default function AcApplicationPage({
   // should discover mid-call.
   const recheck = recheckOf(app);
   /** Ops' comments on THIS change — not every remark ever left open. */
+  // Unanswered comments from THIS re-check — the same rule returnRecheckToOps
+  // enforces, so the button and the action agree on what "done" means.
   const recheckComments = recheck
     ? remarks.filter(
         (r) =>
-          r.status === "open" && r.kind !== "info" && r.created_at >= recheck.at
+          r.status === "open" &&
+          r.kind !== "info" &&
+          r.created_at >= recheck.at &&
+          !r.acknowledged_at &&
+          (remarkReplies[r.id] ?? []).length === 0
       )
     : [];
   /** The labels the learner moved — marked wherever the fields are read. */
@@ -211,12 +227,16 @@ export default function AcApplicationPage({
           locked: !canResolve,
           kind: r.kind ?? "action",
           acknowledgedAt: r.acknowledged_at,
-          reply: r.reply,
+          thread: (remarkReplies[r.id] ?? []).map((m) => ({
+            id: m.id,
+            author: m.author_name ?? "—",
+            at: m.created_at,
+            text: m.text,
+          })),
           acknowledgeAction: live
             ? acknowledgeRemark.bind(null, r.id)
             : undefined,
           replyAction: live ? replyToRemark.bind(null, r.id) : undefined,
-          resolveAction: resolveRemark.bind(null, r.id),
         };
       })
     : [];
@@ -241,8 +261,14 @@ export default function AcApplicationPage({
         resolved: r.status === "resolved",
         kind: r.kind ?? "action",
         acknowledgedAt: r.acknowledged_at,
-        reply: r.reply,
-        // The two ways to answer Ops without closing the comment.
+        thread: (remarkReplies[r.id] ?? []).map((m) => ({
+          id: m.id,
+          author: m.author_name ?? "—",
+          at: m.created_at,
+          text: m.text,
+        })),
+        // The two ways the counsellor answers Ops. Closing the comment is not
+        // one of them — that is Ops' call, so there is no resolve control here.
         acknowledgeAction:
           canResolve && r.status === "open"
             ? acknowledgeRemark.bind(null, r.id)
@@ -251,18 +277,7 @@ export default function AcApplicationPage({
           canResolve && r.status === "open"
             ? replyToRemark.bind(null, r.id)
             : undefined,
-        actions:
-          canResolve && r.status === "open" ? (
-            <form action={resolveRemark.bind(null, r.id)}>
-              <button
-                className="flex h-6 w-6 items-center justify-center rounded-md text-caption transition-colors hover:bg-[#e8f2e9] hover:text-[#3f6c45]"
-                title="Mark resolved"
-                aria-label="Mark resolved"
-              >
-                <IconCheck className="h-3.5 w-3.5" />
-              </button>
-            </form>
-          ) : null,
+        actions: null,
       }));
 
   // Nothing is recommended until Ops finishes, so while it's with them the
@@ -529,7 +544,7 @@ export default function AcApplicationPage({
                       disabled={recheckComments.length > 0}
                       title={
                         recheckComments.length > 0
-                          ? "Tick off Ops' comments first — they sit under the fields they are about"
+                          ? "Answer Ops' comments first — acknowledge or reply, under the field each one is about"
                           : ""
                       }
                       className="btn-success"
@@ -739,7 +754,7 @@ export default function AcApplicationPage({
                       ? "The learner changed the fields marked below; Ops is re-reading them."
                       : canShortlist
                         ? openRemarks.length > 0
-                          ? "Vetted by Ops. Flagged fields carry a marker — read the comment, fix the field right there, then tick it off."
+                          ? "Vetted by Ops. Flagged fields carry a marker — read the comment, fix the field right there, then acknowledge it or reply."
                           : "Vetted by Ops. Your answers are editable if anything needs a correction before you shortlist."
                         : "Submitted on the call and now with the Ops team."}
                 </p>
@@ -1087,7 +1102,7 @@ export default function AcApplicationPage({
                   ? "No eligible programmes — speak to the Ops team"
                   : tab === "profile"
                     ? openRemarks.length > 0
-                      ? `${openRemarks.length} open comment${openRemarks.length === 1 ? "" : "s"} from Ops — fix the flagged fields, then tick them off`
+                      ? `${openRemarks.length} comment${openRemarks.length === 1 ? "" : "s"} from Ops to answer — fix the field, then acknowledge or reply`
                       : "Check the details, then open Eligibility to pick a programme"
                     : // The pick lives in the radios, not in the URL, so the
                       // server cannot know whether one has been made — this

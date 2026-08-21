@@ -39,6 +39,7 @@ import {
   getOfferLetter,
   getPrograms,
   getRemarks,
+  getRemarkReplies,
   logEvent,
   recordView,
   notify,
@@ -369,7 +370,9 @@ export async function acknowledgeRemark(remarkId: number) {
 }
 
 export async function replyToRemark(remarkId: number, formData: FormData) {
-  const user = requireUser("ac");
+  // Either side can post: this is a conversation, not a one-shot answer.
+  const user = requireUser();
+  if (user.role !== "ac" && user.role !== "ops") return;
   // Several remark cards can share one <form> (the wizard is one big form),
   // so each reply box is named for its own remark. A shared name="text" made
   // every Send read the topmost box instead of the one being typed in.
@@ -377,31 +380,39 @@ export async function replyToRemark(remarkId: number, formData: FormData) {
     formData.get(`reply_${remarkId}`) ?? formData.get("text") ?? ""
   ).trim();
   if (!text) return;
-  const r = getDb()
+  const db = getDb();
+  const r = db
     .prepare("SELECT application_id, field_key, author_id FROM remarks WHERE id = ?")
     .get(remarkId) as
     | { application_id: number; field_key: string; author_id: number }
     | undefined;
   if (!r) return;
   const app = getApplication(r.application_id);
-  if (!app || app.ac_id !== user.id) return;
-  getDb()
-    .prepare(
-      "UPDATE remarks SET reply = ?, replied_at = datetime('now') WHERE id = ?"
-    )
-    .run(text, remarkId);
+  if (!app) return;
+  if (user.role === "ac" && app.ac_id !== user.id) return;
+
+  // Appended, never overwritten — the thread is the record of the exchange.
+  db.prepare(
+    "INSERT INTO remark_replies (remark_id, author_id, text) VALUES (?, ?, ?)"
+  ).run(remarkId, user.id, text);
+
   const field = FORM_FIELDS.find((f) => f.key === r.field_key);
-  logEvent(
-    r.application_id,
-    user.id,
-    `Replied to Ops on "${field?.label ?? r.field_key}"`,
-    text
-  );
-  notify(
-    r.author_id,
-    `${app.learner_name}: the counsellor replied on "${field?.label ?? r.field_key}"`,
-    `/ops/application/${r.application_id}`
-  );
+  const label = field?.label ?? r.field_key;
+  logEvent(r.application_id, user.id, `Replied on "${label}"`, text);
+  // Tell the other side, whoever that is.
+  if (user.role === "ac") {
+    notify(
+      r.author_id,
+      `${app.learner_name}: the counsellor replied on "${label}"`,
+      `/ops/application/${r.application_id}`
+    );
+  } else if (app.ac_id) {
+    notify(
+      app.ac_id,
+      `${app.learner_name}: Ops replied on "${label}"`,
+      `/ac/application/${r.application_id}`
+    );
+  }
   dirty();
 }
 
@@ -619,8 +630,11 @@ export async function resolveRemark(remarkId: number) {
   const app = getApplication(remark.application_id);
   if (!app || app.status === "completed") return;
   if (app.status === "shortlisted" && !app.recheck_at) return;
-  if (user.role === "ac" && app.ac_id !== user.id) return;
-  if (user.role !== "ac" && user.role !== "ops") return;
+  // Closing a comment is OPS' call now. The counsellor answers it — a
+  // thumbs-up or a reply — but the person who raised the question is the one
+  // who decides it has been answered. Letting the counsellor close Ops'
+  // comments let them tick away feedback without addressing it.
+  if (user.role !== "ops") return;
 
   getDb().prepare("UPDATE remarks SET status = 'resolved' WHERE id = ?").run(remarkId);
   const field = FORM_FIELDS.find((f) => f.key === remark.field_key);
@@ -1540,16 +1554,20 @@ export async function returnRecheckToOps(
   // Posted from the edit board: everything on it saves with the hand-back,
   // so "send back" can never lose the fixes it is sending back.
   if (formData) await saveForm(applicationId, formData);
-  // Every comment from this re-check answered first — otherwise Ops gets it
-  // back with the same open list they sent, and the round trip taught nobody
-  // anything. Older remarks are not part of this conversation.
-  const open = getRemarks(applicationId).filter(
+  // Every comment from this re-check ANSWERED first — acknowledged, or
+  // replied to. Not resolved: closing a comment is Ops' call, so requiring
+  // resolution here would have been a gate the counsellor could never pass.
+  // Older remarks are not part of this conversation.
+  const replies = getRemarkReplies(applicationId);
+  const unanswered = getRemarks(applicationId).filter(
     (r) =>
       r.status === "open" &&
       r.kind !== "info" &&
-      r.created_at >= app.recheck_at!
+      r.created_at >= app.recheck_at! &&
+      !r.acknowledged_at &&
+      (replies[r.id] ?? []).length === 0
   );
-  if (open.length > 0) return;
+  if (unanswered.length > 0) return;
 
   getDb()
     .prepare(

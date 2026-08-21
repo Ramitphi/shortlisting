@@ -52,6 +52,7 @@ import {
   getDocuments,
   getGroupChecks,
   getFieldChecks,
+  getRemarkReplies,
   getLearnerDocs,
   recheckOf,
   listDocTemplates,
@@ -68,6 +69,7 @@ import {
   openApplication,
   opsAddProgram,
   removeLearnerDoc,
+  replyToRemark,
   resolveRemark,
   sendOfferLetter,
   setFieldCheck,
@@ -129,6 +131,7 @@ export default function OpsApplicationPage({
   // when its counterpart document is actually there to compare against.
   const groupChecks = getGroupChecks(app.id);
   const fieldChecks = getFieldChecks(app.id);
+  const remarkReplies = getRemarkReplies(app.id);
   // Every section is ruled on, whatever the degree. Filtering the set by
   // degree_level was worse than the problem it solved: a blank degree hid the
   // section from Ops entirely, changing the degree after a "Not verified"
@@ -279,7 +282,19 @@ export default function OpsApplicationPage({
         resolved: r.status === "resolved",
         kind: r.kind ?? "action",
         acknowledgedAt: r.acknowledged_at,
-        reply: r.reply,
+        thread: (remarkReplies[r.id] ?? []).map((m) => ({
+          id: m.id,
+          author: m.author_name ?? "—",
+          at: m.created_at,
+          text: m.text,
+        })),
+        // Ops talks back in the same thread — it is a conversation, and both
+        // sides need to be able to answer in it. Deliberately NOT gated on
+        // canComment: replying does not move the application, so it should not
+        // wait for the re-check to come back from the counsellor. Resolving
+        // and deleting still do.
+        replyAction:
+          r.status === "open" ? replyToRemark.bind(null, r.id) : undefined,
         actions:
           canComment && r.status === "open" ? (
             <span className="flex items-center gap-0.5">

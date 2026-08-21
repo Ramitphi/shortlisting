@@ -136,6 +136,17 @@ function migrate(db: BrowserDb) {
     -- whether a block of the form holds up; this says which individual answer
     -- inside it is right or wrong. A note is not a state — notes are remarks,
     -- so that they keep behaving like every other comment.
+    -- A remark is the opening message; this is the conversation under it.
+    -- It used to be a single reply column, which meant the second reply
+    -- overwrote the first and nobody could actually talk.
+    CREATE TABLE IF NOT EXISTS remark_replies (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      remark_id INTEGER NOT NULL REFERENCES remarks(id) ON DELETE CASCADE,
+      author_id INTEGER NOT NULL REFERENCES users(id),
+      text TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS field_checks (
       application_id INTEGER NOT NULL REFERENCES applications(id),
       field_key TEXT NOT NULL,

@@ -16,7 +16,8 @@ export interface FieldComment {
   /** The counsellor thumbed it up — seen and agreed. */
   acknowledgedAt?: string | null;
   /** The counsellor's written answer, if they gave one. */
-  reply?: string | null;
+  /** The conversation under this comment, oldest first. */
+  thread?: { id: number; author: string; at: string; text: string }[];
   /** Resolve / delete controls, for whoever is allowed them. */
   actions?: React.ReactNode;
   /** 👍 — one click, no typing. Rendered only when supplied. */
@@ -155,32 +156,47 @@ export function FieldComments({ comments }: { comments: FieldComment[] }) {
                       {c.text}
                     </p>
 
-                    {/* What the counsellor said back — a thumbs-up, a written
-                        reply, or both. Neither closes the comment; they just
-                        stop Ops wondering whether anyone read it. */}
-                    {c.acknowledgedAt && (
-                      <p className="mt-1.5 flex items-center gap-1 text-[11.5px] text-[#3f6c45]">
-                        <IconThumbUp className="h-3 w-3" />
-                        Acknowledged
-                      </p>
-                    )}
-                    {c.reply && (
-                      <p className="mt-1.5 rounded-lg bg-paper px-2.5 py-1.5 text-[12px] leading-relaxed text-body">
-                        <b className="font-semibold text-ink">Reply:</b>{" "}
-                        {c.reply}
-                      </p>
+                    {/* The conversation, stacked oldest first. */}
+                    {(c.thread ?? []).length > 0 && (
+                      <div className="mt-1.5 space-y-1.5 border-l-2 border-line pl-2">
+                        {(c.thread ?? []).map((m) => (
+                          <div key={m.id}>
+                            <div className="flex items-center gap-1.5">
+                              <span className="truncate text-[11px] font-semibold text-ink">
+                                {m.author}
+                              </span>
+                              <span className="text-[10.5px] text-caption">
+                                {m.at.slice(11, 16)}
+                              </span>
+                            </div>
+                            <p className="text-[11.5px] leading-relaxed text-body">
+                              {m.text}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
                     )}
 
                     {!c.resolved && (c.acknowledgeAction || c.replyAction) && (
                       <div className="mt-2 flex items-center gap-1.5">
-                        {c.acknowledgeAction && !c.acknowledgedAt && (
+                        {/* Icon only, label on hover — and once it is on, it
+                            stays on to show the comment was acknowledged. */}
+                        {c.acknowledgeAction && (
                           <form action={c.acknowledgeAction}>
                             <button
-                              className="flex h-6 items-center gap-1 rounded-lg border border-line px-2 text-[11.5px] text-body transition-colors hover:border-[#4c9257] hover:bg-[#e8f2e9] hover:text-[#3f6c45]"
-                              title="Seen and agreed"
+                              className={`flex h-6 w-6 items-center justify-center rounded-lg border transition-colors ${
+                                c.acknowledgedAt
+                                  ? "border-[#4c9257] bg-[#e8f2e9] text-[#3f6c45]"
+                                  : "border-line text-body hover:border-[#4c9257] hover:bg-[#e8f2e9] hover:text-[#3f6c45]"
+                              }`}
+                              title={
+                                c.acknowledgedAt ? "Acknowledged" : "Acknowledge"
+                              }
+                              aria-label={
+                                c.acknowledgedAt ? "Acknowledged" : "Acknowledge"
+                              }
                             >
                               <IconThumbUp className="h-3 w-3" />
-                              Acknowledge
                             </button>
                           </form>
                         )}
@@ -190,7 +206,7 @@ export function FieldComments({ comments }: { comments: FieldComment[] }) {
                             className="flex flex-1 items-center gap-1"
                           >
                             <input
-                              name="text"
+                              name={`reply_${c.id}`}
                               placeholder="Reply…"
                               className="input !h-6 !w-full !py-0 !text-[11.5px]"
                             />

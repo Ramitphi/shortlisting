@@ -140,33 +140,31 @@ function RemarkList({ items }: { items: StepRemark[] }) {
           text={r.text}
           resolved={r.resolved}
           locked={r.locked}
+          // The counsellor answers a comment; they do not close it. Closing is
+          // Ops' call, so the only control here is the thumb — the label lives
+          // on hover rather than in a sentence under the note.
           action={
-            r.resolved || r.locked ? null : (
-              <span className="flex items-center gap-1">
-                {r.acknowledgeAction && !r.acknowledgedAt && (
-                  <button
-                    formAction={r.acknowledgeAction}
-                    formNoValidate
-                    title="Seen and agreed"
-                    aria-label="Acknowledge"
-                    className="flex h-6 w-6 items-center justify-center rounded-full border border-line-strong text-caption transition-colors hover:border-[#4c9257] hover:bg-[#e8f2e9] hover:text-[#3f6c45]"
-                  >
-                    <IconThumbUp className="h-3.5 w-3.5" />
-                  </button>
-                )}
-                <button
-                  formAction={r.resolveAction}
-                  formNoValidate
-                  title="Mark resolved"
-                  aria-label="Mark resolved"
-                  className="flex h-6 w-6 items-center justify-center rounded-full border border-line-strong text-caption transition-colors hover:border-[#4c9257] hover:bg-[#e8f2e9] hover:text-[#3f6c45]"
-                >
-                  <IconCheck className="h-3.5 w-3.5" />
-                </button>
-              </span>
+            r.locked || !r.acknowledgeAction ? null : (
+              <button
+                formAction={r.acknowledgeAction}
+                formNoValidate
+                title={
+                  r.acknowledgedAt ? "Acknowledged" : "Acknowledge"
+                }
+                aria-label={
+                  r.acknowledgedAt ? "Acknowledged" : "Acknowledge"
+                }
+                className={`flex h-6 w-6 items-center justify-center rounded-full border transition-colors ${
+                  r.acknowledgedAt
+                    ? "border-[#4c9257] bg-[#e8f2e9] text-[#3f6c45]"
+                    : "border-line-strong text-caption hover:border-[#4c9257] hover:bg-[#e8f2e9] hover:text-[#3f6c45]"
+                }`}
+              >
+                <IconThumbUp className="h-3.5 w-3.5" />
+              </button>
             )
           }
-          reply={r.reply}
+          thread={r.thread}
           acknowledged={Boolean(r.acknowledgedAt)}
           replyAction={r.replyAction}
         />
@@ -327,12 +325,12 @@ export interface StepRemark {
   /** 'info' is context to read, not work to do — it never flags a step. */
   kind?: "action" | "info";
   acknowledgedAt?: string | null;
-  reply?: string | null;
+  /** The conversation under this remark, oldest first. */
+  thread?: { id: number; author: string; at: string; text: string }[];
   acknowledgeAction?: (formData: FormData) => void;
   replyAction?: (formData: FormData) => void;
   /** Shortlist sent — read-only history. */
   locked?: boolean;
-  resolveAction: (formData: FormData) => void;
 }
 
 /** Every field the counsellor owns — the ops-filled ones are theirs to type. */

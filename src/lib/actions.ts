@@ -586,9 +586,12 @@ export async function updateFieldValue(
   const field = FORM_FIELDS.find((f) => f.key === fieldKey);
   if (!field) return;
 
+  // Ops fills their own fields while vetting, and again while re-checking a
+  // learner's change — otherwise a score they need to correct on the second
+  // pass is uncorrectable by anyone, since the counsellor cannot touch it.
   const opsFilling =
     user.role === "ops" &&
-    app.status === "under_review" &&
+    (app.status === "under_review" || app.recheck_state === "ops") &&
     field.filledBy === "ops";
   // The counsellor's board is open on `reviewed`, during a re-check, and
   // after Ops rules the shortlisted programme out (the shortlist comes off
@@ -1193,15 +1196,28 @@ export async function updateLearnerDetails(
     // to Ops. Either way the re-check restarts on the Ops side.
     const answeringRemarks = app.recheck_state === "ac";
     if (wasVetted) {
+      // A second edit while a re-check is already open EXTENDS it; it does not
+      // restart it. Rebasing recheck_at pushed the comments Ops had already
+      // written outside the "raised on this change" window, which stranded
+      // them — they could neither be sent nor seen. And the changed-field list
+      // is merged, so the first edit's markers survive the second.
+      const already = Boolean(app.recheck_at);
+      const fields = Array.from(
+        new Set(
+          (already ? (app.recheck_fields ?? "").split(", ") : [])
+            .concat(changed)
+            .filter(Boolean)
+        )
+      ).join(", ");
       getDb()
         .prepare(
           `UPDATE applications
-           SET recheck_at = datetime('now'),
+           SET recheck_at = COALESCE(recheck_at, datetime('now')),
                recheck_fields = ?,
                recheck_state = 'ops'
            WHERE id = ?`
         )
-        .run(changed.join(", "), applicationId);
+        .run(fields, applicationId);
     }
     // A changed answer that a verdict rested on un-makes the verdict. The
     // ruling stays on screen — Ops needs to see what they said last time —

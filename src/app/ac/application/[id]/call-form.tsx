@@ -427,6 +427,13 @@ export function CallForm({
     <form
       id="call-form"
       className="-mb-12 grid min-h-[calc(100dvh-12.2rem)] grid-rows-[1fr_auto] gap-6"
+      // Enter in a text field fires the form's FIRST submit button, which here
+      // is a section's "Mark correct" tick — so a stray Enter confirmed a
+      // section nobody had read. Enter does nothing; the bar's buttons do.
+      onKeyDown={(e) => {
+        const el = e.target as HTMLElement;
+        if (e.key === "Enter" && el.tagName === "INPUT") e.preventDefault();
+      }}
     >  {/* -mb-12 cancels main's bottom padding so the sticky bar can reach the viewport edge */}
       {/* Persist every value, including fields on steps not currently mounted.
           Derived from FORM_FIELDS rather than a hand-kept list — the list

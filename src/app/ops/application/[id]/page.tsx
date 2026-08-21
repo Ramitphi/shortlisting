@@ -85,6 +85,7 @@ import {
   DOC_CATEGORIES,
   FORM_FIELDS,
   OPS_REVIEW_GROUPS,
+  reviewGroupsFor,
   REVIEW_GROUPS,
   DOC_TYPE_LABELS,
   MAX_RECOMMENDED_PROGRAMS,
@@ -125,12 +126,14 @@ export default function OpsApplicationPage({
   // Which document slots are filled — the AI vet only speaks about a field
   // when its counterpart document is actually there to compare against.
   const groupChecks = getGroupChecks(app.id);
-  const verifiedGroups = OPS_REVIEW_GROUPS.filter(
+  // Only the sections this learner's degree actually has — see reviewGroupsFor.
+  const opsGroups = reviewGroupsFor(responses, OPS_REVIEW_GROUPS);
+  const verifiedGroups = opsGroups.filter(
     (g) => groupChecks[g.key]?.ops?.state === "verified"
   ).length;
-  const allGroupsVerified = verifiedGroups === OPS_REVIEW_GROUPS.length;
+  const allGroupsVerified = verifiedGroups === opsGroups.length;
   // Ruled on either way — a "not verified" section is finished business too.
-  const ruledGroups = OPS_REVIEW_GROUPS.filter((g) =>
+  const ruledGroups = opsGroups.filter((g) =>
     ["verified", "not_verified"].includes(groupChecks[g.key]?.ops?.state ?? "")
   ).length;
   const triggeredClauses = (responses.triggered_clauses ?? "")
@@ -307,6 +310,12 @@ export default function OpsApplicationPage({
   const eligibleCount = programs.filter(
     (p) => p.eligibility === "eligible"
   ).length;
+  // Not the same as "ruled out": a programme nobody has ruled on yet is
+  // pending, and telling Ops to add a new one when they simply have not
+  // finished ruling sends them off to fix the wrong thing.
+  const unruledCount = programs.filter(
+    (p) => p.eligibility !== "eligible" && p.eligibility !== "not_eligible"
+  ).length;
   const readiness = [
     {
       key: "eligibility" as TabKey,
@@ -327,9 +336,9 @@ export default function OpsApplicationPage({
       // the counsellor holding a profile nobody actually ruled on.
       key: "profile" as TabKey,
       blocking: true,
-      done: ruledGroups === OPS_REVIEW_GROUPS.length,
-      todo: `${OPS_REVIEW_GROUPS.length - ruledGroups} section${
-        OPS_REVIEW_GROUPS.length - ruledGroups === 1 ? "" : "s"
+      done: ruledGroups === opsGroups.length,
+      todo: `${opsGroups.length - ruledGroups} section${
+        opsGroups.length - ruledGroups === 1 ? "" : "s"
       } not ruled on`,
       why: "Mark each section Verified or Not verified — the counsellor sees the verdicts, not your intentions. Tap to review.",
     },
@@ -388,7 +397,7 @@ export default function OpsApplicationPage({
                 tooltip={
                   allGroupsVerified
                     ? "Every section Ops verifies has been verified"
-                    : `${verifiedGroups} of ${OPS_REVIEW_GROUPS.length} sections verified`
+                    : `${verifiedGroups} of ${opsGroups.length} sections verified`
                 }
               >
                 {allGroupsVerified ? (
@@ -398,7 +407,7 @@ export default function OpsApplicationPage({
                 )}
                 {allGroupsVerified
                   ? "Verified"
-                  : `${verifiedGroups}/${OPS_REVIEW_GROUPS.length} verified`}
+                  : `${verifiedGroups}/${opsGroups.length} verified`}
               </CardChip>
             </div>
             <p className="mt-1 text-[14.5px] text-body">
@@ -547,7 +556,7 @@ export default function OpsApplicationPage({
                   Only a few groups are Ops' to verify — the rest are the
                   counsellor's own confirmation, shown but not touched. */}
               <div className="space-y-4">
-              {REVIEW_GROUPS.map((group) => (
+              {reviewGroupsFor(responses).map((group) => (
                 <ReviewGroupBlock
                   key={group.key}
                   group={group}
@@ -596,7 +605,7 @@ export default function OpsApplicationPage({
                                 <div className="mt-0.5 break-words text-sm">
                                   <FileValue label={f.label} value={responses[f.key]} />
                                 </div>
-                              ) : vetting && f.filledBy === "ops" ? (
+                              ) : (vetting || reRuling) && f.filledBy === "ops" ? (
                                 <OpsField
                                   field={f}
                                   value={responses[f.key] ?? ""}
@@ -944,8 +953,12 @@ export default function OpsApplicationPage({
                   everything the counsellor recommended, somebody has to be
                   able to put a live option back — and Ops is the one holding
                   the catalogue and the verdicts. */}
+              {/* The cap is on how many LIVE options a learner is offered. With
+                  nothing eligible there are none, and this picker is the only
+                  way back — so the cap does not apply in that state. */}
               {(vetting || reRuling) &&
-                programs.length < MAX_RECOMMENDED_PROGRAMS && (
+                (programs.length < MAX_RECOMMENDED_PROGRAMS ||
+                  eligibleCount === 0) && (
                   <div className="mt-4">
                     <CataloguePicker
                       label={
@@ -1084,9 +1097,13 @@ export default function OpsApplicationPage({
                 <span className="text-xs text-caption">
                   {staleVerdicts > 0
                     ? `${staleVerdicts} verdict${staleVerdicts === 1 ? "" : "s"} to re-rule on the Eligibility tab`
-                    : recheckComments > 0
-                      ? `${recheckComments} comment${recheckComments === 1 ? "" : "s"} raised on the change`
-                      : "Re-read the marked fields — comment on what's wrong, or close the re-check"}
+                    : unruledCount > 0
+                      ? `${unruledCount} programme(s) still to rule on — Eligibility tab`
+                      : eligibleCount === 0
+                        ? "Nothing is eligible — add a programme from the catalogue on the Eligibility tab"
+                        : recheckComments > 0
+                          ? `${recheckComments} comment${recheckComments === 1 ? "" : "s"} raised on the change`
+                          : "Re-read the marked fields — comment on what's wrong, or close the re-check"}
                 </span>
                 <div className="ml-auto flex items-center gap-2">
                   <form action={raiseRecheckRemarks.bind(null, app.id)}>
@@ -1107,13 +1124,19 @@ export default function OpsApplicationPage({
                   <form action={clearRecheck.bind(null, app.id)}>
                     <button
                       className="btn-success whitespace-nowrap"
-                      disabled={staleVerdicts > 0 || eligibleCount === 0}
+                      disabled={
+                        staleVerdicts > 0 ||
+                        unruledCount > 0 ||
+                        eligibleCount === 0
+                      }
                       title={
                         staleVerdicts > 0
                           ? "Rule on the programmes again first — the change moved the answers your verdicts were based on"
-                          : eligibleCount === 0
-                            ? "Nothing is eligible any more — add a programme that is from the catalogue on the Eligibility tab, or the application has nowhere left to go"
-                            : ""
+                          : unruledCount > 0
+                            ? `Rule on the remaining ${unruledCount} programme(s) first — Eligible or Not eligible`
+                            : eligibleCount === 0
+                              ? "Nothing is eligible any more — add a programme that is from the catalogue on the Eligibility tab, or the application has nowhere left to go"
+                              : ""
                       }
                     >
                       <IconCheck className="h-4 w-4" />

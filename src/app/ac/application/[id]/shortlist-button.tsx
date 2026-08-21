@@ -54,7 +54,13 @@ export function AcFlowBar({
   };
 
   const back = prev ? (
-    <button type="button" className="btn-secondary" onClick={() => go(prev)}>
+    // Carries the pick backwards too — stepping back and forward again used
+    // to silently clear the radio.
+    <button
+      type="button"
+      className="btn-secondary"
+      onClick={() => go(prev, pickedNow())}
+    >
       Back
     </button>
   ) : null;

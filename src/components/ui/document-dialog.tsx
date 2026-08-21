@@ -207,6 +207,7 @@ export function DocumentDialog({
         mounted &&
         createPortal(
           <div
+            data-layer="above-sheet"
             className="fixed inset-0 z-[90] flex items-center justify-center bg-ink/40 p-3 backdrop-blur-[2px] sm:p-5"
             onClick={() => setOpen(false)}
           >
@@ -345,7 +346,8 @@ export function DocumentDialog({
                           in this prototype any 6 digits verify. */}
                       {confirming && (
                         <div
-                          className="fixed inset-0 z-[95] flex items-center justify-center bg-ink/50 p-4 backdrop-blur-[2px]"
+                          data-layer="above-sheet"
+            className="fixed inset-0 z-[95] flex items-center justify-center bg-ink/50 p-4 backdrop-blur-[2px]"
                           onClick={() => setConfirming(false)}
                         >
                           <div

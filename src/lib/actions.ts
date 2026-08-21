@@ -18,6 +18,7 @@ import {
   CLAUSES,
   FORM_FIELDS,
   REVIEW_GROUP_BY_KEY,
+  reviewGroupsFor,
   commentableFieldOf,
   triggeredClausesFor,
   groupOfField,
@@ -190,7 +191,13 @@ export async function saveForm(applicationId: number, formData: FormData) {
   // both or the board saves nothing and says nothing. Same rule as
   // toggleGroupCheck, which is why the ticks used to persist while the field
   // edits beside them vanished.
-  const recheckEditing = Boolean(app?.recheck_at) && app?.ac_id === user.id;
+  // A live re-check re-opens the board — but not while the application is
+  // still in Ops' hands for first-pass vetting. There the pen is theirs, and
+  // "any live re-check" would have handed it back mid-sentence.
+  const recheckEditing =
+    Boolean(app?.recheck_at) &&
+    app?.ac_id === user.id &&
+    app?.status !== "under_review";
   if (!app || app.ac_id !== user.id) return;
   if (!(canEditDetails(app.status, "ac") || recheckEditing)) return;
 
@@ -455,6 +462,13 @@ export async function setGroupReview(
   const app = getApplication(applicationId);
   const group = REVIEW_GROUP_BY_KEY[groupKey];
   if (!app || !group || !group.opsReview) return;
+  // A section this learner's degree does not have is not theirs to rule on.
+  if (
+    !reviewGroupsFor(getFormResponses(applicationId)).some(
+      (g) => g.key === groupKey
+    )
+  )
+    return;
   // Vetting, or re-reading a learner's change.
   const reRuling = Boolean(app.recheck_at) && app.recheck_state !== "ac";
   if (app.status !== "under_review" && !reRuling) return;
@@ -617,12 +631,20 @@ export async function updateFieldValue(
   // them either. A Class 10 percentage of 104 is a typo, not a value.
   if (outOfBounds(field, value)) return;
 
-  getDb()
-    .prepare(
-      `INSERT INTO form_responses (application_id, field_key, value) VALUES (?, ?, ?)
-       ON CONFLICT (application_id, field_key) DO UPDATE SET value = excluded.value`
-    )
-    .run(applicationId, fieldKey, value);
+  const db = getDb();
+  const upsert = db.prepare(
+    `INSERT INTO form_responses (application_id, field_key, value) VALUES (?, ?, ?)
+     ON CONFLICT (application_id, field_key) DO UPDATE SET value = excluded.value`
+  );
+  upsert.run(applicationId, fieldKey, value);
+  // This is the OTHER write path for the same answers, so it owes the same
+  // recomputation updateLearnerDetails does: correcting a backlog count or a
+  // financing plan here changes which declarations apply.
+  upsert.run(
+    applicationId,
+    "triggered_clauses",
+    triggeredClausesFor({ ...before, [fieldKey]: value }).join("|")
+  );
   const actor = user.role === "ops" ? "Ops" : "Counsellor";
   logEvent(
     applicationId,
@@ -1345,10 +1367,18 @@ export async function clearRecheck(applicationId: number) {
     );
   }
   // The learner is told the outcome, never whose desk it sat on: they are
-  // waiting on a "can I certify yet?" answer, and this is that answer.
+  // waiting on a "can I certify yet?" answer, and this is that answer. But
+  // attachMissingForms above may just have added an undertaking their change
+  // triggered, and certifying is blocked until everything is signed — so the
+  // message has to match what they will actually find on screen.
+  const unsigned = getDocuments(applicationId).filter((d) => !d.signed_at).length;
   notify(
     app.learner_id,
-    "Your updated details have been checked — you can certify your application now",
+    unsigned > 0
+      ? `Your updated details have been checked — ${unsigned} document${
+          unsigned === 1 ? "" : "s"
+        } to sign, then you can certify`
+      : "Your updated details have been checked — you can certify your application now",
     "/learner"
   );
   dirty();

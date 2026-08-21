@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { IconAlert, IconCheck, IconRefresh, IconThumbUp } from "./icons";
+import { IconAlert, IconCheck, IconInfo, IconRefresh, IconThumbUp } from "./icons";
 
 export interface FieldComment {
   id: number;
@@ -64,7 +64,13 @@ export function FieldComments({ comments }: { comments: FieldComment[] }) {
 
   if (comments.length === 0) return null;
 
-  const allResolved = openCount === 0;
+  // Three states, not two. A field carrying only unread info notes is neither
+  // "work to do" nor "resolved" — showing it as a grey tick told the
+  // counsellor a note they had never opened was already dealt with.
+  const infoOnly =
+    openCount === 0 &&
+    comments.some((c) => !c.resolved && c.kind === "info");
+  const allResolved = openCount === 0 && !infoOnly;
 
   return (
     <>
@@ -77,11 +83,15 @@ export function FieldComments({ comments }: { comments: FieldComment[] }) {
         className={`flex h-6 shrink-0 items-center gap-1 rounded-full border px-1.5 text-[11px] font-semibold transition-colors ${
           allResolved
             ? "border-line bg-muted text-caption hover:bg-line"
-            : "border-[#ecdfc0] bg-[#f6efdd] text-[#8a6d2f] hover:bg-[#f0e5c9]"
+            : infoOnly
+              ? "border-line-strong bg-white text-body hover:bg-muted"
+              : "border-[#ecdfc0] bg-[#f6efdd] text-[#8a6d2f] hover:bg-[#f0e5c9]"
         }`}
       >
         {allResolved ? (
           <IconCheck className="h-3 w-3" />
+        ) : infoOnly ? (
+          <IconInfo className="h-3.5 w-3.5" />
         ) : (
           <IconAlert className="h-3.5 w-3.5" />
         )}
@@ -109,7 +119,9 @@ export function FieldComments({ comments }: { comments: FieldComment[] }) {
               <div className="border-b border-line px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[0.07em] text-caption">
                 {openCount > 0
                   ? `${openCount} open comment${openCount === 1 ? "" : "s"}`
-                  : "Resolved"}
+                  : infoOnly
+                    ? "For your information"
+                    : "Resolved"}
               </div>
               <div className="max-h-[260px] overflow-y-auto">
                 {comments.map((c) => (

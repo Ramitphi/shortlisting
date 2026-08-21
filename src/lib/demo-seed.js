@@ -320,7 +320,9 @@ function seedDemo(db) {
       "Marksheet is a photo of a photocopy — ask the learner for a clean colour scan.",
       OMAR
     );
-    insertRemark.run(vettingId, "school_name", OMAR, "Class 12: Marksheet is a photo of a photocopy — ask the learner for a clean colour scan.", "open");
+    // Pinned where commentableFieldOf would put it — an ops-owned field is one
+    // the counsellor cannot act on.
+    insertRemark.run(vettingId, "board_12", OMAR, "Class 12: Marksheet is a photo of a photocopy — ask the learner for a clean colour scan.", "open");
     insertRemark.run(vettingId, "countries", OMAR, "Germany needs Anabin H+ — worth telling the learner before they set their heart on TU Munich.", "open");
     insertEvent.run(vettingId, ARJUN, "Eligibility form submitted", `Submitted by Arjun Mehta on behalf of ${vetting.name}`);
     insertEvent.run(vettingId, ARJUN, "UT & Ack documents auto-generated", null);
@@ -384,6 +386,7 @@ function seedDemo(db) {
       work_exp_months: "30",
     });
     addDefaultDocs(reviewedId, reviewed.name);
+    addClauseDocs(reviewedId, reviewed.name, "UT/ACK-Loan-01");
     // The clean path: everything uploaded, everything verified.
     addLockerDocs(reviewedId, ARJUN, { count: 8, verifiedUpto: 8 });
     // Ops found both, fixed both, and closed their own notes.
@@ -420,6 +423,7 @@ function seedDemo(db) {
       finance_plan: "Self-funded",
     });
     addDefaultDocs(shortlistedId, shortlisted.name);
+    addClauseDocs(shortlistedId, shortlisted.name, "UT/ACK-Loan-01");
     // Core set verified; the visa documents are the ones still to come, which
     // is exactly what the learner sees pending on their own tab.
     addLockerDocs(shortlistedId, ARJUN, { count: 8, verifiedUpto: 8 });
@@ -440,6 +444,7 @@ function seedDemo(db) {
     const completedId = insertApp.run(completed.id, ARJUN, OMAR, "completed").lastInsertRowid;
     fillForm(completedId, completed);
     addDefaultDocs(completedId, completed.name, completed.name);
+    addClauseDocs(completedId, completed.name, "UT/ACK-Loan-01", completed.name);
     addLockerDocs(completedId, ARJUN, { count: 8, verifiedUpto: 8 });
     const programId = insertProgram.run(completedId, "PG Diploma in Data Science", "IIIT Bangalore", "12 months", "₹3.5L", "Strong CS background + 4 yrs experience", ARJUN, 1, "eligible").lastInsertRowid;
     insertProgram.run(completedId, "MS in Machine Learning & AI", "LJMU (online)", "18 months", "₹4.8L", null, ARJUN, 0, "eligible");

@@ -38,7 +38,16 @@ export function attachRequiredForms(applicationId: number, actorId: number) {
      VALUES (?, ?, ?, ?, 1, ?, 'auto')`
   );
   for (const t of needed) {
-    insert.run(applicationId, t.type, t.title, `I, ${learner}, ${t.content}`, t.id);
+    // Templates are written first-person ("I hereby undertake…"), so the lead
+    // "I" is dropped before the name goes in — otherwise every generated
+    // document read "I, Neha Gupta, I hereby undertake…".
+    insert.run(
+      applicationId,
+      t.type,
+      t.title,
+      `I, ${learner}, ${t.content.replace(/^I /, "")}`,
+      t.id
+    );
   }
   logEvent(
     applicationId,
@@ -107,7 +116,16 @@ export function attachMissingForms(applicationId: number, actorId: number) {
      VALUES (?, ?, ?, ?, 1, ?, 'auto')`
   );
   for (const t of needed) {
-    insert.run(applicationId, t.type, t.title, `I, ${learner}, ${t.content}`, t.id);
+    // Templates are written first-person ("I hereby undertake…"), so the lead
+    // "I" is dropped before the name goes in — otherwise every generated
+    // document read "I, Neha Gupta, I hereby undertake…".
+    insert.run(
+      applicationId,
+      t.type,
+      t.title,
+      `I, ${learner}, ${t.content.replace(/^I /, "")}`,
+      t.id
+    );
   }
   logEvent(
     applicationId,

@@ -72,6 +72,7 @@ import {
   DOC_CATEGORIES,
   FORM_FIELDS,
   OPS_REVIEW_GROUPS,
+  reviewGroupsFor,
   REVIEW_GROUP_BY_KEY,
   FORM_SECTIONS,
   DOC_TYPE_LABELS,
@@ -168,10 +169,13 @@ export default function AcApplicationPage({
   const recheckEditing = Boolean(recheck);
   const handedBack = recheck?.state === "ac";
   const groupChecks = getGroupChecks(app.id);
-  const verifiedGroups = OPS_REVIEW_GROUPS.filter(
+  // Same set Ops was asked to rule on, or the badge reads "3/4 verified" on a
+  // learner where the fourth section does not apply.
+  const opsGroups = reviewGroupsFor(responses, OPS_REVIEW_GROUPS);
+  const verifiedGroups = opsGroups.filter(
     (g) => groupChecks[g.key]?.ops?.state === "verified"
   ).length;
-  const allGroupsVerified = verifiedGroups === OPS_REVIEW_GROUPS.length;
+  const allGroupsVerified = verifiedGroups === opsGroups.length;
   const triggeredClauses = (responses.triggered_clauses ?? "")
     .split("|")
     .filter(Boolean);
@@ -180,24 +184,38 @@ export default function AcApplicationPage({
   const changedKeys = FORM_FIELDS.filter((f) => changedLabels.has(f.label)).map(
     (f) => f.key
   );
+  /**
+   * Ops' comments are only the counsellor's to answer once Ops has handed
+   * them over. While the re-check is still on the Ops desk the cards are
+   * read-only history: ticking a comment off there deleted feedback Ops had
+   * written but not yet sent, and left their bar reading "Send 0 comments".
+   */
+  const canResolve = app.status === "reviewed" || recheck?.state === "ac";
   const wizardRemarks: StepRemark[] = recheckEditing
-    ? remarks.map((r) => ({
-        id: r.id,
-        fieldKey: r.field_key,
-        section:
-          FORM_FIELDS.find((f) => f.key === r.field_key)?.section ??
-          "Profile Data",
-        author: r.author_name ?? "Ops",
-        at: r.created_at,
-        text: r.text,
-        resolved: r.status === "resolved",
-        kind: r.kind ?? "action",
-        acknowledgedAt: r.acknowledged_at,
-        reply: r.reply,
-        acknowledgeAction: acknowledgeRemark.bind(null, r.id),
-        replyAction: replyToRemark.bind(null, r.id),
-        resolveAction: resolveRemark.bind(null, r.id),
-      }))
+    ? remarks.map((r) => {
+        const live = canResolve && r.status === "open";
+        return {
+          id: r.id,
+          fieldKey: r.field_key,
+          fieldLabel: FORM_FIELDS.find((f) => f.key === r.field_key)?.label,
+          section:
+            FORM_FIELDS.find((f) => f.key === r.field_key)?.section ??
+            "Profile Data",
+          author: r.author_name ?? "Ops",
+          at: r.created_at,
+          text: r.text,
+          resolved: r.status === "resolved",
+          locked: !canResolve,
+          kind: r.kind ?? "action",
+          acknowledgedAt: r.acknowledged_at,
+          reply: r.reply,
+          acknowledgeAction: live
+            ? acknowledgeRemark.bind(null, r.id)
+            : undefined,
+          replyAction: live ? replyToRemark.bind(null, r.id) : undefined,
+          resolveAction: resolveRemark.bind(null, r.id),
+        };
+      })
     : [];
 
   /**
@@ -209,7 +227,6 @@ export default function AcApplicationPage({
    * live conversation with the learner, and ticking them off is what sends
    * the application back to Ops.
    */
-  const canResolve = app.status === "reviewed" || recheck?.state === "ac";
   const commentsFor = (fieldKey: string) =>
     remarks
       .filter((r) => r.field_key === fieldKey)
@@ -361,7 +378,7 @@ export default function AcApplicationPage({
                   tooltip={
                     allGroupsVerified
                       ? "Ops verified every section of this profile"
-                      : `Ops has verified ${verifiedGroups} of ${OPS_REVIEW_GROUPS.length} sections`
+                      : `Ops has verified ${verifiedGroups} of ${opsGroups.length} sections`
                   }
                 >
                   {allGroupsVerified ? (
@@ -371,7 +388,7 @@ export default function AcApplicationPage({
                   )}
                   {allGroupsVerified
                     ? "Verified"
-                    : `${verifiedGroups}/${OPS_REVIEW_GROUPS.length} verified`}
+                    : `${verifiedGroups}/${opsGroups.length} verified`}
                 </CardChip>
               )}
             </div>
@@ -1055,9 +1072,11 @@ export default function AcApplicationPage({
                     ? openRemarks.length > 0
                       ? `${openRemarks.length} open comment${openRemarks.length === 1 ? "" : "s"} from Ops — fix the flagged fields, then tick them off`
                       : "Check the details, then open Eligibility to pick a programme"
-                    : selected
-                      ? "Programme selected — ready to send"
-                      : `Pick one of ${eligiblePrograms.length} eligible programme(s)`}
+                    : // The pick lives in the radios, not in the URL, so the
+                      // server cannot know whether one has been made — this
+                      // line stays true either way rather than claiming
+                      // "ready to send" or contradicting an enabled button.
+                      `Pick one of ${eligiblePrograms.length} eligible programme(s), then send`}
               </span>
               <div className="ml-auto flex items-center gap-2">
                 <AcFlowBar

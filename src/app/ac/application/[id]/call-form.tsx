@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   createContext,
   useContext,
@@ -82,14 +83,39 @@ const RemarksContext = createContext<StepRemark[]>([]);
  */
 const ChangedContext = createContext<ReadonlySet<string>>(new Set());
 
+/**
+ * Which field slots are actually on screen right now.
+ *
+ * Half this form is conditional — guardian details only for a minor, the whole
+ * bachelor block only for a Masters applicant, Class 12 completion only while
+ * it is being pursued. Ops can comment on any of those fields from their own
+ * screen, where every field renders unconditionally. When the field they
+ * chose is one the counsellor's board does not mount, the comment used to
+ * simply not appear: the counsellor could not resolve it, so they could not
+ * hand the re-check back, and Ops could no longer touch it either. A stalled
+ * application with nothing on screen to explain why.
+ *
+ * So every slot registers itself, and anything left over is rendered in a
+ * catch-all block instead of being silently dropped.
+ */
+const RenderedFieldsContext = createContext<(key: string) => () => void>(
+  () => () => {}
+);
+
 function FieldRemarks({ fieldKey }: { fieldKey: string }) {
   const all = useContext(RemarksContext);
+  const register = useContext(RenderedFieldsContext);
+  useEffect(() => register(fieldKey), [fieldKey, register]);
   const mine = all.filter((r) => r.fieldKey === fieldKey);
   if (mine.length === 0) return null;
+  return <RemarkList items={mine} />;
+}
 
+/** The cards themselves — shared by the per-field slot and the catch-all. */
+function RemarkList({ items }: { items: StepRemark[] }) {
   return (
     <div className="mt-2 space-y-2">
-      {mine.map((r) => (
+      {items.map((r) => (
         <RemarkCard
           key={r.id}
           remarkId={r.id}
@@ -266,6 +292,8 @@ export interface StepRemark {
   id: number;
   /** FORM_FIELDS key — the field this remark hangs under. */
   fieldKey: string;
+  /** Human label, for the catch-all when the field itself isn't on screen. */
+  fieldLabel?: string;
   /** Which step owns that field, for the flag count on the tabs. */
   section: string;
   author: string;
@@ -337,6 +365,23 @@ export function CallForm({
   // Every key the counsellor has touched, including ones they deliberately
   // cleared — "empty" and "not filled in yet" are different things and the
   // merge below has to be able to tell them apart.
+  // Which field slots are mounted right now (refcounted — a key can appear on
+  // more than one step). `mountVersion` exists only to re-run the leftovers
+  // calculation when that set changes.
+  const mountedKeys = useRef(new Map<string, number>());
+  const [mountVersion, setMountVersion] = useState(0);
+  const registerField = useCallback((key: string) => {
+    const m = mountedKeys.current;
+    m.set(key, (m.get(key) ?? 0) + 1);
+    setMountVersion((x) => x + 1);
+    return () => {
+      const left = (m.get(key) ?? 1) - 1;
+      if (left <= 0) m.delete(key);
+      else m.set(key, left);
+      setMountVersion((x) => x + 1);
+    };
+  }, []);
+
   const touched = useRef(new Set<string>());
   const set = (k: string, val: string) => {
     touched.current.add(k);
@@ -375,6 +420,21 @@ export function CallForm({
   // Clause engine — shared with the server so a learner's own edit triggers
   // the same declarations this call does. See triggeredClausesFor.
   const clauses = useMemo(() => triggeredClausesFor(v), [v]);
+
+  // Anything still open that no mounted slot claimed. Recomputed whenever the
+  // mounted set changes, so stepping through the wizard moves remarks in and
+  // out of the catch-all as their fields appear and disappear.
+  const stranded = useMemo(
+    () =>
+      remarks.filter(
+        (r) =>
+          !r.resolved &&
+          !r.locked &&
+          !mountedKeys.current.has(r.fieldKey)
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [remarks, mountVersion]
+  );
 
   // Same rule the server enforces on submit — see missingForSubmit.
   const missing = useMemo(
@@ -424,6 +484,7 @@ export function CallForm({
   return (
     <ChangedContext.Provider value={changedSet}>
     <RemarksContext.Provider value={remarks}>
+    <RenderedFieldsContext.Provider value={registerField}>
     <form
       id="call-form"
       className="-mb-12 grid min-h-[calc(100dvh-12.2rem)] grid-rows-[1fr_auto] gap-6"
@@ -515,6 +576,30 @@ export function CallForm({
             })}
           </div>
         </div>
+        )}
+
+        {/* Comments Ops left on a field this board does not currently show —
+            a guardian detail for an adult, a bachelor field for a Bachelors
+            applicant. They render here so they can always be answered; without
+            this the re-check could never be handed back. */}
+        {stranded.length > 0 && (
+          <div className="card fade-up border-[#ecdfc0] p-6">
+            <h2 className="font-display text-[15px] font-semibold tracking-tight">
+              Other comments from Ops
+            </h2>
+            <p className="mt-1 text-[13px] text-body">
+              These are about details this form isn&apos;t asking for right now.
+              Answer or resolve them here.
+            </p>
+            {stranded.map((r) => (
+              <div key={r.id} className="mt-3">
+                <div className="text-[12px] font-semibold uppercase tracking-[0.06em] text-caption">
+                  {r.fieldLabel ?? r.fieldKey}
+                </div>
+                <RemarkList items={[r]} />
+              </div>
+            ))}
+          </div>
         )}
 
         {/* ── Step 1: Profile ── */}
@@ -1089,6 +1174,7 @@ export function CallForm({
       </div>
       )}
     </form>
+    </RenderedFieldsContext.Provider>
     </RemarksContext.Provider>
     </ChangedContext.Provider>
   );

@@ -36,7 +36,14 @@ export function SideSheet({
   // Escape closes, and the page behind must not scroll under the panel.
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    // Only when this sheet is the topmost layer. Dialogs opened from inside it
+    // portal above it (z-[90]+), and Escape used to close the sheet out from
+    // under them — unmounting the dialog the user was actually looking at.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (document.querySelector('[data-layer="above-sheet"]')) return;
+      setOpen(false);
+    };
     window.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";

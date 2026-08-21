@@ -652,7 +652,9 @@ export const REVIEW_GROUPS: ReviewGroup[] = [
       "career_gap_months",
     ],
     docs: ["doc_work_ex", "doc_score_card"],
-    clauses: [],
+    // pg_docs / pg_status trigger this in triggeredClausesFor, so the section
+    // has to say so — the "these answers trigger" line is read as complete.
+    clauses: ["UT-PG Doc-02"],
     opsReview: false,
   },
   {
@@ -779,4 +781,20 @@ export function triggeredClausesFor(responses: Record<string, string>): string[]
   }
   if (v("finance_plan")) ids.push("UT/ACK-Loan-01");
   return Array.from(new Set(ids));
+}
+
+/**
+ * The review groups that apply to THIS learner.
+ *
+ * A Bachelors or Profile-Building applicant has no bachelor's degree to check,
+ * so every field in that section reads "—". Asking Ops to rule on it produced
+ * a "Not verified" verdict on a section that does not exist, and pinned a
+ * comment to a field the counsellor's form never shows for that degree.
+ */
+export function reviewGroupsFor(
+  responses: Record<string, string>,
+  groups: ReviewGroup[] = REVIEW_GROUPS
+): ReviewGroup[] {
+  const isMasters = (responses.degree_level ?? "").trim() === "Masters";
+  return groups.filter((g) => (g.key === "bachelor" ? isMasters : true));
 }

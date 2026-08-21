@@ -458,7 +458,8 @@ function RejectDialog({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[90] flex items-center justify-center bg-ink/45 p-4 backdrop-blur-[2px]"
+      data-layer="above-sheet"
+            className="fixed inset-0 z-[90] flex items-center justify-center bg-ink/45 p-4 backdrop-blur-[2px]"
       onClick={onClose}
     >
       <div

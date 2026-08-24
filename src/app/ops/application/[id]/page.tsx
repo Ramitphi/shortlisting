@@ -28,17 +28,11 @@ import {
   ReviewGroupBlock,
   StatusBadge,
   Timeline,
-  IconBuilding,
-  IconCalendar,
   IconCap,
   IconCheck,
   IconClock,
   IconDoc,
-  IconPlus,
   IconSend,
-  IconShield,
-  IconSignature,
-  IconSparkle,
   IconTrash,
   IconX,
   IconWallet,
@@ -171,7 +165,7 @@ export default function OpsApplicationPage({
   const recheck = recheckOf(app);
   // Commenting is not only a vetting-time thing: a re-check is Ops reading
   // changed fields and saying what's wrong with them, which is the same act
-  // on a later day. Filling ops-owned fields stays vetting-only.
+  // on a later day. Ops-owned fields are editable whenever Ops holds the pen — vetting, and an ops-side re-check.
   const canComment = Boolean(recheck?.state === "ops") || vetting;
   // Verdicts made against answers the learner has since changed. Ops rules
   // again — on the shortlisted programme too — before the re-check can close.
@@ -602,30 +596,36 @@ export default function OpsApplicationPage({
                         (r) => r.field_key === f.key
                       );
                       return (
-                        <div key={f.key} className="py-3 first:pt-0 last:pb-0">
-                          <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2">
-                                <span className="label !mb-0">
-                                  {f.label}
-                                  {f.filledBy === "ops" && (
-                                    <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
-                                      ops
-                                    </span>
-                                  )}
+                        <div key={f.key} className="py-2 first:pt-0 last:pb-0">
+                          {/* One fact per line: the label sits in a fixed
+                              key column, the value beside it, the verdict
+                              icons at the tail. Stacking the label above the
+                              value gave every field two lines and made the
+                              section read as a wall; a key-value line halves
+                              it and the eye can scan the value column. */}
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                            <span className="flex w-[200px] shrink-0 items-center gap-1.5 text-[12.5px] text-caption">
+                              <span className="min-w-0 truncate" title={f.label}>
+                                {f.label}
+                              </span>
+                              {f.filledBy === "ops" && (
+                                <span className="shrink-0 text-[9.5px] font-semibold uppercase tracking-wide text-accent">
+                                  ops
                                 </span>
-                                {changedLabels.has(f.label) && (
-                                  <ChangedPin at={recheck?.at} />
-                                )}
-                                <FieldComments comments={commentsFor(f.key)} />
-                              </div>
-                              {/* The split the PM drew: the counsellor's
-                                  answers are read-only here — Ops comments on
-                                  them, never overwrites them. Only the
-                                  ops-owned fields (scores, university — read
-                                  off the documents) are Ops' to fill. */}
+                              )}
+                              {changedLabels.has(f.label) && (
+                                <ChangedPin at={recheck?.at} />
+                              )}
+                              <FieldComments comments={commentsFor(f.key)} />
+                            </span>
+                            {/* The split the PM drew: the counsellor's
+                                answers are read-only here — Ops comments on
+                                them, never overwrites them. Only the
+                                ops-owned fields (scores, university — read
+                                off the documents) are Ops' to fill. */}
+                            <div className="min-w-[12rem] flex-1 basis-0">
                               {f.type === "file" ? (
-                                <div className="mt-0.5 break-words text-sm">
+                                <div className="break-words text-sm">
                                   <FileValue label={f.label} value={responses[f.key]} />
                                 </div>
                               ) : (vetting || reRuling) && f.filledBy === "ops" ? (
@@ -635,30 +635,13 @@ export default function OpsApplicationPage({
                                   action={updateFieldValue.bind(null, app.id, f.key)}
                                 />
                               ) : (
-                                <div className="mt-0.5 break-words text-sm">
+                                <div className="break-words text-[13.5px] font-medium text-ink">
                                   {responses[f.key] || (
-                                    <span className="text-caption">—</span>
+                                    <span className="font-normal text-caption">—</span>
                                   )}
                                 </div>
                               )}
-                              {/* The AI vet's field remark: doc vs field,
-                                  only while Ops is actually vetting. */}
-                              {vetting &&
-                                f.type !== "file" &&
-                                (() => {
-                                  const ai = fieldInsight(
-                                    f.key,
-                                    responses,
-                                    uploadedKeys
-                                  );
-                                  return ai ? <AiInsightLine insight={ai} /> : null;
-                                })()}
                             </div>
-                            {/* Ops fills these from the documents themselves,
-                                so there is nothing to flag to anyone else.
-                                Everything else gets the three moves: right,
-                                wrong, or a note — the note being an ordinary
-                                comment so it behaves like all the others. */}
                             {canComment && f.filledBy !== "ops" && (
                               <FieldVerdict
                                 state={fieldChecks[f.key]?.state}
@@ -680,11 +663,12 @@ export default function OpsApplicationPage({
                               <form
                                 key={`${f.key}-${fieldRemarks.length}`}
                                 action={addRemark.bind(null, app.id, f.key)}
-                                className="flex shrink-0 gap-2"
+                                className="flex items-center gap-2"
                               >
                                 <input
                                   name="text"
-                                  className="input !h-8 !w-52 !py-0 !text-[12.5px]"
+                                  autoFocus
+                                  className="input !h-8 w-full !py-0 !text-[12.5px]"
                                   placeholder="Leave a note…"
                                 />
                                 <button className="btn-secondary !h-8 !px-3 !text-[12.5px]">
@@ -694,6 +678,18 @@ export default function OpsApplicationPage({
                               </FieldVerdict>
                             )}
                           </div>
+                          {/* The AI vet's read of the documents, under the
+                              row it is about — full width, out of the way. */}
+                          {vetting &&
+                            f.type !== "file" &&
+                            (() => {
+                              const ai = fieldInsight(
+                                f.key,
+                                responses,
+                                uploadedKeys
+                              );
+                              return ai ? <AiInsightLine insight={ai} /> : null;
+                            })()}
                         </div>
                       );
                     })}

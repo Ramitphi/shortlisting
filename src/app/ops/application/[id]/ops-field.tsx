@@ -62,7 +62,7 @@ export function OpsField({
   }`;
 
   return (
-    <form ref={form} action={action} className="relative mt-1 w-full max-w-[260px]">
+    <form ref={form} action={action} className="w-full max-w-[260px]">
       {field.type === "select" ? (
         <select
           name="value"
@@ -107,13 +107,16 @@ export function OpsField({
         />
       )}
 
+      {/* In normal flow under the input, not hung off its right edge — the
+          review sections clip overflow for their rounded corners, and a
+          "not saved" warning that gets clipped is worse than none. */}
       {error ? (
-        <span className="pointer-events-none absolute -right-1 top-1/2 flex -translate-y-1/2 translate-x-full items-center gap-1 pl-2 text-[11.5px] font-medium text-accent">
+        <span className="mt-1 flex items-center gap-1 text-[11.5px] font-medium text-accent">
           {error} — not saved
         </span>
       ) : (
         saved && (
-          <span className="pointer-events-none absolute -right-1 top-1/2 flex -translate-y-1/2 translate-x-full items-center gap-1 pl-2 text-[11.5px] font-medium text-[#3f6c45]">
+          <span className="mt-1 flex items-center gap-1 text-[11.5px] font-medium text-[#3f6c45]">
             <IconCheck className="h-3 w-3" />
             Saved
           </span>

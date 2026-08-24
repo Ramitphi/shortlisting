@@ -7,6 +7,7 @@ import {
   type AppStatus,
 } from "@/lib/domain";
 import type { AppEvent } from "@/lib/queries";
+import { IconInfo } from "./icons";
 
 /**
  * `learner` collapses the five internal statuses into the three the learner is
@@ -60,9 +61,17 @@ export function StatCard({
   );
 }
 
+/**
+ * Reference-style empty state: a quiet inset row with an info glyph, not a
+ * tall centred void. "Nothing here" is one line of fact, and the row shape
+ * keeps the card's rhythm so an empty section still looks finished.
+ */
 export function EmptyState({ text }: { text: string }) {
   return (
-    <div className="text-center text-sm text-caption py-10">{text}</div>
+    <div className="flex items-center gap-2.5 rounded-xl bg-muted px-4 py-3 text-[13px] text-body">
+      <IconInfo className="h-4 w-4 shrink-0 text-caption" />
+      {text}
+    </div>
   );
 }
 

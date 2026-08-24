@@ -28,7 +28,7 @@ const CLOSED: AppStatus[] = ["completed"];
 export default function OpsUsersPage({
   searchParams,
 }: {
-  searchParams: { q?: string; status?: string; view?: string };
+  searchParams: { q?: string; status?: string; view?: string; claimed?: string };
 }) {
   // Re-render on any browser-db or session change.
   useDbVersion();
@@ -53,6 +53,11 @@ export default function OpsUsersPage({
   if (view === "action") apps = apps.filter(opsNeedsAction);
   if (view === "closed") apps = apps.filter((a) => CLOSED.includes(a.status));
   if (statusFilter) apps = apps.filter((a) => a.status === statusFilter);
+  // The dashboard splits under_review into "new" (nobody picked it up) and
+  // "mid-review" (someone did) — this lets its two rows land on the list
+  // they actually counted, instead of both landing on the combined one.
+  if (searchParams.claimed === "0") apps = apps.filter((a) => !a.ops_id);
+  if (searchParams.claimed === "1") apps = apps.filter((a) => a.ops_id);
 
   const count = (s: AppStatus) => all.filter((a) => a.status === s).length;
   const actionCount = all.filter(opsNeedsAction).length;

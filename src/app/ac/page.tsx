@@ -4,11 +4,10 @@ import { useDbVersion } from "@/components/db-provider";
 import Link from "next/link";
 import { Shell, requireRole } from "@/components/shell";
 import {
-  CardChip,
   EmptyState,
   StatusBadge,
   StatTile,
-  QuickAction,
+  TaskRow,
   greeting,
   IconCheck,
   IconInbox,
@@ -110,50 +109,58 @@ export default function AcDashboard({
         reviewedCount > 0 ||
         shortlistedCount > 0 ||
         recheckCount > 0) && (
-        <section className="mt-8">
-          <div className="flex items-center gap-1.5 text-[13px] font-medium text-body">
+        <section className="card fade-up mt-8 p-5">
+          {/* One card of work, not a second wall of tiles: each to-do is a
+              row with its count on the icon and one action. */}
+          <h2 className="flex items-center gap-1.5 text-[14px] font-semibold text-ink">
             <IconSparkle className="h-3.5 w-3.5 text-accent" />
-            Quick actions
-          </div>
-          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            For you today
+          </h2>
+          <p className="mb-2 mt-0.5 text-[12.5px] text-caption">
+            What needs your attention, most urgent first.
+          </p>
+          <div className="divide-y divide-line">
             {/* First: a learner is mid-application and stuck until this call
                 happens. */}
             {recheckCount > 0 && (
-              <QuickAction
+              <TaskRow
                 href="/ac?recheck=1"
                 icon={<IconRefresh />}
-                title="Resolve Ops' comments"
-                sub={`${recheckCount} learner${recheckCount === 1 ? "" : "s"} to call about changed details`}
+                count={recheckCount}
+                label="Resolve Ops' comments"
+                caption="Learners to call about changed details"
                 tone="amber"
               />
             )}
             {draftCount > 0 && (
-              <QuickAction
+              <TaskRow
                 href="/ac/users?status=draft"
                 icon={<IconPen />}
-                title="Fill eligibility forms"
-                sub={`${draftCount} learner${draftCount === 1 ? "" : "s"} still in draft`}
-                tone="pink"
+                count={draftCount}
+                label="Fill eligibility forms"
+                caption="Still in draft"
+                cta="Continue"
               />
             )}
             {reviewedCount > 0 && (
-              <QuickAction
+              <TaskRow
                 href="/ac/users?status=reviewed"
                 icon={<IconSend />}
-                title="Send shortlists"
-                sub={`${reviewedCount} vetted by Ops — pick programmes`}
+                count={reviewedCount}
+                label="Send shortlists"
+                caption="Vetted by Ops — pick programmes"
                 tone="purple"
-                delay={60}
               />
             )}
             {shortlistedCount > 0 && (
-              <QuickAction
+              <TaskRow
                 href="/ac/users?status=shortlisted"
                 icon={<IconSignature />}
-                title="Awaiting signatures"
-                sub={`${shortlistedCount} shortlisted learner${shortlistedCount === 1 ? "" : "s"}`}
+                count={shortlistedCount}
+                label="Awaiting signatures"
+                caption="Shortlists with the learner to sign"
+                cta="View"
                 tone="green"
-                delay={120}
               />
             )}
           </div>

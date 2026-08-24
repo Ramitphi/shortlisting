@@ -4,11 +4,10 @@ import { useDbVersion } from "@/components/db-provider";
 import Link from "next/link";
 import { Shell, requireRole } from "@/components/shell";
 import {
-  CardChip,
   EmptyState,
   StatusBadge,
   StatTile,
-  QuickAction,
+  TaskRow,
   greeting,
   IconCheck,
   IconClipboardCheck,
@@ -129,50 +128,59 @@ export default function OpsDashboard({
         vettingCount > 0 ||
         shortlistedCount > 0 ||
         recheckCount > 0) && (
-        <section className="mt-8">
-          <div className="flex items-center gap-1.5 text-[13px] font-medium text-body">
+        <section className="card fade-up mt-8 p-5">
+          {/* One card of work, not a second wall of tiles — each to-do is a
+              row with its count on the icon and one action. */}
+          <h2 className="flex items-center gap-1.5 text-[14px] font-semibold text-ink">
             <IconSparkle className="h-3.5 w-3.5 text-accent" />
-            Quick actions
-          </div>
-          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            For you today
+          </h2>
+          <p className="mb-2 mt-0.5 text-[12.5px] text-caption">
+            What needs your attention, most urgent first.
+          </p>
+          <div className="divide-y divide-line">
             {/* First: a learner has changed something and is stuck until it
                 is re-read — nothing else on this page is blocking anyone. */}
             {recheckCount > 0 && (
-              <QuickAction
+              <TaskRow
                 href="/ops?recheck=1"
                 icon={<IconRefresh />}
-                title="Re-check changed details"
-                sub={`${recheckCount} learner${recheckCount === 1 ? "" : "s"} edited after vetting`}
+                count={recheckCount}
+                label="Re-check changed details"
+                caption="Learners who edited after vetting"
                 tone="amber"
               />
             )}
             {submittedCount > 0 && (
-              <QuickAction
-                href="/ops/users?status=under_review"
+              <TaskRow
+                href="/ops/users?status=under_review&claimed=0"
                 icon={<IconClipboardCheck />}
-                title="Pick up & vet"
-                sub={`${submittedCount} new submission${submittedCount === 1 ? "" : "s"} waiting`}
-                tone="pink"
+                count={submittedCount}
+                label="Pick up & vet"
+                caption="New submissions waiting"
+                cta="Start"
               />
             )}
             {vettingCount > 0 && (
-              <QuickAction
-                href="/ops/users?status=under_review"
+              <TaskRow
+                href="/ops/users?status=under_review&claimed=1"
                 icon={<IconPen />}
-                title="Continue vetting"
-                sub={`${vettingCount} application${vettingCount === 1 ? "" : "s"} mid-review`}
+                count={vettingCount}
+                label="Continue vetting"
+                caption="Applications mid-review"
+                cta="Continue"
                 tone="amber"
-                delay={60}
               />
             )}
             {shortlistedCount > 0 && (
-              <QuickAction
+              <TaskRow
                 href="/ops/users?status=shortlisted"
                 icon={<IconSend />}
-                title="Send offer letters"
-                sub={`${shortlistedCount} shortlisted — send once signed`}
+                count={shortlistedCount}
+                label="Send offer letters"
+                caption="Shortlisted — send once signed and certified"
+                cta="View"
                 tone="green"
-                delay={120}
               />
             )}
           </div>

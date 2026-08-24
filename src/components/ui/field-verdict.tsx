@@ -41,14 +41,16 @@ export function FieldVerdict({
   const [noteOpen, setNoteOpen] = useState(false);
   const stamp = `${byName ?? "Ops"}${at ? ` · ${at.slice(0, 10)}` : ""}`;
 
+  // Quiet until used. A page of thirty rows cannot afford three bordered
+  // buttons per row — the verdicts sit as bare icons and only the one that
+  // has been given carries a tint.
   const base =
-    "flex h-8 w-8 items-center justify-center rounded-lg border transition-colors";
-  const idle =
-    "border-line-strong bg-white text-caption hover:border-ink/40 hover:text-ink";
+    "flex h-7 w-7 items-center justify-center rounded-lg transition-colors";
+  const idle = "text-caption hover:bg-muted hover:text-ink";
 
   return (
-    <div className="flex shrink-0 flex-col items-end gap-2">
-      <div className="flex items-center gap-1.5">
+    <>
+      <div className="flex shrink-0 items-center gap-0.5">
         <form action={correctAction}>
           <button
             title={
@@ -58,9 +60,7 @@ export function FieldVerdict({
             }
             aria-label="Mark correct"
             className={`${base} ${
-              state === "correct"
-                ? "border-[#4c9257] bg-[#e8f2e9] text-[#3f6c45]"
-                : idle
+              state === "correct" ? "bg-[#e8f2e9] text-[#3f6c45]" : idle
             }`}
           >
             <IconCheck className="h-4 w-4" />
@@ -75,9 +75,7 @@ export function FieldVerdict({
             }
             aria-label="Mark incorrect"
             className={`${base} ${
-              state === "incorrect"
-                ? "border-[#d8a7a9] bg-[#f7ebec] text-[#9c3b41]"
-                : idle
+              state === "incorrect" ? "bg-[#f7ebec] text-[#9c3b41]" : idle
             }`}
           >
             <IconX className="h-4 w-4" />
@@ -90,18 +88,19 @@ export function FieldVerdict({
             title="Add a note for the counsellor"
             aria-label="Add a note"
             aria-expanded={noteOpen}
-            className={`${base} ${
-              noteOpen
-                ? "border-ink bg-ink text-paper"
-                : idle
-            }`}
+            className={`${base} ${noteOpen ? "bg-ink text-paper" : idle}`}
           >
             <IconNote className="h-4 w-4" />
           </button>
         )}
       </div>
-      {noteOpen && children}
-    </div>
+      {/* The note form opens on its own full-width line under the row — the
+          row is a key-value line now, and a form crammed into its tail cell
+          broke the column rhythm. `basis-full` wraps it inside the row flex. */}
+      {noteOpen && children && (
+        <div className="basis-full pt-1.5">{children}</div>
+      )}
+    </>
   );
 }
 

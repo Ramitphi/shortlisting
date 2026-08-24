@@ -27,14 +27,12 @@ import {
   RecheckNotice,
   ReviewGroupBlock,
   IconBuilding,
-  IconCalendar,
   IconCap,
   IconCheck,
   IconClock,
   IconDoc,
   IconRefresh,
   IconShield,
-  IconSignature,
   IconSparkle,
   IconWallet,
 } from "@/components/ui";
@@ -740,9 +738,11 @@ export default function AcApplicationPage({
                   Eligibility Form
                 </h2>
                 <p className="mb-5 mt-1 text-sm text-body">
-                  {recheck?.state === "ac"
-                    ? "The learner changed the fields marked below and Ops has commented on them. These are not yours to edit — call the learner, and anything they change goes straight back to Ops. Tick a comment off once you've settled it."
-                    : recheck
+                  {/* No state === "ac" branch here: that state renders the
+                      edit board instead of this tab, so copy for it would be
+                      unreachable — and it contradicted the board it hid
+                      behind. */}
+                  {recheck
                       ? "The learner changed the fields marked below; Ops is re-reading them."
                       : canShortlist
                         ? openRemarks.length > 0
@@ -752,54 +752,62 @@ export default function AcApplicationPage({
                 </p>
                 {FORM_SECTIONS.map((section) => (
                   <div key={section} className="mb-6">
-                    <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.07em] text-caption">
+                    <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.07em] text-caption">
                       {section}
                     </h3>
-                    <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
+                    {/* Key-value lines, same structure as the Ops board:
+                        label in a fixed muted column, value beside it, the
+                        markers — changed pin, Ops' verdict, comments — at the
+                        label's tail where a scan finds them. One fact per
+                        line reads faster than a two-column grid of stacked
+                        label-over-value cells. */}
+                    <div className="divide-y divide-line">
                       {FORM_FIELDS.filter((f) => f.section === section).map(
                         (f) => (
-                          <div key={f.key}>
-                            {/* The marker sits beside the label, so a flagged
-                                field is findable by scanning rather than by
-                                reading a comment under every field. */}
-                            <div className="flex items-center gap-2">
-                              <span className="label !mb-0">
+                          <div
+                            key={f.key}
+                            className="flex flex-wrap items-center gap-x-4 gap-y-1.5 py-2 first:pt-0 last:pb-0"
+                          >
+                            <span className="flex w-[200px] shrink-0 items-center gap-1.5 text-[12.5px] text-caption">
+                              <span className="min-w-0 truncate" title={f.label}>
                                 {f.label}
-                                {f.filledBy === "ops" && (
-                                  <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
-                                    ops
-                                  </span>
-                                )}
                               </span>
+                              {f.filledBy === "ops" && (
+                                <span className="shrink-0 text-[9.5px] font-semibold uppercase tracking-wide text-accent">
+                                  ops
+                                </span>
+                              )}
                               {changedLabels.has(f.label) && (
                                 <ChangedPin at={recheck?.at} />
                               )}
-                              {/* Ops' verdict on this exact answer — read-only
-                                  here, it is their call to make. */}
-                              <FieldVerdictMark
-                                state={fieldChecks[f.key]?.state}
-                                byName={fieldChecks[f.key]?.by_name}
-                                at={fieldChecks[f.key]?.at}
-                              />
                               <FieldComments comments={commentsFor(f.key)} />
+                            </span>
+                            <div className="min-w-[12rem] flex-1 basis-0">
+                              {f.type === "file" ? (
+                                <div className="text-sm">
+                                  <FileValue label={f.label} value={responses[f.key]} />
+                                </div>
+                              ) : canShortlist && f.filledBy !== "ops" ? (
+                                <OpsField
+                                  field={f}
+                                  value={responses[f.key] ?? ""}
+                                  action={updateFieldValue.bind(null, app.id, f.key)}
+                                />
+                              ) : (
+                                <div className="break-words text-[13.5px] font-medium text-ink">
+                                  {responses[f.key] || (
+                                    <span className="font-normal text-caption">—</span>
+                                  )}
+                                </div>
+                              )}
                             </div>
-                            {f.type === "file" ? (
-                              <div className="mt-1 text-sm">
-                                <FileValue label={f.label} value={responses[f.key]} />
-                              </div>
-                            ) : canShortlist && f.filledBy !== "ops" ? (
-                              <OpsField
-                                field={f}
-                                value={responses[f.key] ?? ""}
-                                action={updateFieldValue.bind(null, app.id, f.key)}
-                              />
-                            ) : (
-                              <div className="mt-1 text-sm">
-                                {responses[f.key] || (
-                                  <span className="text-caption">—</span>
-                                )}
-                              </div>
-                            )}
+                            {/* Ops' verdict on this exact answer — read-only
+                                here, it is their call to make. */}
+                            <FieldVerdictMark
+                              state={fieldChecks[f.key]?.state}
+                              byName={fieldChecks[f.key]?.by_name}
+                              at={fieldChecks[f.key]?.at}
+                            />
                           </div>
                         )
                       )}

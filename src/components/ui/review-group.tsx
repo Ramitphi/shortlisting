@@ -64,9 +64,13 @@ export function ReviewGroupBlock({
     // overflow-hidden so the header's fill is clipped by the radius — without
     // it the tinted bar squares off the top corners and pokes past the border.
     <section className="overflow-hidden rounded-xl border border-line">
-      {/* Header: what this group is, and where it stands on both desks. */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line bg-paper px-4 py-2.5">
-        <h3 className="text-[13px] font-semibold text-ink">{group.label}</h3>
+      {/* Header, two fixed zones: identity and state on the left, the
+          actions on the right — never interleaved, so the eye always knows
+          where to look. State chips stay small next to the title; the
+          buttons are the only button-shaped things in the row. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-line bg-paper px-4 py-3">
+        <span className="flex min-w-0 flex-wrap items-center gap-2">
+        <h3 className="text-[13.5px] font-semibold text-ink">{group.label}</h3>
 
         {ticked && (
           <CardChip
@@ -97,7 +101,9 @@ export function ReviewGroupBlock({
           </CardChip>
         )}
 
-        <span className="ml-auto flex flex-wrap items-center gap-2">
+        </span>
+
+        <span className="flex shrink-0 flex-wrap items-center gap-2">
           {/* The counsellor's one click: this group is right. */}
           {viewer === "ac" &&
             canTick &&
@@ -174,7 +180,15 @@ export function ReviewGroupBlock({
             onClick={() => setRejecting(false)}
           >
             <form
-              action={reviewAction}
+              // The dialog closes AFTER the verdict lands, from the action
+              // itself. Closing it from the submit button's onClick unmounted
+              // the form before the browser finished submitting — an empty
+              // textarea closed with no validation bubble, a filled one could
+              // lose the verdict while looking like success.
+              action={async (fd: FormData) => {
+                await reviewAction(fd);
+                setRejecting(false);
+              }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-[440px] rounded-2xl border border-line bg-white p-5 shadow-[0_28px_60px_-18px_rgba(49,48,43,0.45)]"
             >
@@ -203,10 +217,7 @@ export function ReviewGroupBlock({
                 >
                   Cancel
                 </button>
-                <button
-                  className="btn-primary flex-1"
-                  onClick={() => setRejecting(false)}
-                >
+                <button className="btn-primary flex-1">
                   Mark not verified
                 </button>
               </div>

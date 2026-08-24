@@ -1012,6 +1012,122 @@ export async function addProgram(applicationId: number, formData: FormData) {
 
 /** The counsellor can withdraw a recommendation while the form is still theirs. */
 /**
+ * The counsellor's push-back on Ops' ruling.
+ *
+ * Ops rules what is eligible, and the counsellor shortlists among it — which
+ * left the counsellor with no answer to a verdict they think is wrong except
+ * a conversation off the system. This is that answer, in two shapes:
+ *
+ *   reconsider — "look at this one again, here is why"; the verdict goes back
+ *                to pending and the programme returns to Ops' desk.
+ *   suggest    — "not that one, this one instead"; a catalogue programme is
+ *                added as pending with the same note attached.
+ *
+ * Both put the application back in front of Ops using the machinery that
+ * already exists for a learner's change: a re-check on the Ops side. It is
+ * the same question — someone wants Ops to look again — so it reuses the same
+ * bar, the same counts and the same exit rather than inventing a state. The
+ * re-check is tagged `appeal` so every screen can say which cause it is.
+ */
+export async function appealEligibility(
+  applicationId: number,
+  formData: FormData
+) {
+  const user = requireUser("ac");
+  const app = getApplication(applicationId);
+  if (!app || app.ac_id !== user.id) return;
+  // Nothing to argue about once the offer is out.
+  if (app.status === "completed") return;
+  // Ops rules on programmes from `reviewed` onwards; before that the
+  // counsellor is still building the list and can simply change it.
+  if (app.status !== "reviewed" && app.status !== "shortlisted") return;
+  // One question at a time. A live re-check already has Ops looking, and a
+  // second cause layered on top would make "what am I re-reading?" unanswerable.
+  if (app.recheck_at) return;
+
+  const note = String(formData.get("note") ?? "").trim();
+  if (!note) return;
+  const kind = String(formData.get("kind") ?? "");
+
+  const db = getDb();
+  const programs = getPrograms(applicationId);
+  let subject = "";
+
+  if (kind === "reconsider") {
+    const programId = Number(formData.get("programId"));
+    const target = programs.find((p) => p.id === programId);
+    // Only a rejection can be appealed — there is nothing to reconsider about
+    // one Ops has already allowed, or has not ruled on yet.
+    if (!target || target.eligibility !== "not_eligible") return;
+    db.prepare(
+      `UPDATE programs
+       SET eligibility = 'pending', eligibility_stale = 0,
+           appeal_note = ?, appeal_at = datetime('now')
+       WHERE id = ?`
+    ).run(note, programId);
+    subject = target.name;
+  } else if (kind === "suggest") {
+    const catalogueId = Number(formData.get("catalogueId"));
+    if (!catalogueId) return;
+    // Already on the list — appeal the existing row instead of adding it twice.
+    if (programs.some((p) => p.catalogue_id === catalogueId)) return;
+    // The cap counts live options. With nothing eligible there are none, and
+    // this is the counsellor's way back — the same exception Ops' picker makes.
+    const nothingEligible = !programs.some((p) => p.eligibility === "eligible");
+    if (!nothingEligible && programs.length >= MAX_RECOMMENDED_PROGRAMS) return;
+    const item = db
+      .prepare("SELECT * FROM program_catalogue WHERE id = ?")
+      .get(catalogueId) as
+      | { id: number; name: string; institute: string; duration: string; fee: string }
+      | undefined;
+    if (!item) return;
+    db.prepare(
+      `INSERT INTO programs
+       (application_id, name, institute, duration, fee, notes, added_by,
+        shortlisted, source, eligibility, catalogue_id, appeal_note, appeal_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'ac', 'pending', ?, ?, datetime('now'))`
+    ).run(
+      applicationId,
+      item.name,
+      item.institute,
+      item.duration,
+      item.fee,
+      note,
+      user.id,
+      catalogueId,
+      note
+    );
+    subject = item.name;
+  } else {
+    return;
+  }
+
+  // Back to Ops, through the re-check they already know how to work.
+  db.prepare(
+    `UPDATE applications
+     SET recheck_at = datetime('now'), recheck_fields = ?,
+         recheck_state = 'ops', recheck_kind = 'appeal'
+     WHERE id = ?`
+  ).run(subject, applicationId);
+
+  logEvent(
+    applicationId,
+    user.id,
+    kind === "reconsider"
+      ? `Appealed Ops' verdict on ${subject}`
+      : `Suggested ${subject} for Ops to rule on`,
+    note
+  );
+  const msg =
+    kind === "reconsider"
+      ? `${app.learner_name}: the counsellor is asking you to reconsider ${subject}`
+      : `${app.learner_name}: the counsellor suggested ${subject} — needs a verdict`;
+  if (app.ops_id) notify(app.ops_id, msg, `/ops/application/${applicationId}`);
+  else notifyRole("ops", msg, `/ops/application/${applicationId}`);
+  dirty();
+}
+
+/**
  * Ops adds a programme from the catalogue.
  *
  * Normally recommending is the counsellor's job. The exception is the loop
@@ -1129,9 +1245,15 @@ export async function setProgramEligibility(
   if (verdict !== "eligible" && verdict !== "not_eligible") return;
   // Why, in Ops' words — the counsellor quotes this to the learner.
   const note = String(formData.get("note") ?? "").trim();
+  // Ruling again answers any appeal on this programme, so the appeal clears
+  // with it — leaving it set would keep "the counsellor is asking you to
+  // reconsider" on screen after Ops has done exactly that.
   getDb()
     .prepare(
-      "UPDATE programs SET eligibility = ?, eligibility_stale = 0, eligibility_note = ? WHERE id = ?"
+      `UPDATE programs
+       SET eligibility = ?, eligibility_stale = 0, eligibility_note = ?,
+           appeal_note = NULL, appeal_at = NULL
+       WHERE id = ?`
     )
     .run(verdict, note || null, programId);
   logEvent(
@@ -1377,7 +1499,8 @@ export async function updateLearnerDetails(
           `UPDATE applications
            SET recheck_at = COALESCE(recheck_at, datetime('now')),
                recheck_fields = ?,
-               recheck_state = 'ops'
+               recheck_state = 'ops',
+               recheck_kind = 'learner'
            WHERE id = ?`
         )
         .run(fields, applicationId);
@@ -1485,7 +1608,8 @@ export async function clearRecheck(applicationId: number) {
   getDb()
     .prepare(
       `UPDATE applications
-       SET recheck_at = NULL, recheck_fields = NULL, recheck_state = NULL
+       SET recheck_at = NULL, recheck_fields = NULL, recheck_state = NULL,
+           recheck_kind = NULL
        WHERE id = ?`
     )
     .run(applicationId);

@@ -254,6 +254,14 @@ function migrateColumns(db: BrowserDb) {
   // Why a programme was ruled in or out — the verdict without the reason is
   // an argument nobody can have.
   addColumn(db, "programs", "eligibility_note", "TEXT");
+  // The counsellor's push-back on a "not eligible": why they think it should
+  // stand, or the note that came with a programme they suggested instead.
+  addColumn(db, "programs", "appeal_note", "TEXT");
+  addColumn(db, "programs", "appeal_at", "TEXT");
+  // Why a re-check is open. A learner changing their details and a counsellor
+  // appealing a verdict both put the application back on Ops' desk, but they
+  // are different questions and the screens have to say which.
+  addColumn(db, "applications", "recheck_kind", "TEXT");
   // Not every comment is a job. 'info' is context to read; 'action' is
   // something the counsellor has to do before the shortlist goes out.
   addColumn(db, "remarks", "kind", "TEXT NOT NULL DEFAULT 'action'");

@@ -62,6 +62,7 @@ import {
   replyToRemark,
   resolveRemark,
   returnRecheckToOps,
+  appealEligibility,
   shortlistProgram,
   syncFromLsq,
   toggleGroupCheck,
@@ -92,6 +93,7 @@ import {
 import { OpsField } from "@/app/ops/application/[id]/ops-field";
 import { AiAdd, PickRemove } from "./ai-add";
 import { CallForm, type StepRemark } from "./call-form";
+import { AppealDialog } from "./appeal-dialog";
 import { AcFlowBar } from "./shortlist-button";
 
 
@@ -468,6 +470,7 @@ export default function AcApplicationPage({
           fields={recheck.fields}
           at={recheck.at}
           state={recheck.state}
+          kind={recheck.kind}
           viewer="ac"
           learnerName={app.learner_name}
           openRemarks={recheckComments.length}
@@ -742,7 +745,9 @@ export default function AcApplicationPage({
                       edit board instead of this tab, so copy for it would be
                       unreachable — and it contradicted the board it hid
                       behind. */}
-                  {recheck
+                  {recheck?.kind === "appeal"
+                      ? "Your appeal is with Ops. They will rule again on the programme and it comes back here."
+                      : recheck
                       ? "The learner changed the fields marked below; Ops is re-reading them."
                       : canShortlist
                         ? openRemarks.length > 0
@@ -878,9 +883,43 @@ export default function AcApplicationPage({
           {/* ── Requested Programs: pick and send the shortlist ── */}
             {tab === "eligibility" && (
               <div className="card fade-up p-6">
-                <h2 className="font-display text-[15px] font-semibold tracking-tight">
-                  Requested Programs
-                </h2>
+                {/* Card anatomy: title left, the one action right. */}
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <h2 className="font-display text-[15px] font-semibold tracking-tight">
+                    Requested Programs
+                  </h2>
+                  {/* `reviewed` and `shortlisted` are the window: before that
+                      the counsellor still owns the list outright, after it the
+                      offer is out and there is nothing to argue. */}
+                  {(app.status === "reviewed" ||
+                    app.status === "shortlisted") && (
+                      <AppealDialog
+                        action={appealEligibility.bind(null, app.id)}
+                        rejected={programs
+                          .filter((p) => p.eligibility === "not_eligible")
+                          .map((p) => ({
+                            id: p.id,
+                            name: p.name,
+                            institute: p.institute,
+                          }))}
+                        catalogue={catalogue
+                          .filter(
+                            (c) =>
+                              !programs.some((p) => p.catalogue_id === c.id)
+                          )
+                          .map((c) => ({
+                            id: c.id,
+                            name: c.name,
+                            institute: c.institute,
+                          }))}
+                        disabledReason={
+                          recheck
+                            ? "Ops is already looking at this application — wait for that to come back first"
+                            : undefined
+                        }
+                      />
+                    )}
+                </div>
                 <p className="mb-4 mt-1 text-sm text-body">
                   {shortlistWithdrawn
                     ? "The learner's own change made them ineligible for the programme they were sent, so it has come off. Pick another from what Ops still rules eligible — the learner is told the programme has changed."

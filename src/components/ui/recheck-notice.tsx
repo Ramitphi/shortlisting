@@ -20,6 +20,7 @@ export function RecheckNotice({
   fields,
   at,
   state,
+  kind = "learner",
   viewer,
   learnerName,
   openRemarks = 0,
@@ -32,6 +33,8 @@ export function RecheckNotice({
   /** When the change landed. */
   at: string;
   state: RecheckState;
+  /** What put it on the desk — a learner edit, or the counsellor appealing. */
+  kind?: "learner" | "appeal";
   viewer: "ops" | "ac";
   learnerName?: string;
   /** Ops' comments still open on this application. */
@@ -59,8 +62,20 @@ export function RecheckNotice({
   // ONE line — the changed fields are pinned on the fields themselves and
   // the full story is in the Activity timeline, so the banner only has to
   // say whose move it is.
+  // An appeal is also a re-check, but the cause is the counsellor, not the
+  // learner — saying "the learner changed a detail" there names the wrong
+  // person and the wrong problem.
+  const subject = fields.join(", ");
   const title =
-    state === "ops"
+    kind === "appeal"
+      ? state === "ops"
+        ? viewer === "ops"
+          ? `Appeal — the counsellor is asking you to rule again${subject ? ` on ${subject}` : ""}`
+          : `Your appeal is with Ops${subject ? ` — ${subject}` : ""}`
+        : viewer === "ac"
+          ? `Re-check — Ops has ${comments} for you`
+          : `With the counsellor — ${comments} to resolve`
+      : state === "ops"
       ? viewer === "ops"
         ? `Re-check — ${who} changed ${fields.length || "some"} detail${fields.length === 1 ? "" : "s"} after vetting`
         : `${who} changed ${fields.length || "some"} detail${fields.length === 1 ? "" : "s"} — with Ops for a re-check`
@@ -100,8 +115,9 @@ export function RecheckNotice({
                 mine ? "text-[#a08442]" : "text-caption"
               }`}
             >
-              Changed fields carry a yellow marker · details in the Activity
-              timeline
+              {kind === "appeal"
+                ? "Their note is on the programme card · details in the Activity timeline"
+                : "Changed fields carry a yellow marker · details in the Activity timeline"}
               {staleVerdicts > 0 && (
                 <>
                   {" · "}

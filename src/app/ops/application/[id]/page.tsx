@@ -500,6 +500,7 @@ export default function OpsApplicationPage({
           fields={recheck.fields}
           at={recheck.at}
           state={recheck.state}
+          kind={recheck.kind}
           viewer="ops"
           learnerName={app.learner_name}
           openRemarks={recheckComments}
@@ -560,7 +561,9 @@ export default function OpsApplicationPage({
                 Eligibility Details
               </h2>
               <p className="mb-5 mt-1 text-sm text-body">
-                {recheck?.state === "ops"
+                {recheck?.kind === "appeal"
+                  ? "The counsellor is asking you to look at a programme again — their note is on the Eligibility tab. The details below have not changed."
+                  : recheck?.state === "ops"
                   ? "The learner changed the fields marked below after this was vetted. Re-read those against the documents — comment on anything wrong and send it to the counsellor, or clear the re-check."
                   : recheck
                     ? "The learner changed the fields marked below; the counsellor is taking your comments to them. It comes back here once they have."
@@ -826,7 +829,12 @@ export default function OpsApplicationPage({
                 Requested Programs
               </h2>
               <p className="mb-4 mt-1 text-sm text-body">
-                {staleVerdicts > 0
+                {/* An appeal does not stale anything — it is one programme
+                    the counsellor is arguing about — so it is tested on its
+                    own rather than nested under the stale-verdict case. */}
+                {recheck?.kind === "appeal"
+                  ? "The counsellor has appealed. Rule again on the programme they are asking about — their argument is on the card."
+                  : staleVerdicts > 0
                   ? "The learner changed answers these verdicts were based on. Rule again on each one — including the programme they were shortlisted for, which comes off their application if it is no longer open to them."
                   : vetting
                     ? "Requested by the counsellor with the matching score beside each. Check eligibility against the documents and mark each one — the counsellor shortlists only among the eligible."
@@ -899,6 +907,21 @@ export default function OpsApplicationPage({
                         />
                       )}
                     </div>
+
+                    {/* The counsellor is pushing back on this one. It is the
+                        reason the application is on the desk at all, so it
+                        reads as an argument to answer, not a footnote. */}
+                    {p.appeal_at && p.appeal_note && (
+                      <div className="mt-3 rounded-xl border border-[#e1d5ee] bg-[#efe9f6] px-3.5 py-2.5">
+                        <div className="text-[11.5px] font-semibold uppercase tracking-[0.06em] text-[#6b4d8f]">
+                          {app.ac_name ?? "The counsellor"} is asking you to
+                          look again
+                        </div>
+                        <p className="mt-1 text-[12.5px] leading-relaxed text-[#5c4279]">
+                          {p.appeal_note}
+                        </p>
+                      </div>
+                    )}
 
                     {/* No "recommended by" attribution — the card is about
                         the programme and the verdict, not the sender. */}

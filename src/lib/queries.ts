@@ -29,6 +29,7 @@ export interface Application {
   recheck_fields: string | null;
   /** Whose move it is: 'ops' to re-read, 'ac' to resolve Ops' comments. */
   recheck_state: RecheckState | null;
+  recheck_kind?: string | null;
   learner_name?: string;
   learner_email?: string;
   ac_name?: string;
@@ -85,6 +86,9 @@ export interface Program {
   eligibility_stale?: number;
   /** Ops' reason for the verdict — shown wherever the verdict is. */
   eligibility_note?: string | null;
+  /** The counsellor's push-back, when they have appealed a verdict. */
+  appeal_note?: string | null;
+  appeal_at?: string | null;
 }
 
 export interface CatalogueProgram {
@@ -439,14 +443,24 @@ export function logEvent(applicationId: number, actorId: number, action: string,
  * condition, not a null test repeated in eight files.
  */
 export function recheckOf(
-  app: Pick<Application, "recheck_at" | "recheck_fields" | "recheck_state">
-): { at: string; fields: string[]; state: RecheckState } | null {
+  app: Pick<
+    Application,
+    "recheck_at" | "recheck_fields" | "recheck_state" | "recheck_kind"
+  >
+): {
+  at: string;
+  fields: string[];
+  state: RecheckState;
+  /** What put it back on the desk — a learner edit, or an appeal. */
+  kind: "learner" | "appeal";
+} | null {
   if (!app.recheck_at) return null;
   return {
     at: app.recheck_at,
     fields: (app.recheck_fields ?? "").split(", ").filter(Boolean),
     // Rows written before the column existed are waiting on Ops.
     state: app.recheck_state === "ac" ? "ac" : "ops",
+    kind: app.recheck_kind === "appeal" ? "appeal" : "learner",
   };
 }
 

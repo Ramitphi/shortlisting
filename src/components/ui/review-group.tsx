@@ -199,14 +199,21 @@ export function ReviewGroupBlock({
             </div>
           )}
 
+          {/* A triggered undertaking is a consequence of the answers above —
+              a document the learner is now legally required to sign — so it
+              gets a tint rather than sitting in grey with everything else.
+              Purple, not amber: amber is what an open comment looks like, and
+              this is not a problem to fix. */}
           {triggered.length > 0 && (
-            <p className="flex items-start gap-1.5 text-[12.5px] leading-snug text-body">
-              <IconShield className="mt-0.5 h-3.5 w-3.5 shrink-0 text-caption" />
+            <p className="flex items-start gap-2 rounded-lg border border-[#e1d5ee] bg-[#efe9f6] px-3 py-2 text-[12.5px] leading-snug text-[#5c4279]">
+              <IconShield className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#6b4d8f]" />
               <span>
                 These answers trigger{" "}
-                <b className="font-medium text-ink">{triggered.join(", ")}</b> —
-                the learner signs {triggered.length === 1 ? "it" : "them"} before
-                the offer letter.
+                <b className="font-semibold text-[#4b3563]">
+                  {triggered.join(", ")}
+                </b>{" "}
+                — the learner signs {triggered.length === 1 ? "it" : "them"}{" "}
+                before the offer letter.
               </span>
             </p>
           )}

@@ -28,3 +28,4 @@ export { AiStar, AiInsightLine } from "./ai-insight";
 export { ProfileSummary } from "./profile-summary";
 export { ReviewGroupBlock } from "./review-group";
 export { FieldVerdict, FieldVerdictMark } from "./field-verdict";
+export { VerifiedSeal } from "./verified-seal";

@@ -13,6 +13,7 @@ import {
   Timeline,
   Meta,
   FieldComments,
+  VerifiedSeal,
   FieldVerdictMark,
   ChangedPin,
   DocumentDialog,
@@ -391,30 +392,21 @@ export default function AcApplicationPage({
         <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-3">
-              <h1 className="font-display text-[30px] font-semibold tracking-[-0.02em] text-ink">
-                {app.learner_name}
-              </h1>
+              <span className="flex min-w-0 items-center gap-1.5">
+                <h1 className="font-display text-[30px] font-semibold tracking-[-0.02em] text-ink">
+                  {app.learner_name}
+                </h1>
+                <VerifiedSeal
+                  verified={allGroupsVerified}
+                  label={
+                    allGroupsVerified
+                      ? "Verified — Ops has checked every section of this profile"
+                      : `Not fully verified — Ops has checked ${verifiedGroups} of ${opsGroups.length} sections`
+                  }
+                />
+              </span>
               <StatusBadge status={app.status} />
               <CertifiedChip at={app.certified_at} />
-              {app.status !== "draft" && (
-                <CardChip
-                  tone={allGroupsVerified ? "green" : "muted"}
-                  tooltip={
-                    allGroupsVerified
-                      ? "Ops verified every section of this profile"
-                      : `Ops has verified ${verifiedGroups} of ${opsGroups.length} sections`
-                  }
-                >
-                  {allGroupsVerified ? (
-                    <IconCheck className="h-3 w-3" />
-                  ) : (
-                    <IconShield className="h-3 w-3" />
-                  )}
-                  {allGroupsVerified
-                    ? "Verified"
-                    : `${verifiedGroups}/${opsGroups.length} verified`}
-                </CardChip>
-              )}
             </div>
             <p className="mt-1 text-[14.5px] text-body">{app.learner_email}</p>
           </div>

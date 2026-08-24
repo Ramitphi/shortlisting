@@ -89,11 +89,6 @@ export function ReviewGroupBlock({
             Not verified
           </CardChip>
         )}
-        {!ticked && !verified && !rejected && (
-          <CardChip tone="outline">
-            {group.opsReview ? "Not checked" : "Not confirmed"}
-          </CardChip>
-        )}
 
         <span className="ml-auto flex flex-wrap items-center gap-2">
           {/* The counsellor's one click: this group is right. */}
@@ -110,10 +105,15 @@ export function ReviewGroupBlock({
                       ? "flex h-7 items-center gap-1.5 rounded-lg px-2.5 text-[12px] font-medium text-caption transition-colors hover:bg-muted hover:text-ink"
                       : "btn-secondary !h-7 !px-2.5 !text-[12px]"
                   }
-                  title={ticked ? "Undo" : "Confirm these details are correct"}
+                  // The section name is right beside this, so the button does
+                  // not repeat it: "Profile details … Confirm". It also pairs
+                  // with the Confirmed chip the tick turns into, and stays
+                  // distinct from Ops' "Verified" — the counsellor confirms
+                  // what they hold, Ops verifies it against the documents.
+                  title={ticked ? "Undo" : "These details are correct"}
                 >
                   <IconCheck className="h-3.5 w-3.5" />
-                  {ticked ? "Undo" : "Mark correct"}
+                  {ticked ? "Undo" : "Confirm"}
                 </button>
               );
               return inForm ? button : <form action={toggleAction}>{button}</form>;

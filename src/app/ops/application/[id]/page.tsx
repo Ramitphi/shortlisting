@@ -10,6 +10,7 @@ import {
   CardChip,
   CertifiedChip,
   FieldComments,
+  VerifiedSeal,
   FieldVerdict,
   ChangedPin,
   AiInsightLine,
@@ -413,31 +414,24 @@ export default function OpsApplicationPage({
         <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="flex flex-wrap items-center gap-3">
-              <h1 className="font-display text-[30px] font-semibold tracking-[-0.02em] text-ink">
-                {app.learner_name}
-              </h1>
+              {/* The mark reads the way a verified badge reads anywhere else:
+                  a seal against the name. The count is on hover, and on the
+                  section headers where it can actually be acted on. */}
+              <span className="flex min-w-0 items-center gap-1.5">
+                <h1 className="font-display text-[30px] font-semibold tracking-[-0.02em] text-ink">
+                  {app.learner_name}
+                </h1>
+                <VerifiedSeal
+                  verified={allGroupsVerified}
+                  label={
+                    allGroupsVerified
+                      ? "Verified — every section Ops owns has been verified"
+                      : `Not fully verified — ${verifiedGroups} of ${opsGroups.length} sections verified`
+                  }
+                />
+              </span>
               <StatusBadge status={app.status} />
               <CertifiedChip at={app.certified_at} />
-              {/* Instagram-style: one mark beside the name that says whether
-                  this learner's details have actually been checked. Green
-                  only when every group Ops owns is verified. */}
-              <CardChip
-                tone={allGroupsVerified ? "green" : "muted"}
-                tooltip={
-                  allGroupsVerified
-                    ? "Every section Ops verifies has been verified"
-                    : `${verifiedGroups} of ${opsGroups.length} sections verified`
-                }
-              >
-                {allGroupsVerified ? (
-                  <IconCheck className="h-3 w-3" />
-                ) : (
-                  <IconShield className="h-3 w-3" />
-                )}
-                {allGroupsVerified
-                  ? "Verified"
-                  : `${verifiedGroups}/${opsGroups.length} verified`}
-              </CardChip>
             </div>
             <p className="mt-1 text-[14.5px] text-body">
               {app.learner_email} · Counsellor: {app.ac_name ?? "—"}

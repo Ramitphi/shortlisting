@@ -687,22 +687,6 @@ export default function OpsApplicationPage({
                                   className="input !h-8 !w-52 !py-0 !text-[12.5px]"
                                   placeholder="Leave a note…"
                                 />
-                                {/* Unchecked posts nothing, so the action
-                                    defaults to 'action' — a job. Checked
-                                    makes it an 'info' note: context to read,
-                                    nothing to do, never counted as open. */}
-                                <label
-                                  className="flex shrink-0 items-center gap-1 text-[11.5px] text-caption"
-                                  title="Info only — context, nothing for the counsellor to action"
-                                >
-                                  <input
-                                    type="checkbox"
-                                    name="kind"
-                                    value="info"
-                                    className="h-3.5 w-3.5 accent-[#AE383E]"
-                                  />
-                                  info
-                                </label>
                                 <button className="btn-secondary !h-8 !px-3 !text-[12.5px]">
                                   Add
                                 </button>

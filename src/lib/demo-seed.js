@@ -412,9 +412,9 @@ function seedDemo(db) {
     // Ops found both, fixed both, and closed their own notes.
     insertRemark.run(reviewedId, "mobile", OMAR, "Added the alternate number from the application form.", "resolved");
     insertRemark.run(reviewedId, "work_exp_months", OMAR, "CV shows 30 months against 24 on the form — confirmed with the counsellor.", "resolved");
-    // Not everything Ops writes is a job: this one is context to read.
-    insertRemark.run(reviewedId, "finance_plan", OMAR, "FYI — loan sanction usually takes 2 weeks with this lender, so start early.", "open");
-    db.prepare("UPDATE remarks SET kind = 'info' WHERE application_id = ? AND field_key = 'finance_plan'").run(reviewedId);
+    // A note is a note. There is no second kind to pick any more, so the demo
+    // does not show a chip nobody can reproduce.
+    insertRemark.run(reviewedId, "finance_plan", OMAR, "Loan sanction usually takes 2 weeks with this lender — worth starting early.", "open");
     insertProgram.run(reviewedId, "Advanced Certification in Cloud Computing", "IIT Madras", "11 months", "₹2.9L", "Strong infrastructure background", ARJUN, 0, "eligible");
     insertProgram.run(reviewedId, "PG Program in DevOps & SRE", "upGrad", "10 months", "₹2.2L", "Matches current role trajectory", ARJUN, 0, "eligible");
     insertProgram.run(reviewedId, "MS in Computer Science (online)", "Woolf University", "24 months", "₹5.5L", "Stretch option if budget allows", ARJUN, 0, "eligible");

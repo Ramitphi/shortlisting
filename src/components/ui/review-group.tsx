@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { CardChip } from "./card-bits";
 import { IconAlert, IconCheck, IconDoc, IconShield, IconX } from "./icons";
 import type { DocRow } from "./document-table";
@@ -54,9 +56,14 @@ export function ReviewGroupBlock({
   const verified = opsCheck?.state === "verified";
   const rejected = opsCheck?.state === "not_verified";
   const ticked = acCheck?.state === "checked";
+  const [rejecting, setRejecting] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   return (
-    <section className="rounded-xl border border-line">
+    // overflow-hidden so the header's fill is clipped by the radius — without
+    // it the tinted bar squares off the top corners and pokes past the border.
+    <section className="overflow-hidden rounded-xl border border-line">
       {/* Header: what this group is, and where it stands on both desks. */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line bg-paper px-4 py-2.5">
         <h3 className="text-[13px] font-semibold text-ink">{group.label}</h3>
@@ -136,30 +143,77 @@ export function ReviewGroupBlock({
                   Verified
                 </button>
               </form>
-              <form action={reviewAction} className="flex items-center gap-1.5">
-                <input type="hidden" name="verdict" value="not_verified" />
-                <input
-                  name="comment"
-                  defaultValue={rejected ? opsCheck?.comment ?? "" : ""}
-                  placeholder="What's wrong…"
-                  className="input !h-7 !w-40 !py-0 !text-[12px]"
-                />
-                <button
-                  className={
-                    rejected
-                      ? "!h-7 !px-2.5 !text-[12px] btn-secondary !border-[#ecdfc0] !bg-[#f6efdd] !text-[#8a6d2f]"
-                      : "btn-secondary !h-7 !px-2.5 !text-[12px]"
-                  }
-                  title="Needs a reason — the counsellor has to act on it"
-                >
-                  <IconX className="h-3.5 w-3.5" />
-                  Not verified
-                </button>
-              </form>
+              {/* The reason is asked for when it is needed, not parked in an
+                  input on every section header. The old inline box also made
+                  the button look broken: pressing it with the box empty was a
+                  silent no-op, because the action refuses a verdict with no
+                  reason attached. */}
+              <button
+                type="button"
+                onClick={() => setRejecting(true)}
+                className={
+                  rejected
+                    ? "!h-7 !px-2.5 !text-[12px] btn-secondary !border-[#ecdfc0] !bg-[#f6efdd] !text-[#8a6d2f]"
+                    : "btn-secondary !h-7 !px-2.5 !text-[12px]"
+                }
+              >
+                <IconX className="h-3.5 w-3.5" />
+                Not verified
+              </button>
             </>
           )}
         </span>
       </div>
+
+      {rejecting &&
+        mounted &&
+        reviewAction &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[90] flex items-center justify-center bg-ink/45 p-4 backdrop-blur-[2px]"
+            onClick={() => setRejecting(false)}
+          >
+            <form
+              action={reviewAction}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-[440px] rounded-2xl border border-line bg-white p-5 shadow-[0_28px_60px_-18px_rgba(49,48,43,0.45)]"
+            >
+              <input type="hidden" name="verdict" value="not_verified" />
+              <h3 className="font-display text-[16px] font-semibold tracking-tight text-ink">
+                What&apos;s wrong with {group.label}?
+              </h3>
+              <p className="mt-1 text-[13px] leading-relaxed text-body">
+                This goes to the counsellor as a comment on the section, so
+                write what they need to change.
+              </p>
+              <textarea
+                name="comment"
+                required
+                autoFocus
+                rows={3}
+                defaultValue={rejected ? opsCheck?.comment ?? "" : ""}
+                placeholder="e.g. the marksheet is a photo of a photocopy — ask for a clean scan"
+                className="input mt-3 !h-auto w-full !py-2 !text-[13px]"
+              />
+              <div className="mt-4 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRejecting(false)}
+                  className="btn-secondary flex-1"
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn-primary flex-1"
+                  onClick={() => setRejecting(false)}
+                >
+                  Mark not verified
+                </button>
+              </div>
+            </form>
+          </div>,
+          document.body
+        )}
 
       <div className="p-4">{children}</div>
 

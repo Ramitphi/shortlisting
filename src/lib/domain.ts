@@ -267,10 +267,10 @@ export const GENERIC_CLAUSES: { title: string; appliesTo: string[] }[] = [
 
 export const FORM_FIELDS: FieldDef[] = [
   // ── Section A — Profile Data ─────────────────────────────────────────────
-  { key: "full_name", label: "Learner Name", type: "text", section: "Profile Data", required: true },
-  { key: "mobile", label: "Learner Mobile Number", type: "tel", section: "Profile Data", required: true },
-  { key: "gender", label: "Learner Gender", type: "select", section: "Profile Data", options: ["Male", "Female", "Others"], required: true },
-  { key: "dob", label: "Learner Date of Birth", type: "date", section: "Profile Data", required: true },
+  { key: "full_name", label: "Name", type: "text", section: "Profile Data", required: true },
+  { key: "mobile", label: "Mobile number", type: "tel", section: "Profile Data", required: true },
+  { key: "gender", label: "Gender", type: "select", section: "Profile Data", options: ["Male", "Female", "Others"], required: true },
+  { key: "dob", label: "Date of birth", type: "date", section: "Profile Data", required: true },
   { key: "guardian_name", label: "Parent / Legal Guardian Name", type: "text", section: "Profile Data" },
   { key: "guardian_email", label: "Parent / Legal Guardian Email", type: "email", section: "Profile Data" },
   { key: "guardian_phone", label: "Parent / Legal Guardian Phone", type: "tel", section: "Profile Data" },
@@ -764,7 +764,7 @@ export function missingForSubmit(
   const degree = v("degree_level");
 
   const need: string[] = [];
-  if (!v("full_name")) need.push("Learner name");
+  if (!v("full_name")) need.push("Name");
   if (!v("mobile")) need.push("Mobile number");
   if (!v("gender")) need.push("Gender");
   if (!v("dob")) need.push("Date of birth");
@@ -777,7 +777,7 @@ export function missingForSubmit(
   if (degree === "Masters" && !v("bachelor_status"))
     need.push("Bachelor's status");
   if (!v("finance_plan")) need.push("Financing plan");
-  if (programmesCount === 0) need.push("Recommended programmes");
+  if (programmesCount === 0) need.push("Requested programmes");
   return need;
 }
 

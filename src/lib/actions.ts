@@ -482,6 +482,48 @@ export async function setFieldCheck(
         : undefined
     );
   }
+
+  // Keep the section verdict honest about the fields under it, in both
+  // directions — otherwise the header can read "Verified" over a field Ops
+  // has just called wrong.
+  const group = groupOfField(fieldKey);
+  if (group?.opsReview) {
+    const mine = group.fields.filter((k) => {
+      const f = FORM_FIELDS.find((x) => x.key === k);
+      return f && f.filledBy !== "ops";
+    });
+    const rows = db
+      .prepare(
+        `SELECT field_key, state FROM field_checks WHERE application_id = ?`
+      )
+      .all(applicationId) as { field_key: string; state: string }[];
+    const byKey = new Map(rows.map((r) => [r.field_key, r.state]));
+    const allCorrect =
+      mine.length > 0 && mine.every((k) => byKey.get(k) === "correct");
+    const anyIncorrect = mine.some((k) => byKey.get(k) === "incorrect");
+    const current = db
+      .prepare(
+        "SELECT state FROM group_checks WHERE application_id = ? AND group_key = ? AND actor_role = 'ops'"
+      )
+      .get(applicationId, group.key) as { state: string } | undefined;
+
+    if (allCorrect && current?.state !== "verified") {
+      // Every answer in the block is right, so the block is verified.
+      db.prepare(
+        `INSERT INTO group_checks (application_id, group_key, actor_role, state, comment, by_id, at)
+         VALUES (?, ?, 'ops', 'verified', NULL, ?, datetime('now'))
+         ON CONFLICT (application_id, group_key, actor_role)
+         DO UPDATE SET state = 'verified', comment = NULL, by_id = excluded.by_id, at = excluded.at`
+      ).run(applicationId, group.key, user.id);
+      logEvent(applicationId, user.id, `${group.label}: verified`, "Every field in the section marked correct");
+    } else if (anyIncorrect && current?.state === "verified") {
+      // A field just went wrong under a section that said it was fine.
+      db.prepare(
+        "DELETE FROM group_checks WHERE application_id = ? AND group_key = ? AND actor_role = 'ops'"
+      ).run(applicationId, group.key);
+      logEvent(applicationId, user.id, `${group.label}: verification cleared`, `"${field.label}" was marked incorrect`);
+    }
+  }
   dirty();
 }
 
@@ -566,8 +608,25 @@ export async function setGroupReview(
   // block the counsellor from handing the re-check back over a point Ops has
   // since agreed with. Re-ruling not-verified replaces it rather than
   // stacking another copy.
-  const pin = commentableFieldOf(group);
   const db2 = getDb();
+  // Verifying the section verifies what is in it. Ops reads a block and rules
+  // on it; making them then tick each field inside would be the same judgement
+  // typed eight times. Only the counsellor's fields — the ops-owned ones are
+  // Ops' own to type, so there is nothing to rule on.
+  if (verdict === "verified") {
+    const tick = db2.prepare(
+      `INSERT INTO field_checks (application_id, field_key, state, by_id, at)
+       VALUES (?, ?, 'correct', ?, datetime('now'))
+       ON CONFLICT (application_id, field_key)
+       DO UPDATE SET state = excluded.state, by_id = excluded.by_id, at = excluded.at`
+    );
+    for (const key of group.fields) {
+      const f = FORM_FIELDS.find((x) => x.key === key);
+      if (f && f.filledBy !== "ops") tick.run(applicationId, key, user.id);
+    }
+  }
+
+  const pin = commentableFieldOf(group);
   // Resolved, not deleted. The counsellor may have replied to it or thumbed
   // it up, and deleting took their answer with it and left no trace that Ops
   // had ever objected — the timeline entry above is the only record either
@@ -1036,7 +1095,7 @@ export async function removeProgram(programId: number) {
   const mayEdit = app?.status === "draft" || app?.recheck_state === "ac";
   if (!app || app.ac_id !== user.id || !mayEdit) return;
   getDb().prepare("DELETE FROM programs WHERE id = ?").run(programId);
-  logEvent(p.application_id, user.id, `Recommendation withdrawn: ${p.name}`);
+  logEvent(p.application_id, user.id, `Requested programme withdrawn: ${p.name}`);
   dirty();
 }
 
@@ -1101,7 +1160,7 @@ export async function setProgramEligibility(
     ).length;
     const msg = stillEligible
       ? `${app.learner_name} is no longer eligible for ${p.name} — choose another programme (${stillEligible} still eligible)`
-      : `${app.learner_name} is no longer eligible for ${p.name} and nothing else on their list is — they need new recommendations`;
+      : `${app.learner_name} is no longer eligible for ${p.name} and nothing else on their list is — they need new programmes requested`;
     if (app.ac_id) notify(app.ac_id, msg, `/ac/application/${p.application_id}`);
     else notifyRole("ac", msg, `/ac/application/${p.application_id}`);
   }

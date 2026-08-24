@@ -353,7 +353,7 @@ export default function OpsApplicationPage({
       done: eligibleCount > 0,
       todo:
         programs.length === 0
-          ? "No recommendations from the counsellor"
+          ? "No programmes requested by the counsellor"
           : "No programme marked eligible",
       why:
         programs.length === 0
@@ -823,18 +823,18 @@ export default function OpsApplicationPage({
               )}
             </div>
           )}
-          {/* ── Recommended Programs: the counsellor's picks, Ops' verdicts ── */}
+          {/* ── Requested Programs: the counsellor's picks, Ops' verdicts ── */}
           {tab === "eligibility" && (
             <div className="card fade-up p-6">
               <h2 className="font-display text-[15px] font-semibold tracking-tight">
-                Recommended Programs
+                Requested Programs
               </h2>
               <p className="mb-4 mt-1 text-sm text-body">
                 {staleVerdicts > 0
                   ? "The learner changed answers these verdicts were based on. Rule again on each one — including the programme they were shortlisted for, which comes off their application if it is no longer open to them."
                   : vetting
-                    ? "Recommended by the counsellor with the matching score beside each. Check eligibility against the documents and mark each one — the counsellor shortlists only among the eligible."
-                    : "The counsellor's recommendations and your eligibility verdicts."}
+                    ? "Requested by the counsellor with the matching score beside each. Check eligibility against the documents and mark each one — the counsellor shortlists only among the eligible."
+                    : "The programmes the counsellor requested and your eligibility verdicts."}
               </p>
 
               <div className="space-y-3">
@@ -1078,7 +1078,7 @@ export default function OpsApplicationPage({
                       } · ready to send`
                     : tab === "profile"
                       ? "Comment on the counsellor's answers, fill the ops fields — changes save as you go"
-                      : `${eligibleCount} of ${programs.length} recommendation(s) marked eligible`}
+                      : `${eligibleCount} of ${programs.length} requested programme(s) marked eligible`}
                 </span>
                 )}
                 <div className="ml-auto flex items-center gap-2">

@@ -1064,7 +1064,7 @@ export function CallForm({
         {(resolving || step === 3) && programmes && (
           <div className="card fade-up p-6">
             <h2 className="font-display text-[15px] font-semibold tracking-tight">
-              Recommended programmes
+              Requested programmes
             </h2>
             <p className="mb-4 mt-1 text-sm text-body">
               The AI reads everything captured on this call and puts its best

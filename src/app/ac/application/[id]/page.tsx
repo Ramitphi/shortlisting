@@ -867,18 +867,18 @@ export default function AcApplicationPage({
                 )}
               </div>
             )}
-          {/* ── Recommended Programs: pick and send the shortlist ── */}
+          {/* ── Requested Programs: pick and send the shortlist ── */}
             {tab === "eligibility" && (
               <div className="card fade-up p-6">
                 <h2 className="font-display text-[15px] font-semibold tracking-tight">
-                  Recommended Programs
+                  Requested Programs
                 </h2>
                 <p className="mb-4 mt-1 text-sm text-body">
                   {shortlistWithdrawn
                     ? "The learner's own change made them ineligible for the programme they were sent, so it has come off. Pick another from what Ops still rules eligible — the learner is told the programme has changed."
                     : canShortlist
-                      ? "Your recommendations, ruled on by Ops. Pick the one ELIGIBLE programme the learner is going ahead with."
-                      : "Your recommendations and Ops' eligibility verdicts."}
+                      ? "The programmes you requested, ruled on by Ops. Pick the one ELIGIBLE programme the learner is going ahead with."
+                      : "The programmes you requested and Ops' eligibility verdicts."}
                 </p>
 
                 {programs.length === 0 ? (
@@ -888,7 +888,7 @@ export default function AcApplicationPage({
                     <div className="space-y-3">
                       {/* Ops said no — visible but not selectable. */}
                       {eligiblePrograms.length === 0 && (
-                        <EmptyState text="Ops marked none of your recommendations eligible — speak to the Ops team." />
+                        <EmptyState text="Ops marked none of your requested programmes eligible — speak to the Ops team." />
                       )}
                       {eligiblePrograms.map((p) => (
                         <label

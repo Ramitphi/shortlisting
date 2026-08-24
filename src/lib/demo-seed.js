@@ -389,7 +389,7 @@ function seedDemo(db) {
     insertProgram.run(flaggedId, "MS in Data Engineering", "TU Munich", "18 months", "\u20b94.1L", "Matches the German track", ARJUN, 0, "eligible");
     insertProgram.run(flaggedId, "MSc Software Systems", "Aalto University", "24 months", "\u20b93.6L", "Finland option", ARJUN, 0, "not_eligible");
     insertEvent.run(flaggedId, OMAR, "Picked up for vetting", null);
-    insertEvent.run(flaggedId, OMAR, "Comment added on \"Learner Mobile Number\"", "Number is one digit short");
+    insertEvent.run(flaggedId, OMAR, "Comment added on \"Mobile number\"", "Number is one digit short");
     insertEvent.run(flaggedId, OMAR, "Comment added on \"Backlogs / ATKTs (count)\"", "Transcript shows 3, form says 2");
     insertEvent.run(flaggedId, OMAR, "Document rejected: Passport (front & back)", "Back page is cut off");
     insertEvent.run(flaggedId, OMAR, "Marked as reviewed by Ops", null);
@@ -427,10 +427,10 @@ function seedDemo(db) {
     insertEvent.run(reviewedId, OMAR, "Picked up for vetting", null);
     insertEvent.run(reviewedId, OMAR, "Comment added on \"Work Experience After Bachelor's (months)\"", "CV shows 30 months, form says 24");
     insertEvent.run(reviewedId, OMAR, "Every uploaded document verified", null);
-    insertEvent.run(reviewedId, OMAR, "Remark resolved on \"Learner Mobile Number\"", null);
+    insertEvent.run(reviewedId, OMAR, "Remark resolved on \"Mobile number\"", null);
     insertEvent.run(reviewedId, OMAR, "Remark resolved on \"Work Experience After Bachelor's (months)\"", null);
     insertEvent.run(reviewedId, OMAR, "Marked as reviewed by Ops", null);
-    insertNotif.run(ARJUN, `Ops reviewed ${reviewed.name}'s application — 3 of your recommendations are eligible`, `/ac/application/${reviewedId}`, 0);
+    insertNotif.run(ARJUN, `Ops reviewed ${reviewed.name}'s application — 3 of your requested programmes are eligible`, `/ac/application/${reviewedId}`, 0);
 
     // ── 5. Shortlisted — learner needs to sign UT & Ack ─────────────────────
     const shortlisted = learners[4];

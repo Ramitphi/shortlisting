@@ -138,9 +138,15 @@ export default function AcApplicationPage({
   const editable = canEditDetails(app.status, "ac");
   // Ops re-ruled the learner's programme not eligible after they changed a
   // detail, so the shortlist came off and there is a choice to make again.
+  const recheck = recheckOf(app);
   const shortlistWithdrawn =
     app.status === "shortlisted" && !programs.some((p) => p.shortlisted);
-  const canShortlist = app.status === "reviewed" || shortlistWithdrawn;
+  // Not while Ops is holding it. The appeal dialog promises the application
+  // waits with them for a verdict, and sending the shortlist mid-appeal would
+  // have made that a lie — the learner gets "congratulations" for a programme
+  // while Ops is still ruling on a different one.
+  const canShortlist =
+    (app.status === "reviewed" || shortlistWithdrawn) && !recheck;
   // "Open" means someone is waiting on the counsellor. Info remarks are Ops
   // thinking out loud — they stay visible on the field but never gate a CTA
   // or inflate a badge, otherwise "3 comments" would mean nothing.
@@ -163,7 +169,6 @@ export default function AcApplicationPage({
   // first; if they have comments it comes here, because the counsellor is
   // the one who talks to the learner. Either way it is never something they
   // should discover mid-call.
-  const recheck = recheckOf(app);
   /** Ops' comments on THIS change — not every remark ever left open. */
   // Unanswered comments from THIS re-check — the same rule returnRecheckToOps
   // enforces, so the button and the action agree on what "done" means.
@@ -888,11 +893,12 @@ export default function AcApplicationPage({
                   <h2 className="font-display text-[15px] font-semibold tracking-tight">
                     Requested Programs
                   </h2>
-                  {/* `reviewed` and `shortlisted` are the window: before that
-                      the counsellor still owns the list outright, after it the
-                      offer is out and there is nothing to argue. */}
-                  {(app.status === "reviewed" ||
-                    app.status === "shortlisted") && (
+                  {/* The same window the action enforces: `reviewed`, or a
+                      `shortlisted` application whose shortlist has come off.
+                      Winning an appeal has to lead somewhere — with a live
+                      shortlist there is no control on any screen that could
+                      send the reinstated programme. */}
+                  {(app.status === "reviewed" || shortlistWithdrawn) && (
                       <AppealDialog
                         action={appealEligibility.bind(null, app.id)}
                         rejected={programs
@@ -902,20 +908,35 @@ export default function AcApplicationPage({
                             name: p.name,
                             institute: p.institute,
                           }))}
-                        catalogue={catalogue
-                          .filter(
-                            (c) =>
-                              !programs.some((p) => p.catalogue_id === c.id)
-                          )
-                          .map((c) => ({
-                            id: c.id,
-                            name: c.name,
-                            institute: c.institute,
-                          }))}
+                        // The server refuses a suggestion at the cap unless
+                        // nothing is eligible — which cannot happen inside the
+                        // appeal window. Mirroring it here keeps the branch
+                        // from being offered and then silently swallowed.
+                        catalogue={
+                          programs.length >= MAX_RECOMMENDED_PROGRAMS
+                            ? []
+                            : catalogue
+                                .filter(
+                                  (c) =>
+                                    !programs.some(
+                                      (p) => p.catalogue_id === c.id
+                                    )
+                                )
+                                .map((c) => ({
+                                  id: c.id,
+                                  name: c.name,
+                                  institute: c.institute,
+                                }))
+                        }
                         disabledReason={
                           recheck
                             ? "Ops is already looking at this application — wait for that to come back first"
-                            : undefined
+                            : programs.length >= MAX_RECOMMENDED_PROGRAMS &&
+                                !programs.some(
+                                  (p) => p.eligibility === "not_eligible"
+                                )
+                              ? `All ${MAX_RECOMMENDED_PROGRAMS} programmes are with Ops and none were ruled out — nothing to appeal`
+                              : undefined
                         }
                       />
                     )}

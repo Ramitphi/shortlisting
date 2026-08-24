@@ -73,12 +73,17 @@ export function AppealDialog({
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-[480px] rounded-2xl border border-line bg-white p-5 shadow-[0_28px_60px_-18px_rgba(49,48,43,0.45)]"
             >
+              {/* "Look again" is only true of a programme Ops has already
+                  ruled on — a suggestion is one they have never seen. */}
               <h3 className="font-display text-[16px] font-semibold tracking-tight text-ink">
-                Ask Ops to look again
+                {kind === "reconsider"
+                  ? "Ask Ops to look again"
+                  : "Put another programme to Ops"}
               </h3>
               <p className="mt-1 text-[13px] leading-relaxed text-body">
-                This goes back to the Ops team for a fresh verdict, and the
-                application waits with them until they answer.
+                {kind === "reconsider"
+                  ? "This goes back to the Ops team for a fresh verdict, and the application waits with them until they answer."
+                  : "Ops rules on it like any other, and the application waits with them until they have."}
               </p>
 
               <div className="mt-4 flex gap-2">

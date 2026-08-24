@@ -1154,7 +1154,9 @@ export default function OpsApplicationPage({
                         ? "Nothing is eligible — add a programme from the catalogue on the Eligibility tab"
                         : recheckComments > 0
                           ? `${recheckComments} comment${recheckComments === 1 ? "" : "s"} raised on the change`
-                          : "Re-read the marked fields — comment on what's wrong, or close the re-check"}
+                          : recheck?.kind === "appeal"
+                            ? "Rule again on the appealed programme — then send the counsellor a comment, or close the re-check"
+                            : "Re-read the marked fields — comment on what's wrong, or close the re-check"}
                 </span>
                 <div className="ml-auto flex items-center gap-2">
                   <form action={raiseRecheckRemarks.bind(null, app.id)}>
@@ -1196,6 +1198,14 @@ export default function OpsApplicationPage({
                   </form>
                 </div>
               </div>
+            ) : recheck ? (
+              /* A re-check that is not ours to move — it sits with the
+                 counsellor. The offer branch below would otherwise render its
+                 send button here, and sendOfferLetter refuses while any
+                 re-check is open, so the button would do nothing at all. */
+              <span className="text-xs text-caption">
+                With the counsellor — this comes back once they have answered.
+              </span>
             ) : (
               <div className="flex w-full flex-wrap items-center gap-3">
                 <span className="text-xs text-caption">

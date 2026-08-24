@@ -106,7 +106,9 @@ export default function V2ApplicationInsidePage({
   // A detail changed after vetting is being re-checked; Submit (which IS the
   // certification here) stays held until that clears. Same rule as v1 — only
   // the clothes differ.
-  const recheck = recheckOf(app);
+  // Appeals are internal — see the note on the v1 page.
+  const rawRecheck = recheckOf(app);
+  const recheck = rawRecheck?.kind === "appeal" ? null : rawRecheck;
   const locked = app.status === "completed";
   const editing = !locked ? searchParams.edit : undefined;
 

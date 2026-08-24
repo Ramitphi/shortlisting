@@ -146,8 +146,8 @@ export default function OpsDashboard({
                 href="/ops?recheck=1"
                 icon={<IconRefresh />}
                 count={recheckCount}
-                label="Re-check changed details"
-                caption="Learners who edited after vetting"
+                label="Look at again"
+                caption="Learner edits and counsellor appeals"
                 tone="amber"
               />
             )}

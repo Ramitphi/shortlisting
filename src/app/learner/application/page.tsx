@@ -57,7 +57,10 @@ export default function LearnerApplicationsList() {
           const certified = Boolean(app.certified_at);
           // A live re-check means WE are holding it, not them — without this
           // the card shouts "Action needed" at a learner with nothing to do.
-          const recheck = recheckOf(app);
+          const rawRecheck = recheckOf(app);
+          // Appeals are internal — the card must not react to one.
+          const recheck =
+            rawRecheck?.kind === "appeal" ? null : rawRecheck;
           const status = learnerStatus(app.status, certified, Boolean(recheck));
 
           const toSign = docs.filter((d) => !d.signed_at).length;

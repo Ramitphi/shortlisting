@@ -128,7 +128,7 @@ export default function AcDashboard({
                 icon={<IconRefresh />}
                 count={recheckCount}
                 label="Resolve Ops' comments"
-                caption="Learners to call about changed details"
+                caption="Ops has answered — changed details and appeals"
                 tone="amber"
               />
             )}

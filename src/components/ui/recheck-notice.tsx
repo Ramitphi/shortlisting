@@ -116,7 +116,9 @@ export function RecheckNotice({
               }`}
             >
               {kind === "appeal"
-                ? "Their note is on the programme card · details in the Activity timeline"
+                ? viewer === "ops"
+                  ? "Their note is on the programme card · details in the Activity timeline"
+                  : "Your note is with Ops · details in the Activity timeline"
                 : "Changed fields carry a yellow marker · details in the Activity timeline"}
               {staleVerdicts > 0 && (
                 <>

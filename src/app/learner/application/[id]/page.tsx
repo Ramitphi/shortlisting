@@ -116,7 +116,11 @@ export default function LearnerApplicationPage({
   // they are sitting with Ops — which desk holds the file is not their
   // business (see LEARNER_STAGES). What they do need is to stop waiting on a
   // Certify button that would be refused.
-  const recheck = recheckOf(app);
+  // An appeal is the counsellor and Ops arguing about a programme. Nothing
+  // the learner filled in is in question, so as far as every screen on this
+  // side is concerned there is no re-check running at all.
+  const rawRecheck = recheckOf(app);
+  const recheck = rawRecheck?.kind === "appeal" ? null : rawRecheck;
   const detailsLocked = app.status === "completed";
   // Rejected counts as outstanding — the learner has been asked to replace it.
   const lockerMissing = locker.filter(

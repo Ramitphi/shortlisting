@@ -277,8 +277,12 @@ export async function certifyDetails(applicationId: number) {
   if (!app || app.learner_id !== user.id) return;
   if (app.certified_at) return;
   // Details the learner has just changed are not yet checked — certifying
-  // them would vouch for values nobody has looked at since they moved.
-  if (app.recheck_at) return;
+  // them would vouch for values nobody has looked at since they moved. An
+  // appeal is not that: it is the counsellor arguing with Ops about a
+  // programme, nothing the learner filled in is in question, and freezing
+  // their certification over it strands them for a conversation they are not
+  // even part of.
+  if (app.recheck_at && app.recheck_kind !== "appeal") return;
 
   // Certification covers the undertakings, so they have to be signed first.
   const docs = getDocuments(applicationId);
@@ -1038,9 +1042,15 @@ export async function appealEligibility(
   if (!app || app.ac_id !== user.id) return;
   // Nothing to argue about once the offer is out.
   if (app.status === "completed") return;
-  // Ops rules on programmes from `reviewed` onwards; before that the
-  // counsellor is still building the list and can simply change it.
-  if (app.status !== "reviewed" && app.status !== "shortlisted") return;
+  // Only where winning the appeal leads somewhere. At `reviewed` the
+  // counsellor still picks the shortlist, so a reinstated programme is
+  // selectable. At `shortlisted` it is only selectable again if the shortlist
+  // has come off — otherwise the programme would be ruled eligible and then
+  // sit there with no control on any screen able to send it.
+  const shortlistOff =
+    app.status === "shortlisted" &&
+    !getPrograms(applicationId).some((p) => p.shortlisted);
+  if (app.status !== "reviewed" && !shortlistOff) return;
   // One question at a time. A live re-check already has Ops looking, and a
   // second cause layered on top would make "what am I re-reading?" unanswerable.
   if (app.recheck_at) return;
@@ -1078,9 +1088,19 @@ export async function appealEligibility(
     const item = db
       .prepare("SELECT * FROM program_catalogue WHERE id = ?")
       .get(catalogueId) as
-      | { id: number; name: string; institute: string; duration: string; fee: string }
+      | {
+          id: number;
+          name: string;
+          institute: string;
+          duration: string;
+          fee: string;
+          notes: string | null;
+        }
       | undefined;
     if (!item) return;
+    // `notes` is the catalogue's own blurb — the entry requirement everyone
+    // reads on the card, learner included. The appeal argument goes in
+    // appeal_note; putting it here overwrote the requirement for good.
     db.prepare(
       `INSERT INTO programs
        (application_id, name, institute, duration, fee, notes, added_by,
@@ -1092,7 +1112,7 @@ export async function appealEligibility(
       item.institute,
       item.duration,
       item.fee,
-      note,
+      item.notes,
       user.id,
       catalogueId,
       note
@@ -1103,12 +1123,19 @@ export async function appealEligibility(
   }
 
   // Back to Ops, through the re-check they already know how to work.
+  //
+  // recheck_fields is deliberately left alone: it means "form fields the
+  // learner changed", and every learner-facing screen renders it back to them
+  // as "you updated X". Putting a programme name in it told the learner they
+  // had edited a programme and froze their certification over it. The subject
+  // of an appeal lives on the programme row (appeal_at), which is where the
+  // screens that need it read it from.
   db.prepare(
     `UPDATE applications
-     SET recheck_at = datetime('now'), recheck_fields = ?,
+     SET recheck_at = datetime('now'),
          recheck_state = 'ops', recheck_kind = 'appeal'
      WHERE id = ?`
-  ).run(subject, applicationId);
+  ).run(applicationId);
 
   logEvent(
     applicationId,
@@ -1348,6 +1375,9 @@ export async function shortlistProgram(applicationId: number, formData: FormData
     app?.status === "shortlisted" &&
     !getPrograms(applicationId).some((p) => p.shortlisted);
   if (!app || app.ac_id !== user.id) return;
+  // Ops is mid-verdict — the list they would be picking from is the thing
+  // under review. Matches the page, which hides the picker in this state.
+  if (app.recheck_at) return;
   if (!canTransition(app.status, "shortlisted", "ac") && !reChoosing) return;
   const id = Number(formData.get("programId"));
   if (!id) return;
@@ -1500,7 +1530,10 @@ export async function updateLearnerDetails(
            SET recheck_at = COALESCE(recheck_at, datetime('now')),
                recheck_fields = ?,
                recheck_state = 'ops',
-               recheck_kind = 'learner'
+               -- An open appeal stays an appeal: both causes are now on the
+               -- desk, and the appeal is the one nobody else can re-raise.
+               recheck_kind = CASE WHEN recheck_kind = 'appeal'
+                                   THEN 'appeal' ELSE 'learner' END
            WHERE id = ?`
         )
         .run(fields, applicationId);
@@ -1605,6 +1638,7 @@ export async function clearRecheck(applicationId: number) {
     return;
 
   const fields = app.recheck_fields ?? "";
+  const wasAppeal = app.recheck_kind === "appeal";
   getDb()
     .prepare(
       `UPDATE applications
@@ -1621,13 +1655,17 @@ export async function clearRecheck(applicationId: number) {
   logEvent(
     applicationId,
     user.id,
-    "Ops re-checked the learner's changes",
+    wasAppeal
+      ? "Ops ruled again on the appealed programme"
+      : "Ops re-checked the learner's changes",
     fields || undefined
   );
   if (app.ac_id) {
     notify(
       app.ac_id,
-      `Ops re-checked ${app.learner_name}'s changed details — the application can continue`,
+      wasAppeal
+        ? `Ops has answered your appeal on ${app.learner_name}'s application — see the verdict`
+        : `Ops re-checked ${app.learner_name}'s changed details — the application can continue`,
       `/ac/application/${applicationId}`
     );
   }
@@ -1643,17 +1681,26 @@ export async function clearRecheck(applicationId: number) {
     app.status === "shortlisted" &&
     getPrograms(applicationId).some((p) => p.shortlisted);
   const unsigned = getDocuments(applicationId).filter((d) => !d.signed_at).length;
-  notify(
-    app.learner_id,
-    !canAct
-      ? "Your updated details have been checked — we're carrying on with your application"
-      : unsigned > 0
-        ? `Your updated details have been checked — ${unsigned} document${
-            unsigned === 1 ? "" : "s"
-          } to sign, then you can certify`
-        : "Your updated details have been checked — you can certify your application now",
-    "/learner"
-  );
+  // An appeal never involved the learner: they changed nothing, nothing of
+  // theirs was re-checked, and telling them "your updated details have been
+  // checked" would be about an edit they never made. They also may already
+  // have certified — an appeal does not withdraw it — so the certify prompt
+  // has to stay off in that case too.
+  if (!wasAppeal) {
+    notify(
+      app.learner_id,
+      !canAct
+        ? "Your updated details have been checked — we're carrying on with your application"
+        : app.certified_at
+          ? "Your updated details have been checked — nothing more to do for now"
+          : unsigned > 0
+            ? `Your updated details have been checked — ${unsigned} document${
+                unsigned === 1 ? "" : "s"
+              } to sign, then you can certify`
+            : "Your updated details have been checked — you can certify your application now",
+      "/learner"
+    );
+  }
   dirty();
 }
 
@@ -1694,25 +1741,36 @@ export async function raiseRecheckRemarks(applicationId: number) {
       .map((r) => FORM_FIELDS.find((f) => f.key === r.field_key)?.label ?? r.field_key)
       .join(", ")
   );
+  // An appeal is the counsellor's own question, so the comments coming back
+  // are an answer to them — not homework about a learner edit that never
+  // happened, and nothing for the learner to hear about at all.
+  const onAppeal = app.recheck_kind === "appeal";
+  const count = `${open.length} comment${open.length === 1 ? "" : "s"}`;
   if (app.ac_id) {
     notify(
       app.ac_id,
-      `Ops has ${open.length} comment${open.length === 1 ? "" : "s"} on ${app.learner_name}'s changed details — please resolve them with the learner`,
+      onAppeal
+        ? `Ops has ${count} on your appeal — ${app.learner_name}`
+        : `Ops has ${count} on ${app.learner_name}'s changed details — please resolve them with the learner`,
       `/ac/application/${applicationId}`
     );
   } else {
     notifyRole(
       "ac",
-      `Ops has ${open.length} comment${open.length === 1 ? "" : "s"} on ${app.learner_name}'s changed details`,
+      onAppeal
+        ? `Ops has ${count} on an appeal — ${app.learner_name}`
+        : `Ops has ${count} on ${app.learner_name}'s changed details`,
       `/ac/application/${applicationId}`
     );
   }
-  // Told plainly, without the internal handoff: someone is about to call them.
-  notify(
-    app.learner_id,
-    "Your counsellor will get in touch about a few of the details you changed",
-    "/learner"
-  );
+  if (!onAppeal) {
+    // Told plainly, without the internal handoff: someone is about to call them.
+    notify(
+      app.learner_id,
+      "Your counsellor will get in touch about a few of the details you changed",
+      "/learner"
+    );
+  }
   dirty();
 }
 

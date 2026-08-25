@@ -1,5 +1,10 @@
 import { getDb, dbReady } from "./db";
-import { sessionUid, activityViewRaw, learnerViewRaw } from "./session";
+import {
+  sessionUid,
+  activityViewRaw,
+  learnerViewRaw,
+  staffViewRaw,
+} from "./session";
 import type { Role } from "./domain";
 
 export interface User {
@@ -60,6 +65,17 @@ export function activityInline(): boolean {
  * hides the FAB switch, and bounces the /learner/applications routes home.
  * Flip it to true to bring v2 back for a comparison.
  */
+/**
+ * Prototype-only: which structure the AC/Ops application journeys render in.
+ * "classic" is the built design; "deel" is the reference restructure — no
+ * Profile/Eligibility tabs, one working column with the rail carrying what's
+ * missing and a capped timeline. Toggled from the role-switcher FAB so the
+ * two can be compared live.
+ */
+export function staffView(): "classic" | "deel" {
+  return staffViewRaw() === "deel" ? "deel" : "classic";
+}
+
 export const LEARNER_V2_ENABLED = false;
 
 export function learnerView(): "v1" | "v2" {

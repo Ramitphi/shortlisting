@@ -4,12 +4,13 @@ import { useDbVersion } from "@/components/db-provider";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Shell, requireRole } from "@/components/shell";
-import { activityInline } from "@/lib/auth";
+import { activityInline, staffView } from "@/lib/auth";
 import {
   BackLink,
   CardChip,
   CertifiedChip,
   FieldComments,
+  NeedsFixing,
   VerifiedSeal,
   FieldVerdict,
   ChangedPin,
@@ -27,7 +28,7 @@ import {
   RecheckNotice,
   ReviewGroupBlock,
   StatusBadge,
-  Timeline,
+  CappedTimeline,
   IconCap,
   IconCheck,
   IconClock,
@@ -252,15 +253,20 @@ export default function OpsApplicationPage({
 
   // Every tab is always available: a remark is a note Ops leaves behind, not
   // a gate that takes the rest of their work away.
+  // The reference restructure: no tabs — both halves stack in one working
+  // column and the rail carries what is missing. Toggled from the FAB.
+  const deel = staffView() === "deel";
   const visibleTabs = TABS;
   const tab: TabKey = visibleTabs.some((t) => t.key === searchParams.tab)
     ? (searchParams.tab as TabKey)
     : "profile";
 
   const tabIndex = visibleTabs.findIndex((t) => t.key === tab);
-  const nextTab = visibleTabs[tabIndex + 1];
-  const prevTab = visibleTabs[tabIndex - 1];
-  const onLastTab = tabIndex === visibleTabs.length - 1;
+  // Stacked mode has no walk: everything is on screen, so the bar behaves as
+  // if the reader is already at the end and the step links disappear.
+  const nextTab = deel ? undefined : visibleTabs[tabIndex + 1];
+  const prevTab = deel ? undefined : visibleTabs[tabIndex - 1];
+  const onLastTab = deel || tabIndex === visibleTabs.length - 1;
 
   /**
    * Comments on a field, with Ops' own controls folded into the popover so a
@@ -486,7 +492,7 @@ export default function OpsApplicationPage({
                 </>
               }
             >
-              <Timeline events={events} pending={opsPending} />
+              <CappedTimeline events={events} pending={opsPending} />
             </SideSheet>
           )}
           </div>
@@ -509,7 +515,11 @@ export default function OpsApplicationPage({
         />
       )}
 
-      <div className="-mb-12 flex min-h-[calc(100dvh-13.5rem)] flex-col">
+      <div
+        className={`-mb-12 flex min-h-[calc(100dvh-13.5rem)] flex-col${
+          deel ? " deel-view" : ""
+        }`}
+      >
       {/* Content left, Activity in the right rail — unless the timeline is
           switched off, in which case the content takes the whole width and the
           log lives behind the header button. */}
@@ -517,8 +527,9 @@ export default function OpsApplicationPage({
         className={`grid flex-1 gap-6 ${inlineActivity ? "lg:grid-cols-3" : ""}`}
       >
         <div className={`space-y-5 ${inlineActivity ? "lg:col-span-2" : ""}`}>
-          {/* Tabs — a single tab isn't a tab bar */}
-          {visibleTabs.length > 1 && (
+          {/* Tabs — a single tab isn't a tab bar, and the restructure has
+              no tabs at all: the sections stack. */}
+          {!deel && visibleTabs.length > 1 && (
           <div className="card p-1.5">
             <div className="flex gap-1">
               {visibleTabs.map((t) => {
@@ -555,7 +566,7 @@ export default function OpsApplicationPage({
           )}
 
           {/* ── Profile: field-by-field vetting ── */}
-          {tab === "profile" && (
+          {(deel || tab === "profile") && (
             <div className="card fade-up p-6">
               <h2 className="font-display text-[15px] font-semibold tracking-tight">
                 Eligibility Details
@@ -713,7 +724,7 @@ export default function OpsApplicationPage({
               One tab, three parts in the order the decision is actually made:
               what we know about the learner, what they will have to sign, and
               the programmes to rule on. */}
-          {tab === "eligibility" && (
+          {(deel || tab === "eligibility") && (
             <ProfileSummary
               responses={responses}
               locker={locker}
@@ -723,7 +734,7 @@ export default function OpsApplicationPage({
 
 
           {/* ── Undertaking & Acknowledgement ── */}
-          {tab === "eligibility" && (
+          {(deel || tab === "eligibility") && (
             <div className="card fade-up p-6">
               <h2 className="font-display text-[15px] font-semibold tracking-tight">
                 Undertaking &amp; Acknowledgement
@@ -823,7 +834,7 @@ export default function OpsApplicationPage({
             </div>
           )}
           {/* ── Requested Programs: the counsellor's picks, Ops' verdicts ── */}
-          {tab === "eligibility" && (
+          {(deel || tab === "eligibility") && (
             <div className="card fade-up p-6">
               <h2 className="font-display text-[15px] font-semibold tracking-tight">
                 Requested Programs
@@ -1034,12 +1045,22 @@ export default function OpsApplicationPage({
         </div>
 
         {inlineActivity && (
-          <div className="space-y-6">
+          <div className="space-y-5">
+            {/* What stands between this application and its next step, above
+                the history — the reader wants the to-do before the archive. */}
+            {deel && (
+              <NeedsFixing
+                items={outstanding
+                  .filter((r) => !r.done)
+                  .map((r) => ({ label: r.todo, detail: r.why }))}
+                doneText="Everything checked — this can be marked reviewed."
+              />
+            )}
             <div className="card fade-up p-5" style={{ animationDelay: "120ms" }}>
               <h2 className="mb-3 font-display text-[15px] font-semibold tracking-tight">
                 Activity Timeline
               </h2>
-              <Timeline events={events} pending={opsPending} />
+              <CappedTimeline events={events} pending={opsPending} />
             </div>
           </div>
         )}
@@ -1132,7 +1153,9 @@ export default function OpsApplicationPage({
                     </form>
                   ) : (
                     <Link
-                      href={`/ops/application/${app.id}?tab=${nextTab.key}`}
+                      // Only reachable when a next tab exists (classic mode,
+                      // not the last tab) — the fallback is for the type.
+                      href={`/ops/application/${app.id}?tab=${nextTab?.key ?? "eligibility"}`}
                       scroll={false}
                       className="btn-primary"
                     >

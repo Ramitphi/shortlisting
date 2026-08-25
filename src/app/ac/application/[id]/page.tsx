@@ -4,15 +4,16 @@ import { useDbVersion } from "@/components/db-provider";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Shell, requireRole } from "@/components/shell";
-import { activityInline } from "@/lib/auth";
+import { activityInline, staffView } from "@/lib/auth";
 import {
   BackLink,
   EmptyState,
   FileValue,
   StatusBadge,
-  Timeline,
+  CappedTimeline,
   Meta,
   FieldComments,
+  NeedsFixing,
   VerifiedSeal,
   FieldVerdictMark,
   ChangedPin,
@@ -79,6 +80,7 @@ import {
   FORM_SECTIONS,
   DOC_TYPE_LABELS,
   MAX_RECOMMENDED_PROGRAMS,
+  missingForSubmit,
   canEditDetails,
   matchScore,
   pendingFor,
@@ -291,6 +293,8 @@ export default function AcApplicationPage({
   // away in the header). Ops' comments only appear once they have finished —
   // mid-vetting notes are a work in progress, not something to act on.
   const withOps = app.status === "under_review";
+  // The reference restructure — no tabs, one stacked column. FAB-toggled.
+  const deel = staffView() === "deel";
   const visibleTabs = withOps
     ? TABS.filter((t) => t.key === "profile")
     : TABS;
@@ -365,12 +369,50 @@ export default function AcApplicationPage({
     programs.some((p) => p.shortlisted)
   );
   const inline = activityInline();
+  // What stands between this application and its next step, for the rail —
+  // the classic layout spreads this across badges and footer chips.
+  const fixItems: { label: string; detail?: string }[] = [];
+  // A draft's missing answers are the whole to-do list.
+  if (app.status === "draft") {
+    for (const need of missingForSubmit(responses, programs.length)) {
+      fixItems.push({ label: need });
+    }
+  }
+  if (openRemarks.length > 0)
+    fixItems.push({
+      label: `${openRemarks.length} comment${openRemarks.length === 1 ? "" : "s"} from Ops to answer`,
+      detail: "Fix the field, then acknowledge or reply",
+    });
+  if (canShortlist && eligiblePrograms.length > 0 && !programs.some((p) => p.shortlisted))
+    fixItems.push({
+      label: "Pick the programme to send",
+      detail: `${eligiblePrograms.length} ruled eligible by Ops`,
+    });
+  if (app.status === "shortlisted") {
+    const unsigned = docs.filter((d) => !d.signed_at).length;
+    if (unsigned > 0)
+      fixItems.push({
+        label: `${unsigned} undertaking${unsigned === 1 ? "" : "s"} unsigned`,
+        detail: "With the learner to sign",
+      });
+    else if (!certified)
+      fixItems.push({
+        label: "Awaiting the learner's certification",
+        detail: "Signed — the final confirm is theirs",
+      });
+  }
   const timeline = inline ? (
     <div className="card fade-up p-5" style={{ animationDelay: "120ms" }}>
       <h2 className="mb-3 font-display text-[15px] font-semibold tracking-tight">
         Activity Timeline
       </h2>
-      <Timeline events={events} pending={pending} />
+      <CappedTimeline events={events} pending={pending} />
+    </div>
+  ) : null;
+  const rail = inline ? (
+    <div className="space-y-5">
+      {deel && <NeedsFixing items={fixItems} />}
+      {timeline}
     </div>
   ) : null;
 
@@ -385,7 +427,7 @@ export default function AcApplicationPage({
         </>
       }
     >
-      <Timeline events={events} pending={pending} />
+      <CappedTimeline events={events} pending={pending} />
     </SideSheet>
   );
 
@@ -683,18 +725,22 @@ export default function AcApplicationPage({
             </>
           }
           programmesCount={programs.length}
-          sidebar={timeline}
+          sidebar={rail}
         />
       ) : (
         <>
-        <div className={canShortlist ? "-mb-12 flex min-h-[calc(100dvh-13.5rem)] flex-col" : ""}>
+        <div
+          className={`${
+            canShortlist ? "-mb-12 flex min-h-[calc(100dvh-13.5rem)] flex-col" : ""
+          }${deel ? " deel-view" : ""}`}
+        >
         {/* Content left, Activity in the right rail — unless the timeline is
             switched off, in which case the content takes the whole width and
             the log lives behind the header button. */}
         <div className={`grid flex-1 gap-6 ${timeline ? "lg:grid-cols-3" : ""}`}>
           <div className={`space-y-5 ${timeline ? "lg:col-span-2" : ""}`}>
             {/* Tabs — a single tab isn't a tab bar, so hide it while Ops has it */}
-            {visibleTabs.length > 1 && (
+            {!deel && visibleTabs.length > 1 && (
             <div className="card p-1.5">
               <div className="flex gap-1">
                 {visibleTabs.map((t) => {
@@ -740,7 +786,7 @@ export default function AcApplicationPage({
               "how will AC resolve these remarks" if the field is locked? The
               remark sits beside the field, the fix happens in the field, the
               tick on the pin closes it — no separate Comments screen. */}
-          {tab === "profile" && (
+          {(deel || tab === "profile") && (
               <div className="card fade-up p-6">
                 <h2 className="font-display text-[15px] font-semibold tracking-tight">
                   Eligibility Form
@@ -831,7 +877,7 @@ export default function AcApplicationPage({
               One tab, three parts in the order the decision is actually made:
               what we know about the learner, what they will have to sign, and
               the programmes we are putting in front of them. */}
-          {tab === "eligibility" && (
+          {(deel || (!withOps && tab === "eligibility")) && (
             <ProfileSummary
               responses={responses}
               locker={locker}
@@ -840,7 +886,7 @@ export default function AcApplicationPage({
           )}
 
             {/* ── Undertaking: documents + offer letter ── */}
-            {tab === "eligibility" && (
+            {(deel || (!withOps && tab === "eligibility")) && (
               <div className="card fade-up p-6">
                 <h2 className="font-display text-[15px] font-semibold tracking-tight">
                   Undertaking & Acknowledgement
@@ -886,7 +932,7 @@ export default function AcApplicationPage({
               </div>
             )}
           {/* ── Requested Programs: pick and send the shortlist ── */}
-            {tab === "eligibility" && (
+            {(deel || (!withOps && tab === "eligibility")) && (
               <div className="card fade-up p-6">
                 {/* Card anatomy: title left, the one action right. */}
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1148,7 +1194,7 @@ export default function AcApplicationPage({
 
           </div>
 
-          {timeline && <div className="space-y-6">{timeline}</div>}
+          {rail && <div className="space-y-6">{rail}</div>}
         </div>
 
         {/* Persistent while the counsellor holds it — the shortlist action
@@ -1158,9 +1204,11 @@ export default function AcApplicationPage({
             <div className="pointer-events-none absolute inset-y-0 left-1/2 w-screen -translate-x-1/2 border-t border-line bg-white/90 backdrop-blur-md" />
             <div className="relative flex flex-wrap items-center gap-3">
               <span className="text-xs text-caption">
+                {/* Stacked mode is always "everything on screen", so the
+                    walk copy collapses to the send line. */}
                 {programs.length === 0
                   ? "No eligible programmes — speak to the Ops team"
-                  : tab === "profile"
+                  : !deel && tab === "profile"
                     ? openRemarks.length > 0
                       ? `${openRemarks.length} comment${openRemarks.length === 1 ? "" : "s"} from Ops to answer — fix the field, then acknowledge or reply`
                       : "Check the details, then open Eligibility to pick a programme"
@@ -1173,7 +1221,9 @@ export default function AcApplicationPage({
               <div className="ml-auto flex items-center gap-2">
                 <AcFlowBar
                   appId={app.id}
-                  tabs={visibleTabs.map((t) => t.key)}
+                  // One stacked page has no walk — a single "tab" makes the
+                  // bar render the send button, never a Next step.
+                  tabs={deel ? [tab] : visibleTabs.map((t) => t.key)}
                   tab={tab}
                   selected={selected}
                   hasPrograms={eligiblePrograms.length > 0}

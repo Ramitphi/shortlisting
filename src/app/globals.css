@@ -10,16 +10,20 @@
  * Change a value here and it propagates through every component.
  */
 :root {
-  --paper: 248 248 246; /* warm off-white page background */
+  /* Neutral greys, not beige. The old warm cream page mixed with the grey
+     insets and read as two competing tints on every form; the reference
+     palette is one neutral family — near-white page, white cards, one grey
+     for fills — so nothing argues with the accent. */
+  --paper: 247 247 248; /* neutral page background */
   --surface: 255 255 255; /* cards */
-  --ink: 49 48 43; /* warm near-black */
-  --body: 95 94 88; /* body text */
-  --caption: 131 130 124; /* muted text */
-  --line: 229 228 222; /* hairline borders */
-  --line-strong: 212 210 200;
-  --cream: 244 243 235; /* chip / pill fills */
-  --muted: 243 243 244; /* neutral hover grey */
-  --cream-line: 224 222 210;
+  --ink: 38 38 40; /* near-black */
+  --body: 90 91 96; /* body text */
+  --caption: 128 130 136; /* muted text */
+  --line: 233 233 235; /* hairline borders */
+  --line-strong: 217 218 222;
+  --cream: 244 244 246; /* chip / pill fills — neutral now */
+  --muted: 243 243 245; /* neutral hover grey */
+  --cream-line: 227 228 231;
   --accent: 174 56 62; /* deep red — brand accent */
   --charcoal: 28 27 26; /* dark surfaces (auth) */
   --charcoal-surface: 38 38 36;
@@ -126,7 +130,11 @@ body {
 
 /* Shared classes — every screen consumes these; retheming happens here. */
 .card {
+  /* The reference look: the card floats on a whisper of shadow instead of
+     leaning on its border. The border stays for crispness but the shadow is
+     what separates white from the neutral page. */
   @apply bg-surface rounded-2xl border border-line;
+  box-shadow: 0 1px 2px rgb(16 17 20 / 0.04), 0 4px 16px -8px rgb(16 17 20 / 0.06);
 }
 
 .btn {
@@ -316,4 +324,27 @@ select.input {
 .card-hover:hover {
   transform: translateY(-2px);
   box-shadow: 0 12px 24px -12px rgb(49 48 43 / 0.14);
+}
+
+/*
+ * The reference restructure ("Deel view") — a scope class, not a theme fork.
+ * Same tokens, but the type hierarchy is turned up: titles earn their size,
+ * labels drop back, and the steps between them are unmistakable. Wrapped
+ * around the application/form journeys when the switch is on.
+ */
+.deel-view h1 {
+  font-size: 32px;
+  letter-spacing: -0.022em;
+}
+.deel-view .card {
+  border-color: transparent;
+  box-shadow: 0 1px 2px rgb(16 17 20 / 0.05), 0 8px 24px -12px rgb(16 17 20 / 0.08);
+}
+.deel-view .card h2 {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.deel-view .label {
+  font-size: 12px;
 }

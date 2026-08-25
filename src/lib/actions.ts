@@ -10,6 +10,8 @@ import {
   setLearnerView,
   setSessionUid,
   activityViewRaw,
+  staffViewRaw,
+  setStaffView,
   learnerViewRaw,
 } from "./session";
 import { requireUser } from "./auth";
@@ -75,6 +77,12 @@ export async function resetDemoData() {
 export async function toggleActivityView() {
   requireUser();
   setActivityView(activityViewRaw() === "drawer" ? "inline" : "drawer");
+}
+
+/** Prototype-only: classic structure vs the reference restructure. */
+export async function toggleStaffView() {
+  requireUser();
+  setStaffView(staffViewRaw() === "deel" ? "classic" : "deel");
 }
 
 /**

@@ -236,7 +236,13 @@ export default function AcDashboard({
                         own blue, so it reads as its own state. */}
                     <StatusBadge
                       status={a.status}
-                      recheckLabel={a.recheck_at ? "Re-check" : null}
+                      recheckLabel={
+                        a.recheck_at
+                          ? a.recheck_kind === "appeal"
+                            ? "Appealed by you"
+                            : "Re-check"
+                          : null
+                      }
                     />
                   </td>
                   <td className="px-4 py-3 text-caption">{a.updated_at} UTC</td>

@@ -1,22 +1,23 @@
-import { IconDoc } from "./icons";
+import { IconCheck, IconDoc } from "./icons";
 
 /**
- * One undertaking, one small card: title, the parties as label/value pairs,
- * and the action in a tinted footer. Shared by the learner, counsellor and Ops.
+ * One undertaking, one row: what it is, whether it is signed, and the action.
+ *
+ * It used to be a tall card carrying the learner's name, the counsellor's
+ * name and the learner's email as four label/value pairs — every one of them
+ * already on the page (in the header) or on the document itself, repeated
+ * once per undertaking. Four rows of duplicated names buried the only thing
+ * that varies between them: signed, or not.
+ *
+ * Rows stack; they do not tile. A list of documents is a list.
  */
 export function UndertakingCard({
   title,
-  learnerName,
-  counsellorName,
-  email,
   signedAt,
   action,
   secondaryAction,
 }: {
   title: string;
-  learnerName: string;
-  counsellorName: string;
-  email: string;
   signedAt?: string | null;
   /** The primary control, e.g. the document dialog trigger. */
   action: React.ReactNode;
@@ -25,45 +26,38 @@ export function UndertakingCard({
 }) {
   const signed = Boolean(signedAt);
   return (
-    <div className="flex flex-col rounded-2xl border border-line bg-white">
-      <div className="flex items-center gap-2 px-4 pt-4">
-        <IconDoc className="h-4 w-4 shrink-0 text-caption" />
-        <span className="truncate text-[14px] font-semibold text-ink">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-line bg-white px-4 py-3">
+      <span
+        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+          signed ? "bg-[#e8f2e9] text-[#3f6c45]" : "bg-cream text-caption"
+        }`}
+      >
+        {signed ? (
+          <IconCheck className="h-4 w-4" />
+        ) : (
+          <IconDoc className="h-4 w-4" />
+        )}
+      </span>
+
+      <span className="min-w-[10rem] flex-1">
+        <span className="block truncate text-[13.5px] font-medium text-ink">
           {title}
         </span>
-      </div>
+        <span
+          className={`block text-[12px] ${
+            signed ? "text-[#3f6c45]" : "text-caption"
+          }`}
+        >
+          {signed
+            ? `Signed on ${signedAt?.slice(0, 10)}`
+            : "Awaiting signature"}
+        </span>
+      </span>
 
-      <dl className="flex-1 space-y-3 px-4 py-4">
-        <div>
-          <dt className="text-[12.5px] text-caption">Learner representative</dt>
-          <dd className="text-[14px] font-medium text-ink">{learnerName}</dd>
-        </div>
-        <div>
-          <dt className="text-[12.5px] text-caption">Academic representative</dt>
-          <dd className="text-[14px] font-medium text-ink">{counsellorName}</dd>
-        </div>
-        <div>
-          <dt className="text-[12.5px] text-caption">Email</dt>
-          <dd className="truncate text-[14px] font-medium text-ink">{email}</dd>
-        </div>
-        <div>
-          <dt className="text-[12.5px] text-caption">Status</dt>
-          <dd
-            className={`text-[14px] font-medium ${
-              signed ? "text-[#3f6c45]" : "text-[#8a6d2f]"
-            }`}
-          >
-            {signed
-              ? `Signed · ${signedAt?.slice(0, 10)}`
-              : "Awaiting learner signature"}
-          </dd>
-        </div>
-      </dl>
-
-      <div className="flex gap-2 border-t border-line bg-paper px-4 py-3">
-        <div className="flex-1">{action}</div>
-        {secondaryAction && <div className="flex-1">{secondaryAction}</div>}
-      </div>
+      <span className="flex shrink-0 items-center gap-2">
+        {action}
+        {secondaryAction}
+      </span>
     </div>
   );
 }

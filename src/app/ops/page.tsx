@@ -258,7 +258,15 @@ export default function OpsDashboard({
                         own blue, so it reads as its own state. */}
                     <StatusBadge
                       status={a.status}
-                      recheckLabel={a.recheck_at ? "Re-check" : null}
+                      // Name the cause: an appeal is the counsellor asking
+                      // Ops to rule again, not the learner editing something.
+                      recheckLabel={
+                        a.recheck_at
+                          ? a.recheck_kind === "appeal"
+                            ? "Appealed by AC"
+                            : "Re-check"
+                          : null
+                      }
                     />
                   </td>
                   <td className="px-4 py-3 text-caption">{a.updated_at} UTC</td>
@@ -268,7 +276,9 @@ export default function OpsDashboard({
                         href={`/ops/application/${a.id}`}
                         className="btn-primary !py-1.5"
                       >
-                        Re-check Details
+                        {a.recheck_kind === "appeal"
+                          ? "Rule on Appeal"
+                          : "Re-check Details"}
                       </Link>
                     ) : a.status === "under_review" ? (
                       <Link

@@ -206,7 +206,13 @@ export default function AcUsersPage({
                   <td className="px-4 py-3">
                     <StatusBadge
                       status={a.status}
-                      recheckLabel={a.recheck_state === "ac" ? "Re-check" : undefined}
+                      recheckLabel={
+                        a.recheck_state === "ac"
+                          ? a.recheck_kind === "appeal"
+                            ? "Appealed by you"
+                            : "Re-check"
+                          : undefined
+                      }
                     />
                   </td>
                   <td className="px-4 py-3 text-caption">{a.updated_at} UTC</td>

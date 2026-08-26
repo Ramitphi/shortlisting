@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { IconSparkle } from "@/components/ui";
+import { IconSearch, IconSparkle } from "@/components/ui";
 
 /**
  * The counsellor's push-back on an Ops verdict.
@@ -155,6 +155,20 @@ export function AppealDialog({
               {kind === "suggest" && catalogue.length > 0 && (
                 <label className="mt-4 block">
                   <span className="label">Programme</span>
+                  {/* Presentational only — the catalogue is short enough that
+                      the select is the real control. No `name`, so it posts
+                      nothing and cannot interfere with the submit. */}
+                  <span className="relative mb-2 block">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-caption">
+                      <IconSearch className="h-4 w-4" />
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="Search the catalogue…"
+                      aria-label="Search the catalogue"
+                      className="input w-full !pl-9"
+                    />
+                  </span>
                   <select name="catalogueId" required className="input w-full">
                     {catalogue.map((c) => (
                       <option key={c.id} value={c.id}>

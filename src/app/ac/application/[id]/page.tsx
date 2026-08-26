@@ -519,7 +519,6 @@ export default function AcApplicationPage({
           state={recheck.state}
           kind={recheck.kind}
           viewer="ac"
-          learnerName={app.learner_name}
           openRemarks={recheckComments.length}
           staleVerdicts={programs.filter((p) => p.eligibility_stale).length}
         />
@@ -880,8 +879,6 @@ export default function AcApplicationPage({
           {(deel || (!withOps && tab === "eligibility")) && (
             <ProfileSummary
               responses={responses}
-              locker={locker}
-              learnerName={app.learner_name}
             />
           )}
 
@@ -899,14 +896,11 @@ export default function AcApplicationPage({
                 {docs.length === 0 ? (
                   <EmptyState text="Documents are generated when Ops starts vetting." />
                 ) : (
-                  <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-2">
                       {docs.map((d) => (
                         <UndertakingCard
                           key={d.id}
                           title={d.title}
-                          learnerName={responses.full_name || app.learner_name || "—"}
-                          counsellorName={app.ac_name ?? "—"}
-                          email={app.learner_email ?? "—"}
                           signedAt={d.signed_at}
                               action={
                             <DocumentDialog

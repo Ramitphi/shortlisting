@@ -508,7 +508,6 @@ export default function OpsApplicationPage({
           state={recheck.state}
           kind={recheck.kind}
           viewer="ops"
-          learnerName={app.learner_name}
           openRemarks={recheckComments}
           staleVerdicts={staleVerdicts}
           verdictHref={`/ops/application/${app.id}?tab=eligibility`}
@@ -727,8 +726,6 @@ export default function OpsApplicationPage({
           {(deel || tab === "eligibility") && (
             <ProfileSummary
               responses={responses}
-              locker={locker}
-              learnerName={app.learner_name}
             />
           )}
 
@@ -747,14 +744,11 @@ export default function OpsApplicationPage({
               {docs.length === 0 ? (
                 <EmptyState text="Documents are generated when you start vetting." />
               ) : (
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
                   {docs.map((d) => (
                     <UndertakingCard
                       key={d.id}
                       title={d.title}
-                      learnerName={responses.full_name || app.learner_name || "—"}
-                      counsellorName={app.ac_name ?? "—"}
-                      email={app.learner_email ?? "—"}
                       signedAt={d.signed_at}
                       secondaryAction={
                         vetting ? (
@@ -1249,7 +1243,7 @@ export default function OpsApplicationPage({
                       </span>
                     </span>
                     <SendOfferDialog
-                      learnerName={app.learner_name ?? "the learner"}
+                      learnerName={responses.full_name || app.learner_name || "—"}
                       learnerEmail={app.learner_email ?? "—"}
                       programme={{
                         id: shortlistedPrograms[0].id,

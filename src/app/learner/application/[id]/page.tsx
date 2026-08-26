@@ -138,14 +138,11 @@ export default function LearnerApplicationPage({
   const programmeCard = programme && <ProgrammeCard programme={programme} />;
 
   const undertakingGrid = (signable: boolean) => (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <div className="space-y-2">
       {docs.map((d) => (
         <UndertakingCard
           key={d.id}
           title={d.title}
-          learnerName={responses.full_name || user.name}
-          counsellorName={app.ac_name ?? "—"}
-          email={user.email}
           signedAt={d.signed_at}
           action={
             <DocumentDialog

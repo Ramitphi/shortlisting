@@ -202,14 +202,11 @@ export default function V2ApplicationInsidePage({
           {docs.length === 0 ? (
             <EmptyState text="Documents appear once your details have been checked." />
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-2">
               {docs.map((d) => (
                 <UndertakingCard
                   key={d.id}
                   title={d.title}
-                  learnerName={responses.full_name || user.name}
-                  counsellorName={app.ac_name ?? "—"}
-                  email={user.email}
                   signedAt={d.signed_at}
                   action={
                     <DocumentDialog

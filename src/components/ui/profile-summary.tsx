@@ -1,13 +1,11 @@
+import { SectionCard } from "./section-card";
+import { IconClipboardFill } from "./icons";
 
 /**
- * What we know about the learner, and what we still don't — the first thing
- * on the Eligibility tab, because both the counsellor and Ops are about to
+ * What we know about the learner — its own card in the stack, ahead of the
+ * programme sections, because both the counsellor and Ops are about to
  * decide which programme to put in front of this person and that decision is
  * only as good as the profile behind it.
- *
- * Deliberately two halves: the facts a programme is matched on, and the plain
- * list of what is still blank. A summary that only shows what is filled reads
- * as complete when it isn't.
  */
 
 /** The answers a programme recommendation actually turns on. */
@@ -33,15 +31,13 @@ export function ProfileSummary({
   const val = (k: string) => (responses[k] ?? "").trim();
 
   return (
-    <div className="card fade-up p-6">
-      <h2 className="font-display text-[15px] font-semibold tracking-tight">
-        Profile summary
-      </h2>
-      <p className="mb-5 mt-1 text-sm text-body">
-        What is on file for {learnerName ?? "this learner"} before a programme
-        is recommended.
-      </p>
-
+    <SectionCard
+      id="profile-summary"
+      className="fade-up"
+      icon={<IconClipboardFill />}
+      title="Profile summary"
+      subtitle={`What is on file for ${learnerName ?? "this learner"} before a programme is recommended.`}
+    >
       <div className="grid gap-x-5 gap-y-3.5 sm:grid-cols-3">
         {FACTS.map((f) => {
           const v = val(f.key);
@@ -61,7 +57,6 @@ export function ProfileSummary({
           );
         })}
       </div>
-
-    </div>
+    </SectionCard>
   );
 }

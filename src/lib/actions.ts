@@ -79,7 +79,7 @@ export async function toggleActivityView() {
   setActivityView(activityViewRaw() === "drawer" ? "inline" : "drawer");
 }
 
-/** Prototype-only: classic structure vs the reference restructure. */
+/** Prototype-only: toggles the reference type treatment + Needs-fixing rail. */
 export async function toggleStaffView() {
   requireUser();
   setStaffView(staffViewRaw() === "deel" ? "classic" : "deel");
@@ -1913,10 +1913,9 @@ export async function sendOfferLetter(applicationId: number, formData: FormData)
   notify(app.learner_id, `Your offer letter for ${chosen.name} (${chosen.institute}) is here!`, "/learner");
   if (app.ac_id) notify(app.ac_id, `Offer letter sent to ${app.learner_name} for ${chosen.name}`, `/ac/application/${applicationId}`);
   dirty();
-  // "undertaking" was a tab of its own once; the undertakings live on
-  // Eligibility now, and redirecting to a tab that no longer resolves dropped
-  // Ops on the default one with no sign the letter had gone.
-  goto(`/ops/application/${applicationId}?tab=eligibility&toast=offer`);
+  // Back to the application, which now stacks everything on one page — the
+  // toast is what says the letter has gone.
+  goto(`/ops/application/${applicationId}?toast=offer`);
 }
 
 // ---------- Admin ----------

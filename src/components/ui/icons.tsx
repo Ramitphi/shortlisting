@@ -488,3 +488,102 @@ export function IconSearch({ className }: { className?: string }) {
     </svg>
   );
 }
+
+/* ── Filled glyphs ──
+   Solid silhouettes for the stacked section headers — the reference cards
+   (Healthcare, Life Insurance) mark each section with a filled icon, not a
+   stroke one, and the weight is what makes the card scannable at a glance.
+   Same 24-grid as the stroke set so they swap freely. */
+
+export function IconUserFill({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M12 11.5a4.25 4.25 0 1 0-4.25-4.25A4.25 4.25 0 0 0 12 11.5Zm0 2.25c-4.14 0-7.25 2.32-7.25 5.3 0 1.08.87 1.95 1.95 1.95h10.6c1.08 0 1.95-.87 1.95-1.95 0-2.98-3.11-5.3-7.25-5.3Z" />
+    </svg>
+  );
+}
+
+export function IconCapFill({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M11.36 3.3a1.6 1.6 0 0 1 1.28 0l9 3.94a.9.9 0 0 1 0 1.65l-9 3.93a1.6 1.6 0 0 1-1.28 0l-8.1-3.54v4.47a.9.9 0 0 1-1.8 0V8.4a.9.9 0 0 1 .54-.83Z" />
+      <path d="M5.5 12.7v3.13c0 .68.38 1.31.99 1.63A11.9 11.9 0 0 0 12 18.75c2 0 3.88-.47 5.51-1.29.61-.32.99-.95.99-1.63V12.7l-5.14 2.25a3.4 3.4 0 0 1-2.72 0Z" />
+    </svg>
+  );
+}
+
+export function IconWalletFill({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M5.75 4.5h11.5c.6 0 1.15.21 1.58.55a2.75 2.75 0 0 0-.83-.05H6.5a2.75 2.75 0 0 0-2.7 2.25 2.6 2.6 0 0 1 1.95-.75Z" />
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M3 9.25A2.75 2.75 0 0 1 5.75 6.5h12.5A2.75 2.75 0 0 1 21 9.25v8A2.75 2.75 0 0 1 18.25 20H5.75A2.75 2.75 0 0 1 3 17.25Zm14.25 5.85a1.85 1.85 0 1 0 0-3.7 1.85 1.85 0 0 0 0 3.7Z"
+      />
+    </svg>
+  );
+}
+
+export function IconClipboardFill({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M9.05 3.9A2.15 2.15 0 0 1 11.15 2h1.7c1.03 0 1.9.73 2.1 1.9H17A2.5 2.5 0 0 1 19.5 6.4v12.6A2.5 2.5 0 0 1 17 21.5H7a2.5 2.5 0 0 1-2.5-2.5V6.4A2.5 2.5 0 0 1 7 3.9Zm-.3 6.35a.9.9 0 0 0 0 1.8h6.5a.9.9 0 0 0 0-1.8Zm0 3.9a.9.9 0 0 0 0 1.8h4a.9.9 0 0 0 0-1.8Z"
+      />
+    </svg>
+  );
+}
+
+export function IconPenFill({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="m13.94 5.06 5 5L9.2 19.8a2.5 2.5 0 0 1-1.28.68l-3.7.74a.9.9 0 0 1-1.06-1.06l.74-3.7a2.5 2.5 0 0 1 .68-1.28Z" />
+      <path d="m15.35 3.65 1.24-1.24a2.4 2.4 0 0 1 3.4 0l1.6 1.6a2.4 2.4 0 0 1 0 3.4l-1.24 1.24Z" />
+    </svg>
+  );
+}
+
+export function IconLayersFill({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M11.3 2.86a1.6 1.6 0 0 1 1.4 0l8.51 4.2a.85.85 0 0 1 0 1.53l-8.51 4.2a1.6 1.6 0 0 1-1.4 0l-8.51-4.2a.85.85 0 0 1 0-1.53Z" />
+      <path d="m4.03 11.6 6.57 3.24a3.15 3.15 0 0 0 2.8 0l6.57-3.24 1.24.61a.85.85 0 0 1 0 1.53l-8.51 4.2a1.6 1.6 0 0 1-1.4 0l-8.51-4.2a.85.85 0 0 1 0-1.53Z" />
+      <path d="m4.03 15.85 6.57 3.24a3.15 3.15 0 0 0 2.8 0l6.57-3.24 1.24.61a.85.85 0 0 1 0 1.53l-8.51 4.2a1.6 1.6 0 0 1-1.4 0l-8.51-4.2a.85.85 0 0 1 0-1.53Z" />
+    </svg>
+  );
+}
+
+export function IconShieldFill({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M11.46 2.35a1.6 1.6 0 0 1 1.08 0l7.4 2.68a1.6 1.6 0 0 1 1.06 1.5v4.6c0 5.04-3.42 8.87-8.06 10.5a1.6 1.6 0 0 1-1.08 0C7.22 20 3.8 16.17 3.8 11.13v-4.6a1.6 1.6 0 0 1 1.06-1.5Zm4.9 7.2a.9.9 0 0 0-1.27-1.27l-4.03 4.02-1.65-1.64a.9.9 0 1 0-1.27 1.27l2.28 2.28a.9.9 0 0 0 1.28 0Z"
+      />
+    </svg>
+  );
+}
+
+export function IconClockFill({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M12 2.25c-5.38 0-9.75 4.37-9.75 9.75s4.37 9.75 9.75 9.75 9.75-4.37 9.75-9.75S17.38 2.25 12 2.25Zm.9 5.15a.9.9 0 1 0-1.8 0v4.6c0 .32.17.61.44.78l3.6 2.2a.9.9 0 1 0 .94-1.54l-3.18-1.94Z"
+      />
+    </svg>
+  );
+}
+
+export function IconNoteFill({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M12 2.5c-5.25 0-9.5 3.9-9.5 8.7 0 2.06.79 3.95 2.1 5.44l-1.2 3.86a.9.9 0 0 0 1.13 1.15l4.1-1.44c1.03.33 2.16.5 3.37.5 5.25 0 9.5-3.9 9.5-8.7s-4.25-8.71-9.5-8.71Z" />
+    </svg>
+  );
+}

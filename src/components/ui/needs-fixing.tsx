@@ -4,10 +4,10 @@ import { IconAlert, IconCheck } from "./icons";
  * The rail card that says what stands between this application and its next
  * step — the reference pattern's right-column checklist, in our language.
  *
- * The classic layout spreads this across tab badges, a readiness strip and
- * the footer bar; here it is one card, top items first, so the reader knows
- * what to fix before they have scrolled anything. Empty is worth showing
- * too: "nothing missing" is the answer the reader came for.
+ * The footer bar spreads this across chips and a status line; here it is
+ * one card, top items first, so the reader knows what to fix before they
+ * have scrolled anything. Empty is worth showing too: "nothing missing" is
+ * the answer the reader came for.
  */
 export function NeedsFixing({
   items,

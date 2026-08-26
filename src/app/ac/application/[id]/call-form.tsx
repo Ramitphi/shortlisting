@@ -35,6 +35,12 @@ import {
   IconShield,
   IconSparkle,
   IconThumbUp,
+  IconUserFill,
+  IconCapFill,
+  IconWalletFill,
+  IconLayersFill,
+  IconNoteFill,
+  SectionCard,
 } from "@/components/ui";
 
 const GENDER_ICONS: Record<string, React.ReactNode> = {
@@ -44,23 +50,6 @@ const GENDER_ICONS: Record<string, React.ReactNode> = {
 };
 
 type Values = Record<string, string>;
-
-const STEPS = [
-  { id: "profile", label: "Profile", hint: "Who the learner is" },
-  { id: "academics", label: "Academics", hint: "Marks & scores" },
-  { id: "financing", label: "Financing", hint: "How they'll pay" },
-  { id: "programmes", label: "Programmes", hint: "Pick from the AI's matches" },
-  { id: "review", label: "Review", hint: "Confirm & submit" },
-] as const;
-
-/** Which FORM_FIELDS section each wizard step owns — used to route remarks. */
-const SECTION_BY_STEP = [
-  "Profile Data",
-  "Academic Data",
-  "Financing",
-  "Programmes",
-  "Review",
-] as const;
 
 /** Keep only digits, spaces and a leading +, and cap at 15 digits (E.164). */
 function sanitisePhone(raw: string): string {
@@ -107,7 +96,7 @@ const RenderedFieldsContext = createContext<(key: string) => () => void>(
 /**
  * Ops' per-field verdicts, so the counsellor sees which individual answer was
  * called wrong while they are standing on the field fixing it — not only in
- * the read-only list on the other tab.
+ * the read-only cards further down the stack.
  */
 const FieldChecksContext = createContext<
   Record<string, { state: "correct" | "incorrect"; by_name?: string | null; at?: string }>
@@ -316,13 +305,13 @@ export interface StepRemark {
   fieldKey: string;
   /** Human label, for the catch-all when the field itself isn't on screen. */
   fieldLabel?: string;
-  /** Which step owns that field, for the flag count on the tabs. */
+  /** The FORM_FIELDS section that owns the field. */
   section: string;
   author: string;
   at: string;
   text: string;
   resolved: boolean;
-  /** 'info' is context to read, not work to do — it never flags a step. */
+  /** 'info' is context to read, not work to do — never counted as open work. */
   kind?: "action" | "info";
   acknowledgedAt?: string | null;
   /** The conversation under this remark, oldest first. */
@@ -358,7 +347,7 @@ export function CallForm({
   /** "review" = post-vetting: editable, remarks inline, page owns the footer. */
   mode?: "fill" | "review";
   remarks?: StepRemark[];
-  /** The programme recommendations step (engine-scored picker + picks). */
+  /** The programme recommendations section (engine-scored picker + picks). */
   programmes?: React.ReactNode;
   /** How many the counsellor has recommended so far — gates submission. */
   programmesCount?: number;
@@ -386,7 +375,9 @@ export function CallForm({
     children: React.ReactNode
   ) => React.ReactNode;
 }) {
-  const [step, setStep] = useState(0);
+  // The submit confirmation — the old Review step, as a dialog on top of
+  // the stacked form instead of a fifth screen of its own.
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const changedSet = useMemo(() => new Set(changedFields), [changedFields]);
   const checksValue = useMemo(() => fieldChecks ?? {}, [fieldChecks]);
   const [v, setV] = useState<Values>(initial);
@@ -451,8 +442,8 @@ export function CallForm({
   const clauses = useMemo(() => triggeredClausesFor(v), [v]);
 
   // Anything still open that no mounted slot claimed. Recomputed whenever the
-  // mounted set changes, so stepping through the wizard moves remarks in and
-  // out of the catch-all as their fields appear and disappear.
+  // mounted set changes, so answers that mount or unmount conditional blocks
+  // move remarks in and out of the catch-all as their fields appear.
   const stranded = useMemo(
     () =>
       remarks.filter(
@@ -471,26 +462,6 @@ export function CallForm({
     [v, programmesCount]
   );
 
-  // A tick has to mean the step's required fields are filled. Ticking a step
-  // just because you clicked Next claims work that hasn't happened.
-  const stepDone = useMemo(() => {
-    const profile =
-      Boolean(v.full_name && v.mobile && v.gender && v.dob && degree) &&
-      countries.length > 0 &&
-      (!isMinor || Boolean(v.guardian_email));
-    const academics =
-      Boolean(v.marksheet_10 && v.board_12 && v.status_12) &&
-      (!isMasters || Boolean(v.bachelor_status));
-    const financing = Boolean(v.finance_plan);
-    return [
-      profile,
-      academics,
-      financing,
-      programmesCount > 0,
-      missing.length === 0,
-    ];
-  }, [v, degree, countries, isMinor, isMasters, missing, programmesCount]);
-
   /** Group wrapper: the page's block when it supplies one, else a heading. */
   const group = (key: string, label: string, children: React.ReactNode) =>
     groupBlock ? (
@@ -504,7 +475,6 @@ export function CallForm({
       </section>
     );
 
-  const openCount = remarks.filter((r) => !r.resolved).length;
   const resolving = mode === "review";
 
   const inputCls =
@@ -543,105 +513,35 @@ export function CallForm({
         }`}
       >
       <div className={`min-w-0 space-y-5 self-start ${sidebar ? "lg:col-span-2" : ""}`}>
-        {/* Stepper — paginated while filling on the call; after review the
-            whole form is shown at once, so there is nothing to step through. */}
-        {!resolving && (
-        <div className="card p-1.5">
-          {/* One running row, always. The activity rail narrows this column,
-              so the steps have to be allowed to SHRINK (min-w-0 + truncate) —
-              without that they refuse to give ground and the last step bleeds
-              off the card. */}
-          <div className="flex gap-1">
-            {STEPS.map((s, i) => {
-              const active = i === step;
-              const done = !resolving && stepDone[i];
-              // Point the counsellor straight at the steps Ops flagged.
-              const flags = remarks.filter(
-                (r) =>
-                  r.section === SECTION_BY_STEP[i] &&
-                  !r.resolved &&
-                  r.kind !== "info"
-              ).length;
-              return (
-                <button
-                  key={s.id}
-                  formAction={saveAction}
-                  formNoValidate
-                  onClick={() => setStep(i)}
-                  className={`flex min-w-0 flex-1 basis-0 items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-[13px] font-medium transition-colors ${
-                    active
-                      ? "bg-ink text-paper"
-                      : done
-                        ? "text-ink hover:bg-muted"
-                        : "text-caption hover:bg-muted"
-                  }`}
-                >
-                  {!resolving && (
-                    <span
-                      className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] ${
-                        active
-                          ? "bg-white/20"
-                          : done
-                            ? "bg-accent/10 text-accent"
-                            : "bg-cream"
-                      }`}
-                    >
-                      {done ? "✓" : i + 1}
-                    </span>
-                  )}
-                  <span className="truncate">{s.label}</span>
-                  {flags > 0 && (
-                    <span
-                      className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none ${
-                        active
-                          ? "bg-white/20"
-                          : "bg-[#f6efdd] text-[#8a6d2f]"
-                      }`}
-                    >
-                      {flags}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-        )}
-
         {/* Comments Ops left on a field this board does not currently show —
             a guardian detail for an adult, a bachelor field for a Bachelors
             applicant. They render here so they can always be answered; without
             this the re-check could never be handed back. */}
         {stranded.length > 0 && (
-          <div className="card fade-up border-[#ecdfc0] p-6">
-            <h2 className="font-display text-[15px] font-semibold tracking-tight">
-              Other comments from Ops
-            </h2>
-            <p className="mt-1 text-[13px] text-body">
-              These are about details this form isn&apos;t asking for right now.
-              Answer or resolve them here.
-            </p>
+          <SectionCard
+            className="fade-up border-[#ecdfc0]"
+            icon={<IconNoteFill />}
+            title="Other comments from Ops"
+            subtitle="About details this form isn't asking for right now. Answer or resolve them here."
+          >
             {stranded.map((r) => (
-              <div key={r.id} className="mt-3">
+              <div key={r.id} className="mt-3 first:mt-0">
                 <div className="text-[12px] font-semibold uppercase tracking-[0.06em] text-caption">
                   {r.fieldLabel ?? r.fieldKey}
                 </div>
                 <RemarkList items={[r]} />
               </div>
             ))}
-          </div>
+          </SectionCard>
         )}
 
-        {/* ── Step 1: Profile ── */}
-        {(resolving || step === 0) && (
-          <>
-          <div className="card fade-up p-6">
-            <h2 className="font-display text-[15px] font-semibold tracking-tight">
-              Profile
-            </h2>
-            <p className="mb-5 mt-1 text-sm text-body">
-              Confirm the details you have from the lead form while on the call.
-            </p>
+        {/* ── Profile ── */}
+          <SectionCard
+            className="fade-up"
+            icon={<IconUserFill />}
+            title="Profile"
+            subtitle="Confirm the details you have from the lead form while on the call."
+          >
             {group("profile", "Profile details", (
               <>
 
@@ -762,22 +662,15 @@ export function CallForm({
             </div>
               </>
             ))}
-</div>
-          </>
-        )}
+          </SectionCard>
 
-        {/* ── Step 2: Academics ── */}
-        {(resolving || step === 1) && (
-          <>
-          <div className="card fade-up p-6">
-            <h2 className="font-display text-[15px] font-semibold tracking-tight">
-              Academics
-            </h2>
-            <p className="mb-5 mt-1 text-sm text-body">
-              Ops will read scores off the documents — you only capture status
-              and uploads.
-            </p>
-
+        {/* ── Academics ── */}
+          <SectionCard
+            className="fade-up"
+            icon={<IconCapFill />}
+            title="Academics"
+            subtitle="Ops will read scores off the documents — you only capture status and uploads."
+          >
             <div className="space-y-6">
               {group("class10", "Class 10", (
                 <>
@@ -1020,20 +913,15 @@ export function CallForm({
                 </>
               )}
             </div>
-          </div>
-          </>
-        )}
+          </SectionCard>
 
-        {/* ── Step 3: Financing ── */}
-        {(resolving || step === 2) && (
-          <>
-          <div className="card fade-up p-6">
-            <h2 className="font-display text-[15px] font-semibold tracking-tight">
-              Financing
-            </h2>
-            <p className="mb-5 mt-1 text-sm text-body">
-              How the learner plans to fund tuition and living costs on campus.
-            </p>
+        {/* ── Financing ── */}
+          <SectionCard
+            className="fade-up"
+            icon={<IconWalletFill />}
+            title="Financing"
+            subtitle="How the learner plans to fund tuition and living costs on campus."
+          >
             {group("financing", "Financing", (
               <>
             <Row
@@ -1056,78 +944,18 @@ export function CallForm({
             )}
               </>
             ))}
-</div>
-          </>
-        )}
+          </SectionCard>
 
-        {/* ── Step 4: Programmes — the AI vet recommends, the counsellor picks ── */}
-        {(resolving || step === 3) && programmes && (
-          <div className="card fade-up p-6">
-            <h2 className="font-display text-[15px] font-semibold tracking-tight">
-              Requested programmes
-            </h2>
-            <p className="mb-4 mt-1 text-sm text-body">
-              The AI reads everything captured on this call and puts its best
-              matches below — add the ones worth sending. Ops rules on the
-              eligibility of each, and only the eligible ones can be
-              shortlisted.
-            </p>
+        {/* ── Programmes — the AI vet recommends, the counsellor picks ── */}
+        {programmes && (
+          <SectionCard
+            className="fade-up"
+            icon={<IconLayersFill />}
+            title="Requested programmes"
+            subtitle="The AI reads everything captured on this call and puts its best matches below — add the ones worth sending. Ops rules on the eligibility of each, and only the eligible ones can be shortlisted."
+          >
             {programmes}
-          </div>
-        )}
-
-        {/* ── Step 5: Review ── */}
-        {(resolving || step === 4) && (
-          <>
-          <div className="card fade-up p-6">
-            <h2 className="font-display text-[15px] font-semibold tracking-tight">
-              Review & submit
-            </h2>
-            <p className="mb-5 mt-1 text-sm text-body">
-              Read this back to the learner before submitting for Ops vetting.
-            </p>
-
-            {missing.length > 0 ? (
-              <div className="rounded-xl border border-[#ecdfc0] bg-[#f6efdd]/60 p-4 text-[13px] text-[#6b5525]">
-                <b>Still needed:</b> {missing.join(", ")}.
-              </div>
-            ) : (
-              <div className="rounded-xl border border-[#d5e6d8] bg-[#e8f2e9]/60 p-4 text-[13px] text-[#2f5e38]">
-                All required details captured — ready to submit.
-              </div>
-            )}
-
-            <dl className="mt-5 divide-y divide-line rounded-xl border border-line">
-              {[
-                ["Name", v.full_name],
-                ["Mobile", v.mobile],
-                ["Gender", v.gender],
-                ["Date of birth", v.dob && `${v.dob}${age !== null ? ` (age ${age})` : ""}`],
-                isMinor ? ["Guardian", [v.guardian_name, v.guardian_email].filter(Boolean).join(" · ")] : null,
-                ["Degree", degree],
-                ["Countries", countries.join(", ")],
-                ["Class 10 marksheet", v.marksheet_10],
-                ["Class 12", [v.board_12, v.status_12].filter(Boolean).join(" · ")],
-                isMasters ? ["Bachelor's", v.bachelor_status] : null,
-                isMasters ? ["Backlogs", v.backlogs] : null,
-                isMasters ? ["Work experience", v.work_exp_months && `${v.work_exp_months} months`] : null,
-                ["Financing", v.finance_plan],
-              ]
-                .filter(Boolean)
-                .map((entry) => {
-                  const [k, val] = entry as [string, string];
-                  return (
-                    <div key={k} className="flex gap-4 px-4 py-2.5 text-[13px]">
-                      <dt className="w-44 shrink-0 text-caption">{k}</dt>
-                      <dd className="min-w-0 flex-1 text-ink">
-                        {val || <span className="text-caption">—</span>}
-                      </dd>
-                    </div>
-                  );
-                })}
-            </dl>
-          </div>
-          </>
+          </SectionCard>
         )}
 
       </div>
@@ -1136,8 +964,7 @@ export function CallForm({
       </div>
 
       {/* Action bar — spans the whole page, not just the field column.
-          Suppressed after review: the page owns a persistent bar there so it
-          stays put across the Programmes and Undertaking tabs too. */}
+          Suppressed after review: the page owns its own persistent bar. */}
       {resolving && reviewBar && (
         <div className="sticky bottom-0 z-20 py-3.5">
           <div className="pointer-events-none absolute inset-y-0 left-1/2 w-screen -translate-x-1/2 border-t border-line bg-white/90 backdrop-blur-md" />
@@ -1151,43 +978,121 @@ export function CallForm({
       <div className="sticky bottom-0 z-20 py-3.5">
         {/* Backing spans the whole content column, not just the grid cell */}
         <div className="pointer-events-none absolute inset-y-0 left-1/2 w-screen -translate-x-1/2 border-t border-line bg-white/90 backdrop-blur-md" />
-        {/* Status on the left, one primary action on the right. */}
+        {/* Status on the left, one primary action on the right. There is no
+            walk any more — the whole form is on screen — so the bar carries
+            what the old Review step carried: how far from submittable. */}
         <div className="relative flex flex-wrap items-center gap-3">
-
-          <div className="flex items-center gap-2.5">
-            <div className="hidden items-center gap-1 sm:flex">
-              {STEPS.map((_, i) => (
-                <span
-                  key={i}
-                  className={`h-1.5 rounded-full transition-all ${
-                    i === step
-                      ? "w-5 bg-ink"
-                      : i < step
-                        ? "w-1.5 bg-ink/40"
-                        : "w-1.5 bg-line-strong"
-                  }`}
-                />
-              ))}
-            </div>
-            <span className="text-xs text-caption">
-              Step {step + 1} of {STEPS.length}
-            </span>
-          </div>
+          <span className="text-xs text-caption">
+            {missing.length > 0
+              ? `${missing.length} required detail${
+                  missing.length === 1 ? "" : "s"
+                } still missing`
+              : "All required details captured — ready to submit"}
+          </span>
 
           <div className="ml-auto flex flex-wrap items-center gap-2">
-            {step < STEPS.length - 1 ? (
-              // Saves what's on screen and moves on — no separate Save CTA.
+            {/* The step buttons used to save as they navigated; with them
+                gone, saving needs its own quiet control. */}
+            <button
+              className="btn-secondary"
+              formAction={saveAction}
+              formNoValidate
+            >
+              Save draft
+            </button>
+            {/* Saves what is on screen AND opens the confirmation — the same
+                double duty a step button did, so nothing typed is lost if
+                the dialog is cancelled. */}
+            <button
+              className="btn-primary"
+              formAction={saveAction}
+              formNoValidate
+              onClick={() => setConfirmOpen(true)}
+            >
+              Submit for Vetting
+            </button>
+          </div>
+        </div>
+      </div>
+      )}
+
+      {/* ── The old Review step, as a confirmation dialog ──
+          Everything the counsellor used to walk to a fifth screen for:
+          what is still missing, the read-back summary, and the one commit
+          button. Inside the <form> (no portal) so Confirm can post the
+          form's own data through formAction. */}
+      {confirmOpen && !resolving && (
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-ink/45 p-4 backdrop-blur-[2px]"
+          onClick={() => setConfirmOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="flex max-h-[85dvh] w-full max-w-[600px] flex-col rounded-2xl border border-line bg-white shadow-[0_28px_60px_-18px_rgba(49,48,43,0.45)]"
+          >
+            <div className="border-b border-line px-5 py-4">
+              <h3 className="font-display text-[16px] font-semibold tracking-tight text-ink">
+                Ready to submit for vetting?
+              </h3>
+              <p className="mt-0.5 text-[13px] text-body">
+                Read this back to the learner — it goes to the Ops team
+                exactly as it stands.
+              </p>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+              {missing.length > 0 ? (
+                <div className="rounded-xl border border-[#ecdfc0] bg-[#f6efdd]/60 p-4 text-[13px] text-[#6b5525]">
+                  <b>Still needed:</b> {missing.join(", ")}.
+                </div>
+              ) : (
+                <div className="rounded-xl border border-[#d5e6d8] bg-[#e8f2e9]/60 p-4 text-[13px] text-[#2f5e38]">
+                  All required details captured.
+                </div>
+              )}
+
+              <dl className="mt-4 divide-y divide-line rounded-xl border border-line">
+                {[
+                  ["Name", v.full_name],
+                  ["Mobile", v.mobile],
+                  ["Gender", v.gender],
+                  ["Date of birth", v.dob && `${v.dob}${age !== null ? ` (age ${age})` : ""}`],
+                  isMinor ? ["Guardian", [v.guardian_name, v.guardian_email].filter(Boolean).join(" · ")] : null,
+                  ["Degree", degree],
+                  ["Countries", countries.join(", ")],
+                  ["Class 10 marksheet", v.marksheet_10],
+                  ["Class 12", [v.board_12, v.status_12].filter(Boolean).join(" · ")],
+                  isMasters ? ["Bachelor's", v.bachelor_status] : null,
+                  isMasters ? ["Backlogs", v.backlogs] : null,
+                  isMasters ? ["Work experience", v.work_exp_months && `${v.work_exp_months} months`] : null,
+                  ["Financing", v.finance_plan],
+                  ["Programmes requested", programmesCount > 0 ? String(programmesCount) : ""],
+                ]
+                  .filter(Boolean)
+                  .map((entry) => {
+                    const [k, val] = entry as [string, string];
+                    return (
+                      <div key={k} className="flex gap-4 px-4 py-2.5 text-[13px]">
+                        <dt className="w-44 shrink-0 text-caption">{k}</dt>
+                        <dd className="min-w-0 flex-1 text-ink">
+                          {val || <span className="text-caption">—</span>}
+                        </dd>
+                      </div>
+                    );
+                  })}
+              </dl>
+            </div>
+
+            <div className="flex gap-2 border-t border-line px-5 py-4">
               <button
-                className="btn-primary"
-                formAction={saveAction}
-                formNoValidate
-                onClick={() => setStep((s) => s + 1)}
+                type="button"
+                onClick={() => setConfirmOpen(false)}
+                className="btn-secondary flex-1"
               >
-                Next
+                Keep editing
               </button>
-            ) : (
               <button
-                className="btn-primary"
+                className="btn-primary flex-1"
                 formAction={submitAction}
                 disabled={missing.length > 0}
                 title={
@@ -1196,12 +1101,11 @@ export function CallForm({
                     : ""
                 }
               >
-                Submit for Vetting
+                Confirm &amp; Submit
               </button>
-            )}
+            </div>
           </div>
         </div>
-      </div>
       )}
     </form>
     </RenderedFieldsContext.Provider>

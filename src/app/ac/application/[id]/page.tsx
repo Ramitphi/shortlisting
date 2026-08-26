@@ -1,7 +1,6 @@
 "use client";
 
 import { useDbVersion } from "@/components/db-provider";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Shell, requireRole } from "@/components/shell";
 import { activityInline, staffView } from "@/lib/auth";
@@ -36,6 +35,14 @@ import {
   IconShield,
   IconSparkle,
   IconWallet,
+  IconUserFill,
+  IconCapFill,
+  IconWalletFill,
+  IconClipboardFill,
+  IconPenFill,
+  IconLayersFill,
+  IconClockFill,
+  SectionCard,
 } from "@/components/ui";
 import {
   getApplication,
@@ -61,7 +68,6 @@ import {
   submitForm,
   removeLearnerDoc,
   replyToRemark,
-  resolveRemark,
   returnRecheckToOps,
   appealEligibility,
   shortlistProgram,
@@ -99,17 +105,18 @@ import { AppealDialog } from "./appeal-dialog";
 import { AcFlowBar } from "./shortlist-button";
 
 
-// TWO tabs, and they stay one running row. Documents moved out to a header
-// CTA (the locker is a reference, not a stage), and Programmes + Undertaking
-// merged into Eligibility — the summary, what they sign and what we send are
-// one decision, not three screens. There is deliberately NO Comments tab:
-// Ops' remarks live as pins beside the fields they are about.
-const TABS = [
-  { key: "profile", label: "Profile" },
-  { key: "eligibility", label: "Eligibility" },
-] as const;
+// NO tabs. Documents moved out to a header CTA (the locker is a reference,
+// not a stage), and everything else stacks in reading order — each section
+// its own titled card, so nothing hides behind a second screen. There is
+// deliberately NO Comments section: Ops' remarks live as pins beside the
+// fields they are about.
 
-type TabKey = (typeof TABS)[number]["key"];
+// The filled glyph that names each form section's card.
+const SECTION_GLYPHS: Record<string, React.ReactNode> = {
+  "Profile Data": <IconUserFill />,
+  "Academic Data": <IconCapFill />,
+  Financing: <IconWalletFill />,
+};
 
 export default function AcApplicationPage({
   params,
@@ -165,7 +172,6 @@ export default function AcApplicationPage({
   );
   const certified = Boolean(app.certified_at);
 
-  const resolvedRemarks = remarks.filter((r) => r.status === "resolved");
 
   // The learner changed something after it was vetted. Ops re-reads it
   // first; if they have comments it comes here, because the counsellor is
@@ -290,21 +296,13 @@ export default function AcApplicationPage({
 
   // Nothing is recommended until Ops finishes, so while it's with them the
   // counsellor sees the details and nothing else (documents stay one click
-  // away in the header). Ops' comments only appear once they have finished —
-  // mid-vetting notes are a work in progress, not something to act on.
+  // away in the header). Ops' pins and verdicts render live as they work —
+  // read-only for the counsellor until the application comes back.
   const withOps = app.status === "under_review";
-  // The reference restructure — no tabs, one stacked column. FAB-toggled.
+  // The reference typography treatment — FAB-toggled.
   const deel = staffView() === "deel";
-  const visibleTabs = withOps
-    ? TABS.filter((t) => t.key === "profile")
-    : TABS;
-  const requested = searchParams.tab as TabKey | undefined;
 
-  const tab: TabKey = visibleTabs.some((t) => t.key === requested)
-    ? (requested as TabKey)
-    : "profile";
-
-  // The pick travels in the URL so it survives the tab navigations.
+  // The pick travels in the URL so it survives navigations.
   const selected = Number(searchParams.sel) || null;
   // Ops ruled; the shortlist radio only offers what survived.
   const eligiblePrograms = programs.filter((p) => p.eligibility === "eligible");
@@ -339,24 +337,7 @@ export default function AcApplicationPage({
     })
     .sort((a, b) => b.score - a.score);
 
-  const signedCount = docs.filter((d) => d.signed_at).length;
   const lockerUploaded = locker.filter((r) => r.filename).length;
-  const lockerVerified = locker.filter((r) => r.verification === "verified").length;
-  const lockerMissing = locker.filter((r) => !r.filename && !r.optional).length;
-  const tabCount: Record<TabKey, string | undefined> = {
-    // Open comments surface on the Profile tab, where the pins are.
-    profile: openRemarks.length > 0 ? String(openRemarks.length) : undefined,
-    // Once the shortlist is out, signing is the live number; before that it
-    // is how many programmes are on the table.
-    eligibility:
-      app.status === "shortlisted" || app.status === "completed"
-        ? docs.length > 0
-          ? `${signedCount}/${docs.length}`
-          : undefined
-        : programs.length > 0
-          ? String(programs.length)
-          : undefined,
-  };
 
   // Two presentations, switched from the role-switcher FAB. Inline is the
   // built design (right rail); the drawer is the alternative being compared —
@@ -402,12 +383,13 @@ export default function AcApplicationPage({
       });
   }
   const timeline = inline ? (
-    <div className="card fade-up p-5" style={{ animationDelay: "120ms" }}>
-      <h2 className="mb-3 font-display text-[15px] font-semibold tracking-tight">
-        Activity Timeline
-      </h2>
+    <SectionCard
+      className="fade-up !p-5"
+      icon={<IconClockFill />}
+      title="Activity Timeline"
+    >
       <CappedTimeline events={events} pending={pending} />
-    </div>
+    </SectionCard>
   ) : null;
   const rail = inline ? (
     <div className="space-y-5">
@@ -738,78 +720,23 @@ export default function AcApplicationPage({
             the log lives behind the header button. */}
         <div className={`grid flex-1 gap-6 ${timeline ? "lg:grid-cols-3" : ""}`}>
           <div className={`space-y-5 ${timeline ? "lg:col-span-2" : ""}`}>
-            {/* Tabs — a single tab isn't a tab bar, so hide it while Ops has it */}
-            {!deel && visibleTabs.length > 1 && (
-            <div className="card p-1.5">
-              <div className="flex gap-1">
-                {visibleTabs.map((t) => {
-                  const active = t.key === tab;
-                  const count = tabCount[t.key];
-                  return (
-                    <Link
-                      key={t.key}
-                      href={`/ac/application/${app.id}?tab=${t.key}${
-                        searchParams.sel ? `&sel=${searchParams.sel}` : ""
-                      }`}
-                      scroll={false}
-                      className={`flex min-w-0 flex-1 basis-0 items-center justify-center gap-2 rounded-xl px-3 py-2 text-[13px] font-medium transition-colors ${
-                        active
-                          ? "bg-ink text-paper"
-                          : "text-body hover:bg-muted"
-                      }`}
-                    >
-                      <span className="truncate">{t.label}</span>
-                      {count && (
-                        <span
-                          className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none ${
-                            active
-                              ? "bg-white/20"
-                              : t.key === "profile" && openRemarks.length > 0
-                                ? "bg-[#f6efdd] text-[#8a6d2f]"
-                                : "bg-cream text-caption"
-                          }`}
-                        >
-                          {count}
-                        </span>
-                      )}
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-            )}
-
           {/* ── Profile ──
               With Ops: read-only, the counsellor had their turn. Once Ops has
               reviewed: editable again, because the comment pins land here and
               "how will AC resolve these remarks" if the field is locked? The
               remark sits beside the field, the fix happens in the field, the
               tick on the pin closes it — no separate Comments screen. */}
-          {(deel || tab === "profile") && (
-              <div className="card fade-up p-6">
-                <h2 className="font-display text-[15px] font-semibold tracking-tight">
-                  Eligibility Form
-                </h2>
-                <p className="mb-5 mt-1 text-sm text-body">
-                  {/* No state === "ac" branch here: that state renders the
-                      edit board instead of this tab, so copy for it would be
-                      unreachable — and it contradicted the board it hid
-                      behind. */}
-                  {recheck?.kind === "appeal"
-                      ? "Your appeal is with Ops. They will rule again on the programme and it comes back here."
-                      : recheck
-                      ? "The learner changed the fields marked below; Ops is re-reading them."
-                      : canShortlist
-                        ? openRemarks.length > 0
-                          ? "Vetted by Ops. Flagged fields carry a marker — read the comment, fix the field right there, then acknowledge it or reply."
-                          : "Vetted by Ops. Your answers are editable if anything needs a correction before you shortlist."
-                        : "Submitted on the call and now with the Ops team."}
-                </p>
-                {FORM_SECTIONS.map((section) => (
-                  <div key={section} className="mb-6">
-                    <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.07em] text-caption">
-                      {section}
-                    </h3>
+          {/* One card per form section, each self-titled with a filled
+              glyph — the stack replaced the "Eligibility Form" umbrella card
+              and its intro copy: the section names say what this is, and the
+              state story (recheck, appeal) is the banner's job above. */}
+          {FORM_SECTIONS.map((section) => (
+                  <SectionCard
+                    key={section}
+                    className="fade-up"
+                    icon={SECTION_GLYPHS[section] ?? <IconClipboardFill />}
+                    title={section}
+                  >
                     {/* Key-value lines, same structure as the Ops board:
                         label in a fixed muted column, value beside it, the
                         markers — changed pin, Ops' verdict, comments — at the
@@ -867,32 +794,28 @@ export default function AcApplicationPage({
                         )
                       )}
                     </div>
-                  </div>
+                  </SectionCard>
                 ))}
-              </div>
-            )}
 
-          {/* ── Eligibility ──
-              One tab, three parts in the order the decision is actually made:
+          {/* Three sections in the order the decision is actually made:
               what we know about the learner, what they will have to sign, and
               the programmes we are putting in front of them. */}
-          {(deel || (!withOps && tab === "eligibility")) && (
+          {!withOps && (
             <ProfileSummary
               responses={responses}
+              learnerName={app.learner_name}
             />
           )}
 
             {/* ── Undertaking: documents + offer letter ── */}
-            {(deel || (!withOps && tab === "eligibility")) && (
-              <div className="card fade-up p-6">
-                <h2 className="font-display text-[15px] font-semibold tracking-tight">
-                  Undertaking & Acknowledgement
-                </h2>
-                <p className="mb-4 mt-1 text-sm text-body">
-                  Auto-generated by Ops from the declarations triggered on the
-                  call. The learner signs these once shortlisted.
-                </p>
-
+            {!withOps && (
+              <SectionCard
+                id="undertakings"
+                className="fade-up"
+                icon={<IconPenFill />}
+                title="Undertaking & Acknowledgement"
+                subtitle="Auto-generated by Ops from the declarations triggered on the call. The learner signs these once shortlisted."
+              >
                 {docs.length === 0 ? (
                   <EmptyState text="Documents are generated when Ops starts vetting." />
                 ) : (
@@ -923,22 +846,29 @@ export default function AcApplicationPage({
                     {offer.institute}) on {offer.created_at} UTC.
                   </div>
                 )}
-              </div>
+              </SectionCard>
             )}
           {/* ── Requested Programs: pick and send the shortlist ── */}
-            {(deel || (!withOps && tab === "eligibility")) && (
-              <div className="card fade-up p-6">
-                {/* Card anatomy: title left, the one action right. */}
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <h2 className="font-display text-[15px] font-semibold tracking-tight">
-                    Requested Programs
-                  </h2>
-                  {/* The same window the action enforces: `reviewed`, or a
-                      `shortlisted` application whose shortlist has come off.
-                      Winning an appeal has to lead somewhere — with a live
-                      shortlist there is no control on any screen that could
-                      send the reinstated programme. */}
-                  {(app.status === "reviewed" || shortlistWithdrawn) && (
+            {!withOps && (
+              <SectionCard
+                id="requested-programs"
+                className="fade-up"
+                icon={<IconLayersFill />}
+                title="Requested Programs"
+                subtitle={
+                  shortlistWithdrawn
+                    ? "The learner's own change made them ineligible for the programme they were sent, so it has come off. Pick another from what Ops still rules eligible — the learner is told the programme has changed."
+                    : canShortlist
+                      ? "The programmes you requested, ruled on by Ops. Pick the one ELIGIBLE programme the learner is going ahead with."
+                      : "The programmes you requested and Ops' eligibility verdicts."
+                }
+                action={
+                  /* The same window the action enforces: `reviewed`, or a
+                     `shortlisted` application whose shortlist has come off.
+                     Winning an appeal has to lead somewhere — with a live
+                     shortlist there is no control on any screen that could
+                     send the reinstated programme. */
+                  (app.status === "reviewed" || shortlistWithdrawn) && (
                       <AppealDialog
                         action={appealEligibility.bind(null, app.id)}
                         rejected={programs
@@ -979,16 +909,9 @@ export default function AcApplicationPage({
                               : undefined
                         }
                       />
-                    )}
-                </div>
-                <p className="mb-4 mt-1 text-sm text-body">
-                  {shortlistWithdrawn
-                    ? "The learner's own change made them ineligible for the programme they were sent, so it has come off. Pick another from what Ops still rules eligible — the learner is told the programme has changed."
-                    : canShortlist
-                      ? "The programmes you requested, ruled on by Ops. Pick the one ELIGIBLE programme the learner is going ahead with."
-                      : "The programmes you requested and Ops' eligibility verdicts."}
-                </p>
-
+                    )
+                }
+              >
                 {programs.length === 0 ? (
                   <EmptyState text="No programmes were recommended on the call." />
                 ) : canShortlist ? (
@@ -1183,7 +1106,7 @@ export default function AcApplicationPage({
                     ))}
                   </div>
                 )}
-              </div>
+              </SectionCard>
             )}
 
           </div>
@@ -1198,28 +1121,19 @@ export default function AcApplicationPage({
             <div className="pointer-events-none absolute inset-y-0 left-1/2 w-screen -translate-x-1/2 border-t border-line bg-white/90 backdrop-blur-md" />
             <div className="relative flex flex-wrap items-center gap-3">
               <span className="text-xs text-caption">
-                {/* Stacked mode is always "everything on screen", so the
-                    walk copy collapses to the send line. */}
+                {/* Everything is on one page, so the walk copy collapsed to
+                    the send line. The pick lives in the radios, not in the
+                    URL, so the server cannot know whether one has been made —
+                    the line stays true either way rather than claiming
+                    "ready to send" or contradicting an enabled button. */}
                 {programs.length === 0
                   ? "No eligible programmes — speak to the Ops team"
-                  : !deel && tab === "profile"
-                    ? openRemarks.length > 0
-                      ? `${openRemarks.length} comment${openRemarks.length === 1 ? "" : "s"} from Ops to answer — fix the field, then acknowledge or reply`
-                      : "Check the details, then open Eligibility to pick a programme"
-                    : // The pick lives in the radios, not in the URL, so the
-                      // server cannot know whether one has been made — this
-                      // line stays true either way rather than claiming
-                      // "ready to send" or contradicting an enabled button.
-                      `Pick one of ${eligiblePrograms.length} eligible programme(s), then send`}
+                  : openRemarks.length > 0
+                    ? `${openRemarks.length} comment${openRemarks.length === 1 ? "" : "s"} from Ops to answer · pick one of ${eligiblePrograms.length} eligible programme(s), then send`
+                    : `Pick one of ${eligiblePrograms.length} eligible programme(s), then send`}
               </span>
               <div className="ml-auto flex items-center gap-2">
                 <AcFlowBar
-                  appId={app.id}
-                  // One stacked page has no walk — a single "tab" makes the
-                  // bar render the send button, never a Next step.
-                  tabs={deel ? [tab] : visibleTabs.map((t) => t.key)}
-                  tab={tab}
-                  selected={selected}
                   hasPrograms={eligiblePrograms.length > 0}
                   action={shortlistProgram.bind(null, app.id)}
                 />

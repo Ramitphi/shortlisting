@@ -61,7 +61,7 @@ export function RoleSwitcher({
   currentEmail?: string;
   /** Which of the two activity presentations is currently showing. */
   activityInline: boolean;
-  /** Application journeys: false = classic structure, true = the reference restructure. */
+  /** Application journeys: true = reference type treatment + Needs-fixing rail. */
   deelView?: boolean;
   /** Learner experience: false = redesigned flow, true = current-site v2. */
   learnerV2?: boolean;
@@ -245,9 +245,9 @@ export function RoleSwitcher({
             )}
 
             {/* The two structures of the application journeys, switchable
-                live so they can be compared: tabs and the classic layout, or
-                the reference restructure — one working column, the rail
-                carrying what is missing, no tabs. */}
+                live so they can be compared. The stack itself is now the
+                only layout — this switch turns the reference treatment up:
+                the stronger type hierarchy and the Needs-fixing rail. */}
             <form action={toggleStaffView} className="border-t border-line">
               <button className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-muted">
                 <span className="min-w-0 flex-1">
@@ -256,8 +256,8 @@ export function RoleSwitcher({
                   </span>
                   <span className="block text-[11.5px] text-caption">
                     {deelView
-                      ? "Reference layout — no tabs, one column"
-                      : "Classic layout with tabs"}
+                      ? "Deel type hierarchy + Needs-fixing rail on"
+                      : "Standard type, no Needs-fixing rail"}
                   </span>
                 </span>
                 <span

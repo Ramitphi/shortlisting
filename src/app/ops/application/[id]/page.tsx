@@ -1,7 +1,6 @@
 "use client";
 
 import { useDbVersion } from "@/components/db-provider";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Shell, requireRole } from "@/components/shell";
 import { activityInline, staffView } from "@/lib/auth";
@@ -37,6 +36,12 @@ import {
   IconTrash,
   IconX,
   IconWallet,
+
+  IconShieldFill,
+  IconPenFill,
+  IconLayersFill,
+  IconClockFill,
+  SectionCard,
 } from "@/components/ui";
 import {
   getApplication,
@@ -95,20 +100,10 @@ import {
 } from "@/lib/domain";
 
 
-// One word each — see the note on the counsellor's TABS.
-const TABS = [
-  { key: "profile", label: "Profile" },
-  { key: "eligibility", label: "Eligibility" },
-] as const;
-
-type TabKey = (typeof TABS)[number]["key"];
-
 export default function OpsApplicationPage({
   params,
-  searchParams,
 }: {
   params: { id: string };
-  searchParams: { tab?: string };
 }) {
   // Re-render on any browser-db or session change.
   useDbVersion();
@@ -251,22 +246,9 @@ export default function OpsApplicationPage({
     keywords: t.clause_id ?? "",
   }));
 
-  // Every tab is always available: a remark is a note Ops leaves behind, not
-  // a gate that takes the rest of their work away.
-  // The reference restructure: no tabs — both halves stack in one working
-  // column and the rail carries what is missing. Toggled from the FAB.
+  // No tabs: every section stacks in one working column and the rail
+  // carries what is missing. The FAB switch only changes the typography.
   const deel = staffView() === "deel";
-  const visibleTabs = TABS;
-  const tab: TabKey = visibleTabs.some((t) => t.key === searchParams.tab)
-    ? (searchParams.tab as TabKey)
-    : "profile";
-
-  const tabIndex = visibleTabs.findIndex((t) => t.key === tab);
-  // Stacked mode has no walk: everything is on screen, so the bar behaves as
-  // if the reader is already at the end and the step links disappear.
-  const nextTab = deel ? undefined : visibleTabs[tabIndex + 1];
-  const prevTab = deel ? undefined : visibleTabs[tabIndex - 1];
-  const onLastTab = deel || tabIndex === visibleTabs.length - 1;
 
   /**
    * Comments on a field, with Ops' own controls folded into the popover so a
@@ -327,8 +309,8 @@ export default function OpsApplicationPage({
    * What still stands between Ops and marking this reviewed.
    *
    * A greyed-out button with a hover tooltip tells you nothing until you go
-   * looking for it — and only after you have walked to the last tab. This is
-   * the same information stated plainly, with a link to the tab that fixes it.
+   * looking for it. This is the same information stated plainly, as chips
+   * that jump to the section that fixes it.
    *
    * Only the programme is a hard gate (see `markReviewed`); unchecked
    * documents are surfaced because they are the job, not because they block.
@@ -348,7 +330,7 @@ export default function OpsApplicationPage({
   ).length;
   const readiness = [
     {
-      key: "eligibility" as TabKey,
+      href: "#requested-programs" as string | null,
       blocking: true,
       done: eligibleCount > 0,
       todo:
@@ -358,24 +340,24 @@ export default function OpsApplicationPage({
       why:
         programs.length === 0
           ? "The counsellor recommends programmes on the call; there is nothing to rule on yet."
-          : "The counsellor shortlists only among the eligible, so mark at least one. Tap to review.",
+          : "The counsellor shortlists only among the eligible, so mark at least one. Tap to jump there.",
     },
     {
       // Every section has to carry a verdict before this goes back. "Not
       // verified" is a perfectly good answer — it is *no* answer that leaves
       // the counsellor holding a profile nobody actually ruled on.
-      key: "profile" as TabKey,
+      href: "#eligibility-details" as string | null,
       blocking: true,
       done: ruledGroups === opsGroups.length,
       todo: `${opsGroups.length - ruledGroups} section${
         opsGroups.length - ruledGroups === 1 ? "" : "s"
       } not ruled on`,
-      why: "Mark each section Verified or Not verified — the counsellor sees the verdicts, not your intentions. Tap to review.",
+      why: "Mark each section Verified or Not verified — the counsellor sees the verdicts, not your intentions. Tap to jump there.",
     },
     {
       // The locker lives in the header now, so this one states the fact
       // rather than linking: `href: null` keeps it a plain chip.
-      key: null,
+      href: null,
       blocking: false,
       done: lockerUnchecked === 0,
       todo: `${lockerUnchecked} document${lockerUnchecked === 1 ? "" : "s"} unchecked`,
@@ -386,22 +368,6 @@ export default function OpsApplicationPage({
   const outstanding = readiness.filter((r) => !r.done);
   const blocked = outstanding.some((r) => r.blocking);
 
-  const tabCount: Record<TabKey, string | undefined> = {
-    profile: openRemarks > 0 ? String(openRemarks) : undefined,
-    // "!" until at least one programme is marked eligible — that's the
-    // review's gate — and a stale verdict outranks the count, because the
-    // count reads fine while the verdicts behind it are out of date.
-    eligibility:
-      staleVerdicts > 0
-        ? "!"
-        : eligibleCount > 0
-          ? `${eligibleCount}/${programs.length}`
-          : vetting
-            ? "!"
-            : programs.length > 0
-              ? String(programs.length)
-              : undefined,
-  };
 
   return (
     <Shell user={user} title="Ops Dashboard · Shortlisting">
@@ -439,7 +405,7 @@ export default function OpsApplicationPage({
           </div>
           <div className="flex flex-wrap items-center gap-2">
           {/* The locker is reference material Ops keeps coming back to, not a
-              stage of the review — one click from the header, any tab. */}
+              stage of the review — one click from the header, anywhere. */}
           <SideSheet
             title="Documents"
             subtitle={`${app.learner_name} · ${lockerVerified} of ${lockerUploaded} verified`}
@@ -499,7 +465,7 @@ export default function OpsApplicationPage({
         </div>
       </div>
 
-      {/* A learner edit after vetting sits above everything — the tabs below
+      {/* A learner edit after vetting sits above everything — the sections below
           are showing values that changed since anyone last read them. */}
       {recheck && (
         <RecheckNotice
@@ -510,7 +476,7 @@ export default function OpsApplicationPage({
           viewer="ops"
           openRemarks={recheckComments}
           staleVerdicts={staleVerdicts}
-          verdictHref={`/ops/application/${app.id}?tab=eligibility`}
+          verdictHref="#requested-programs"
         />
       )}
 
@@ -526,61 +492,24 @@ export default function OpsApplicationPage({
         className={`grid flex-1 gap-6 ${inlineActivity ? "lg:grid-cols-3" : ""}`}
       >
         <div className={`space-y-5 ${inlineActivity ? "lg:col-span-2" : ""}`}>
-          {/* Tabs — a single tab isn't a tab bar, and the restructure has
-              no tabs at all: the sections stack. */}
-          {!deel && visibleTabs.length > 1 && (
-          <div className="card p-1.5">
-            <div className="flex gap-1">
-              {visibleTabs.map((t) => {
-                const active = t.key === tab;
-                const count = tabCount[t.key];
-                return (
-                  <Link
-                    key={t.key}
-                    href={`/ops/application/${app.id}?tab=${t.key}`}
-                    scroll={false}
-                    className={`flex min-w-0 flex-1 basis-0 items-center justify-center gap-2 rounded-xl px-3 py-2 text-[13px] font-medium transition-colors ${
-                      active ? "bg-ink text-paper" : "text-body hover:bg-muted"
-                    }`}
-                  >
-                    {t.label}
-                    {count && (
-                      <span
-                        className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none ${
-                          active
-                            ? "bg-white/20"
-                            : t.key === "profile" || count === "!"
-                              ? "bg-[#f6efdd] text-[#8a6d2f]"
-                              : "bg-cream text-caption"
-                        }`}
-                      >
-                        {count}
-                      </span>
-                    )}
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-          )}
-
-          {/* ── Profile: field-by-field vetting ── */}
-          {(deel || tab === "profile") && (
-            <div className="card fade-up p-6">
-              <h2 className="font-display text-[15px] font-semibold tracking-tight">
-                Eligibility Details
-              </h2>
-              <p className="mb-5 mt-1 text-sm text-body">
-                {recheck?.kind === "appeal"
-                  ? "The counsellor is asking you to look at a programme again — their note is on the Eligibility tab. The details below have not changed."
+          {/* ── Field-by-field vetting ── */}
+          <SectionCard
+              id="eligibility-details"
+              className="fade-up"
+              icon={<IconShieldFill />}
+              title="Eligibility Details"
+              subtitle={
+                recheck?.kind === "appeal"
+                  ? "The counsellor is asking you to look at a programme again — their note is under Requested Programs below. The details here have not changed."
                   : recheck?.state === "ops"
                   ? "The learner changed the fields marked below after this was vetted. Re-read those against the documents — comment on anything wrong and send it to the counsellor, or clear the re-check."
                   : recheck
                     ? "The learner changed the fields marked below; the counsellor is taking your comments to them. It comes back here once they have."
                     : vetting
-                      ? "Check each field against the documents. The counsellor's answers are theirs to fix — leave a comment on anything wrong. The fields marked ops (scores, university) are yours to fill from the documents."
-                      : "Submitted learner details."}
-              </p>
+                      ? "Check each field against the documents — comment on anything wrong. The fields marked ops are yours to fill."
+                      : "Submitted learner details."
+              }
+            >
               {/* Grouped, because that is how a person reads a form: "Class 10"
                   is the marksheet AND the score AND the year, ruled on once.
                   Only a few groups are Ops' to verify — the rest are the
@@ -711,36 +640,30 @@ export default function OpsApplicationPage({
               ))}
               </div>
               {openRemarks > 0 && (
-                <p className="text-xs text-[#8a6d2f]">
+                <p className="mt-3 text-xs text-[#8a6d2f]">
                   {openRemarks} open remark(s) — these travel with the
                   application as a record of what you changed.
                 </p>
               )}
-            </div>
-          )}
+            </SectionCard>
 
-          {/* ── Eligibility ──
-              One tab, three parts in the order the decision is actually made:
+          {/* Three sections in the order the decision is actually made:
               what we know about the learner, what they will have to sign, and
               the programmes to rule on. */}
-          {(deel || tab === "eligibility") && (
-            <ProfileSummary
-              responses={responses}
-            />
-          )}
+          <ProfileSummary
+            responses={responses}
+            learnerName={app.learner_name}
+          />
 
 
           {/* ── Undertaking & Acknowledgement ── */}
-          {(deel || tab === "eligibility") && (
-            <div className="card fade-up p-6">
-              <h2 className="font-display text-[15px] font-semibold tracking-tight">
-                Undertaking &amp; Acknowledgement
-              </h2>
-              <p className="mb-4 mt-1 text-sm text-body">
-                Auto-generated when vetting starts, including any declarations
-                triggered on the call. Attach more if this learner needs them.
-              </p>
-
+          <SectionCard
+              id="undertakings"
+              className="fade-up"
+              icon={<IconPenFill />}
+              title="Undertaking & Acknowledgement"
+              subtitle="Auto-generated when vetting starts, including any declarations triggered on the call. Attach more if this learner needs them."
+            >
               {docs.length === 0 ? (
                 <EmptyState text="Documents are generated when you start vetting." />
               ) : (
@@ -825,27 +748,26 @@ export default function OpsApplicationPage({
                   The offer letter can only be released once they have done both.
                 </p>
               )}
-            </div>
-          )}
+            </SectionCard>
           {/* ── Requested Programs: the counsellor's picks, Ops' verdicts ── */}
-          {(deel || tab === "eligibility") && (
-            <div className="card fade-up p-6">
-              <h2 className="font-display text-[15px] font-semibold tracking-tight">
-                Requested Programs
-              </h2>
-              <p className="mb-4 mt-1 text-sm text-body">
-                {/* An appeal does not stale anything — it is one programme
-                    the counsellor is arguing about — so it is tested on its
-                    own rather than nested under the stale-verdict case. */}
-                {recheck?.kind === "appeal"
+          <SectionCard
+              id="requested-programs"
+              className="fade-up"
+              icon={<IconLayersFill />}
+              title="Requested Programs"
+              subtitle={
+                /* An appeal does not stale anything — it is one programme
+                   the counsellor is arguing about — so it is tested on its
+                   own rather than nested under the stale-verdict case. */
+                recheck?.kind === "appeal"
                   ? "The counsellor has appealed. Rule again on the programme they are asking about — their argument is on the card."
                   : staleVerdicts > 0
                   ? "The learner changed answers these verdicts were based on. Rule again on each one — including the programme they were shortlisted for, which comes off their application if it is no longer open to them."
                   : vetting
                     ? "Requested by the counsellor with the matching score beside each. Check eligibility against the documents and mark each one — the counsellor shortlists only among the eligible."
-                    : "The programmes the counsellor requested and your eligibility verdicts."}
-              </p>
-
+                    : "The programmes the counsellor requested and your eligibility verdicts."
+              }
+            >
               <div className="space-y-3">
                 {scored.length === 0 && (
                   <EmptyState text="The counsellor hasn't recommended any programmes yet." />
@@ -1034,8 +956,7 @@ export default function OpsApplicationPage({
                     />
                   </div>
                 )}
-            </div>
-          )}
+            </SectionCard>
         </div>
 
         {inlineActivity && (
@@ -1050,12 +971,13 @@ export default function OpsApplicationPage({
                 doneText="Everything checked — this can be marked reviewed."
               />
             )}
-            <div className="card fade-up p-5" style={{ animationDelay: "120ms" }}>
-              <h2 className="mb-3 font-display text-[15px] font-semibold tracking-tight">
-                Activity Timeline
-              </h2>
+            <SectionCard
+              className="fade-up !p-5"
+              icon={<IconClockFill />}
+              title="Activity Timeline"
+            >
               <CappedTimeline events={events} pending={opsPending} />
-            </div>
+            </SectionCard>
           </div>
         )}
       </div>
@@ -1076,7 +998,7 @@ export default function OpsApplicationPage({
                     disabled button, and colour-coding two chips beside it was
                     a third signal saying the same thing. The blocking one
                     keeps a small alert glyph, which costs no colour. */}
-                {onLastTab && outstanding.length > 0 ? (
+                {outstanding.length > 0 ? (
                   <span className="flex flex-wrap items-center gap-2">
                     {outstanding.map((r) => {
                       const chip = (
@@ -1085,18 +1007,19 @@ export default function OpsApplicationPage({
                           {r.todo}
                         </CardChip>
                       );
-                      // Documents have no tab any more — that one states the
-                      // fact and points at the header instead of linking.
-                      return r.key ? (
-                        <Link
+                      // The chip jumps to the section it is about — plain
+                      // anchors, since everything is on this page now. The
+                      // documents one states the fact and points at the
+                      // header instead of linking.
+                      return r.href ? (
+                        <a
                           key={r.todo}
-                          href={`/ops/application/${app.id}?tab=${r.key}`}
-                          scroll={false}
+                          href={r.href}
                           title={r.why}
                           className="transition-opacity hover:opacity-75"
                         >
                           {chip}
-                        </Link>
+                        </a>
                       ) : (
                         <span key={r.todo} title={r.why}>
                           {chip}
@@ -1106,56 +1029,31 @@ export default function OpsApplicationPage({
                   </span>
                 ) : (
                 <span className="text-xs text-caption">
-                  {onLastTab
-                    ? `${eligibleCount} of ${programs.length} programme(s) eligible · ${docs.length} undertaking(s)${
-                        openRemarks > 0 ? ` · ${openRemarks} open comment(s)` : ""
-                      } · ready to send`
-                    : tab === "profile"
-                      ? "Comment on the counsellor's answers, fill the ops fields — changes save as you go"
-                      : `${eligibleCount} of ${programs.length} requested programme(s) marked eligible`}
+                  {`${eligibleCount} of ${programs.length} programme(s) eligible · ${docs.length} undertaking(s)${
+                    openRemarks > 0 ? ` · ${openRemarks} open comment(s)` : ""
+                  } · ready to send`}
                 </span>
                 )}
                 <div className="ml-auto flex items-center gap-2">
-                  {prevTab && (
-                    <Link
-                      href={`/ops/application/${app.id}?tab=${prevTab.key}`}
-                      scroll={false}
-                      className="btn-secondary"
+                  <form action={markReviewed.bind(null, app.id)}>
+                    <button
+                      className="btn-success"
+                      disabled={blocked}
+                      title={
+                        blocked
+                          ? // Name the actual blocker. There is more than one
+                            // now, and "see the note above" sent Ops looking
+                            // for the wrong thing.
+                            outstanding
+                              .filter((r) => r.blocking)
+                              .map((r) => r.todo)
+                              .join(" · ")
+                          : ""
+                      }
                     >
-                      Back
-                    </Link>
-                  )}
-                  {onLastTab ? (
-                    <form action={markReviewed.bind(null, app.id)}>
-                      <button
-                        className="btn-success"
-                        disabled={blocked}
-                        title={
-                          blocked
-                            ? // Name the actual blocker. There is more than one
-                              // now, and "see the note above" sent Ops looking
-                              // for the wrong thing.
-                              outstanding
-                                .filter((r) => r.blocking)
-                                .map((r) => r.todo)
-                                .join(" · ")
-                            : ""
-                        }
-                      >
-                        Mark as Reviewed &amp; Notify AC
-                      </button>
-                    </form>
-                  ) : (
-                    <Link
-                      // Only reachable when a next tab exists (classic mode,
-                      // not the last tab) — the fallback is for the type.
-                      href={`/ops/application/${app.id}?tab=${nextTab?.key ?? "eligibility"}`}
-                      scroll={false}
-                      className="btn-primary"
-                    >
-                      Next
-                    </Link>
-                  )}
+                      Mark as Reviewed &amp; Notify AC
+                    </button>
+                  </form>
                 </div>
               </>
             ) : reRuling ? (
@@ -1164,11 +1062,11 @@ export default function OpsApplicationPage({
               <div className="flex w-full flex-wrap items-center gap-3">
                 <span className="text-xs text-caption">
                   {staleVerdicts > 0
-                    ? `${staleVerdicts} verdict${staleVerdicts === 1 ? "" : "s"} to re-rule on the Eligibility tab`
+                    ? `${staleVerdicts} verdict${staleVerdicts === 1 ? "" : "s"} to re-rule under Requested Programs`
                     : unruledCount > 0
-                      ? `${unruledCount} programme(s) still to rule on — Eligibility tab`
+                      ? `${unruledCount} programme(s) still to rule on under Requested Programs`
                       : eligibleCount === 0
-                        ? "Nothing is eligible — add a programme from the catalogue on the Eligibility tab"
+                        ? "Nothing is eligible — add a programme from the catalogue under Requested Programs"
                         : recheckComments > 0
                           ? `${recheckComments} comment${recheckComments === 1 ? "" : "s"} raised on the change`
                           : recheck?.kind === "appeal"
@@ -1205,7 +1103,7 @@ export default function OpsApplicationPage({
                           : unruledCount > 0
                             ? `Rule on the remaining ${unruledCount} programme(s) first — Eligible or Not eligible`
                             : eligibleCount === 0
-                              ? "Nothing is eligible any more — add a programme that is from the catalogue on the Eligibility tab, or the application has nowhere left to go"
+                              ? "Nothing is eligible any more — add a programme that is from the catalogue under Requested Programs, or the application has nowhere left to go"
                               : ""
                       }
                     >

@@ -66,11 +66,10 @@ export function activityInline(): boolean {
  * Flip it to true to bring v2 back for a comparison.
  */
 /**
- * Prototype-only: which structure the AC/Ops application journeys render in.
- * "classic" is the built design; "deel" is the reference restructure — no
- * Profile/Eligibility tabs, one working column with the rail carrying what's
- * missing and a capped timeline. Toggled from the role-switcher FAB so the
- * two can be compared live.
+ * Prototype-only: how far the AC/Ops application journeys lean into the
+ * reference treatment. The stacked one-column structure is the only layout
+ * now; "deel" additionally turns on the stronger type hierarchy and the
+ * Needs-fixing rail. Toggled from the role-switcher FAB.
  */
 export function staffView(): "classic" | "deel" {
   return staffViewRaw() === "deel" ? "deel" : "classic";

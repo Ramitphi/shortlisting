@@ -506,7 +506,7 @@ export default function OpsApplicationPage({
                   : recheck
                     ? "The learner changed the fields marked below; the counsellor is taking your comments to them. It comes back here once they have."
                     : vetting
-                      ? "Check each field against the documents — comment on anything wrong. The fields marked ops are yours to fill."
+                      ? "Check each field against the documents — the ops fields are yours to fill."
                       : "Submitted learner details."
               }
             >

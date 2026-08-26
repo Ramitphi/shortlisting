@@ -51,6 +51,24 @@ const GENDER_ICONS: Record<string, React.ReactNode> = {
 
 type Values = Record<string, string>;
 
+// The stepper survives the stacked layout as NAVIGATION, not pagination:
+// every section is open below, the strip shows how far each is and jumps to
+// it. Review is gone — that job moved into the submit confirmation dialog.
+const STEPS = [
+  { id: "profile", label: "Profile", hint: "Who the learner is" },
+  { id: "academics", label: "Academics", hint: "Marks & scores" },
+  { id: "financing", label: "Financing", hint: "How they'll pay" },
+  { id: "programmes", label: "Programmes", hint: "Pick from the AI's matches" },
+] as const;
+
+/** Which FORM_FIELDS section each step owns — used to route remark flags. */
+const SECTION_BY_STEP = [
+  "Profile Data",
+  "Academic Data",
+  "Financing",
+  "Programmes",
+] as const;
+
 /** Keep only digits, spaces and a leading +, and cap at 15 digits (E.164). */
 function sanitisePhone(raw: string): string {
   const plus = raw.trimStart().startsWith("+");
@@ -462,6 +480,75 @@ export function CallForm({
     [v, programmesCount]
   );
 
+  // A tick has to mean the step's required fields are filled — the strip is
+  // a live progress read, not a record of where you clicked.
+  const stepDone = useMemo(() => {
+    const profile =
+      Boolean(v.full_name && v.mobile && v.gender && v.dob && degree) &&
+      countries.length > 0 &&
+      (!isMinor || Boolean(v.guardian_email));
+    const academics =
+      Boolean(v.marksheet_10 && v.board_12 && v.status_12) &&
+      (!isMasters || Boolean(v.bachelor_status));
+    const financing = Boolean(v.finance_plan);
+    return [profile, academics, financing, programmesCount > 0];
+  }, [v, degree, countries, isMinor, isMasters, programmesCount]);
+
+  // Which section the reader is on, for the strip's dark pill: the last
+  // section whose top has passed the reading line just under the sticky
+  // strip. Computed from viewport rects on scroll — the shell scrolls an
+  // inner container, so the listener attaches to whatever ancestor of the
+  // form actually scrolls rather than assuming the window.
+  const [activeStep, setActiveStep] = useState(0);
+  useEffect(() => {
+    if (mode === "review") return;
+    const ids = STEPS.map((st) => `step-${st.id}`);
+    let node: HTMLElement | null = document.getElementById("call-form");
+    let scroller: HTMLElement | Window = window;
+    while (node) {
+      const st = getComputedStyle(node);
+      if (
+        node.scrollHeight > node.clientHeight &&
+        /(auto|scroll)/.test(st.overflowY)
+      ) {
+        scroller = node;
+        break;
+      }
+      node = node.parentElement;
+    }
+    let raf = 0;
+    const measure = () => {
+      raf = 0;
+      let idx = 0;
+      let last = 0;
+      for (let i = 0; i < ids.length; i++) {
+        const el = document.getElementById(ids[i]);
+        if (!el) continue;
+        last = i;
+        if (el.getBoundingClientRect().top <= 132) idx = i;
+      }
+      // The last section can be too short to ever cross the reading line —
+      // at the bottom of the scroll it wins regardless.
+      const sc =
+        scroller === window
+          ? document.scrollingElement
+          : (scroller as HTMLElement);
+      if (sc && sc.scrollTop + sc.clientHeight >= sc.scrollHeight - 8)
+        idx = last;
+      setActiveStep(idx);
+    };
+    const onScroll = () => {
+      if (!raf) raf = requestAnimationFrame(measure);
+    };
+    scroller.addEventListener("scroll", onScroll, { passive: true });
+    measure();
+    return () => {
+      scroller.removeEventListener("scroll", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, Boolean(programmes)]);
+
   /** Group wrapper: the page's block when it supplies one, else a heading. */
   const group = (key: string, label: string, children: React.ReactNode) =>
     groupBlock ? (
@@ -513,6 +600,76 @@ export function CallForm({
         }`}
       >
       <div className={`min-w-0 space-y-5 self-start ${sidebar ? "lg:col-span-2" : ""}`}>
+        {/* Stepper — a nav strip over the open stack, not pagination: the
+            tick is live progress, the flag is open Ops comments, the click
+            is a smooth jump. Sticky, because a jump strip that scrolls away
+            with the top of the page can never be jumped from. */}
+        {!resolving && (
+        <div className="sticky top-3 z-30">
+        <div className="card p-1.5 shadow-[0_10px_30px_-18px_rgba(49,48,43,0.35)]">
+          <div className="flex gap-1">
+            {STEPS.map((st, i) => {
+              const active = i === activeStep;
+              const done = stepDone[i];
+              const flags = remarks.filter(
+                (r) =>
+                  r.section === SECTION_BY_STEP[i] &&
+                  !r.resolved &&
+                  r.kind !== "info"
+              ).length;
+              return (
+                <button
+                  key={st.id}
+                  type="button"
+                  title={st.hint}
+                  onClick={() => {
+                    setActiveStep(i);
+                    // The shell scrolls an inner container, not the window —
+                    // scrollIntoView finds it; the card's scroll-mt clears
+                    // the sticky strip.
+                    document
+                      .getElementById(`step-${st.id}`)
+                      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }}
+                  className={`flex min-w-0 flex-1 basis-0 items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-[13px] font-medium transition-colors ${
+                    active
+                      ? "bg-ink text-paper"
+                      : done
+                        ? "text-ink hover:bg-muted"
+                        : "text-caption hover:bg-muted"
+                  }`}
+                >
+                  <span
+                    className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] ${
+                      active
+                        ? "bg-white/20"
+                        : done
+                          ? "bg-accent/10 text-accent"
+                          : "bg-cream"
+                    }`}
+                  >
+                    {done ? "✓" : i + 1}
+                  </span>
+                  <span className="truncate">{st.label}</span>
+                  {flags > 0 && (
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none ${
+                        active
+                          ? "bg-white/20"
+                          : "bg-[#f6efdd] text-[#8a6d2f]"
+                      }`}
+                    >
+                      {flags}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        </div>
+        )}
+
         {/* Comments Ops left on a field this board does not currently show —
             a guardian detail for an adult, a bachelor field for a Bachelors
             applicant. They render here so they can always be answered; without
@@ -537,7 +694,8 @@ export function CallForm({
 
         {/* ── Profile ── */}
           <SectionCard
-            className="fade-up"
+            id="step-profile"
+            className="fade-up !scroll-mt-20"
             icon={<IconUserFill />}
             title="Profile"
             subtitle="Confirm the details you have from the lead form while on the call."
@@ -666,7 +824,8 @@ export function CallForm({
 
         {/* ── Academics ── */}
           <SectionCard
-            className="fade-up"
+            id="step-academics"
+            className="fade-up !scroll-mt-20"
             icon={<IconCapFill />}
             title="Academics"
             subtitle="Ops will read scores off the documents — you only capture status and uploads."
@@ -917,7 +1076,8 @@ export function CallForm({
 
         {/* ── Financing ── */}
           <SectionCard
-            className="fade-up"
+            id="step-financing"
+            className="fade-up !scroll-mt-20"
             icon={<IconWalletFill />}
             title="Financing"
             subtitle="How the learner plans to fund tuition and living costs on campus."
@@ -949,7 +1109,8 @@ export function CallForm({
         {/* ── Programmes — the AI vet recommends, the counsellor picks ── */}
         {programmes && (
           <SectionCard
-            className="fade-up"
+            id="step-programmes"
+            className="fade-up !scroll-mt-20"
             icon={<IconLayersFill />}
             title="Requested programmes"
             subtitle="The AI reads everything captured on this call and puts its best matches below — add the ones worth sending. Ops rules on the eligibility of each, and only the eligible ones can be shortlisted."

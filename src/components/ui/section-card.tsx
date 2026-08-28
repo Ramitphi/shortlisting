@@ -35,8 +35,22 @@ export function SectionCard({
     // scroll-mt clears the sticky footer's opposite number: anchored jumps
     // land with the header visible instead of flush under the viewport top.
     <section id={id} className={cn("card scroll-mt-6 p-6", className)}>
-      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-        <span className="flex min-w-0 items-start gap-3">
+      <div
+        className={cn(
+          "flex flex-wrap justify-between gap-x-4 gap-y-2",
+          subtitle ? "items-start" : "items-center"
+        )}
+      >
+        {/* With a subtitle the glyph aligns to the TITLE's line, so a
+            subtitle that wraps to two lines cannot drag it to the middle
+            of the header. With no subtitle there is nothing to align to —
+            the tile is taller than a single-line title, so it centres. */}
+        <span
+          className={cn(
+            "flex min-w-0 gap-3",
+            subtitle ? "items-start" : "items-center"
+          )}
+        >
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cream text-ink [&_svg]:h-[17px] [&_svg]:w-[17px]">
             {icon}
           </span>

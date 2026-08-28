@@ -166,7 +166,7 @@ export default function LearnerApplicationsList() {
                   <span className="flex flex-wrap items-center gap-4 text-[13px]">
                     {offer && (
                       <Link
-                        href={`/learner/application/${app.id}?tab=review&step=3`}
+                        href={`/learner/application/${app.id}?tab=review&step=2`}
                         className="flex items-center gap-1.5 font-medium text-accent hover:underline"
                       >
                         <IconCheck className="h-3.5 w-3.5" />
@@ -175,7 +175,7 @@ export default function LearnerApplicationsList() {
                     )}
                     {signed > 0 && (
                       <Link
-                        href={`/learner/application/${app.id}?tab=review&step=3`}
+                        href={`/learner/application/${app.id}?tab=review&step=2`}
                         className="font-medium text-body hover:text-ink hover:underline"
                       >
                         {signed} signed document{signed === 1 ? "" : "s"}

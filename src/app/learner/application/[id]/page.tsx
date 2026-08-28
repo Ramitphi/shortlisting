@@ -48,17 +48,21 @@ import { docRows, signeesFor } from "@/lib/documents";
 import { CertifyDialog } from "../../certify-block";
 import { DetailRows } from "../../detail-rows";
 import { ProfileSectionCards } from "../../profile-cards";
-import { ProgrammeCard } from "../../programme-card";
 
 
 /**
  * The learner's application, inside upgrad.com's profile area.
  *
  * Signing is the end of a PROCESS, not a tab: "Review & sign" opens a guided
- * walk — Your details → Your programme → Undertaking — and the signature and
- * certification controls exist only on the last step. The learner cannot sign
- * what they haven't just re-read; that ordering is the product rule, and the
- * walk is how the UI enforces it.
+ * walk — Your details → Undertaking — and the signature and certification
+ * controls exist only on the last step. The learner cannot sign what they
+ * haven't just re-read; that ordering is the product rule, and the walk is
+ * how the UI enforces it.
+ *
+ * There was a programme step between the two. It showed the learner the one
+ * thing they already knew — they chose it, their counsellor rang them about
+ * it — so it was a click that carried no decision. The programme still gates
+ * certification; it just no longer needs a screen.
  */
 const SECTIONS: Record<string, UgSection | "review"> = {
   // The walk IS the application view now — the old overview screen carried
@@ -74,8 +78,7 @@ const SECTIONS: Record<string, UgSection | "review"> = {
 
 const WALK = [
   { n: 1, label: "Your details" },
-  { n: 2, label: "Your programme" },
-  { n: 3, label: "Undertaking" },
+  { n: 2, label: "Undertaking" },
 ] as const;
 
 export default function LearnerApplicationPage({
@@ -130,13 +133,12 @@ export default function LearnerApplicationPage({
   const programme = programs[0];
 
   const section = SECTIONS[searchParams.tab ?? ""] ?? "review";
-  const step = Math.min(3, Math.max(1, Number(searchParams.step) || 1));
+  const step = Math.min(2, Math.max(1, Number(searchParams.step) || 1));
   const walkHref = (s: number) =>
     `/learner/application/${app.id}?tab=review&step=${s}`;
 
   const shellSection: UgSection = section === "review" ? "application" : section;
 
-  const programmeCard = programme && <ProgrammeCard programme={programme} />;
 
   const undertakingGrid = (signable: boolean) => (
     <div className="space-y-2">
@@ -285,7 +287,7 @@ export default function LearnerApplicationPage({
 
           {/* Their change is being checked. Said once, at the top of the
               walk — the edit happens on step 1 and the held Certify button
-              is on step 3, so neither place alone would explain it. */}
+              is on step 2, so neither place alone would explain it. */}
           {recheck && canSign && (
             <div className="card mt-4 flex items-start gap-3 bg-paper p-5">
               <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-body">
@@ -350,25 +352,10 @@ export default function LearnerApplicationPage({
             </>
           )}
 
-          {/* Step 2 — the programme those details earned */}
+          {/* The last step — only here can anything be signed or certified,
+              and the close of the journey (certified note, offer letter)
+              lives here too now that the overview screen is gone. */}
           {step === 2 && (
-            <div className="card mt-4 p-6">
-              <h2 className="text-[18px] font-medium">Your programme</h2>
-              <p className="mt-1 text-[13.5px] text-body">
-                The programme you have been shortlisted for.
-              </p>
-              {programme ? (
-                programmeCard
-              ) : (
-                <EmptyState text="We're preparing your options — your shortlisted programme appears here." />
-              )}
-            </div>
-          )}
-
-          {/* Step 3 — only here can anything be signed or certified, and the
-              close of the journey (certified note, offer letter) lives here
-              too now that the overview screen is gone. */}
-          {step === 3 && (
             <>
               <div className="card mt-4 p-6">
                 <h2 className="text-[18px] font-medium">
@@ -458,15 +445,15 @@ export default function LearnerApplicationPage({
             >
               Back
             </Link>
-            {step < 3 ? (
+            {step < 2 ? (
               <Link href={walkHref(step + 1)} className="btn-primary">
-                {step === 1 ? "These are correct — continue" : "Continue"}
+                These are correct — continue
               </Link>
             ) : (
               <span className="text-[12.5px] text-caption">
                 {canSign && !certified
-                  ? "Step 3 of 3 — sign above, then certify"
-                  : "Step 3 of 3"}
+                  ? "Step 2 of 2 — sign above, then certify"
+                  : "Step 2 of 2"}
               </span>
             )}
           </div>

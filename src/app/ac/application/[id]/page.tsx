@@ -793,10 +793,9 @@ export default function AcApplicationPage({
                               )}
                               <FieldComments comments={commentsFor(f.key)} />
                             </span>
-                            {/* Value and verdict share the cell, so a chip
-                                never wraps to its own ragged line under the
-                                label — narrow columns tuck it under the
-                                value instead, at a tight gap. */}
+                            {/* Value left, verdict pinned to the row's
+                                right edge — one chip column down the card
+                                rather than a chip trailing each value. */}
                             <div className="flex min-w-[12rem] flex-1 basis-0 flex-wrap items-center gap-x-3 gap-y-1">
                               {f.type === "file" ? (
                                 <div className="min-w-0 text-sm">
@@ -818,6 +817,7 @@ export default function AcApplicationPage({
                               {/* Ops' verdict on this exact answer —
                                   read-only here, it is their call to make. */}
                               <FieldVerdictMark
+                                className="ml-auto"
                                 state={fieldChecks[f.key]?.state}
                                 byName={fieldChecks[f.key]?.by_name}
                                 at={fieldChecks[f.key]?.at}

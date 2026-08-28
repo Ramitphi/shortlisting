@@ -23,6 +23,7 @@ export function FieldVerdict({
   byName,
   at,
   children,
+  className = "",
 }: {
   /** Ops' current verdict, if they have given one. */
   state?: "correct" | "incorrect" | null;
@@ -37,6 +38,8 @@ export function FieldVerdict({
   at?: string | null;
   /** The note form — rendered under the icons once the note icon is on. */
   children?: React.ReactNode;
+  /** Extra classes on the icon cluster (e.g. ml-auto to pin it right). */
+  className?: string;
 }) {
   const [noteOpen, setNoteOpen] = useState(false);
   const stamp = `${byName ?? "Ops"}${at ? ` · ${at.slice(0, 10)}` : ""}`;
@@ -50,7 +53,7 @@ export function FieldVerdict({
 
   return (
     <>
-      <div className="flex shrink-0 items-center gap-0.5">
+      <div className={`flex shrink-0 items-center gap-0.5 ${className}`}>
         <form action={correctAction}>
           <button
             title={
@@ -112,10 +115,13 @@ export function FieldVerdictMark({
   state,
   byName,
   at,
+  className = "",
 }: {
   state?: "correct" | "incorrect" | null;
   byName?: string | null;
   at?: string | null;
+  /** Extra classes on the chip (e.g. ml-auto to pin it right). */
+  className?: string;
 }) {
   if (!state) return null;
   const stamp = `${byName ?? "Ops"}${at ? ` on ${at.slice(0, 10)}` : ""}`;
@@ -123,7 +129,7 @@ export function FieldVerdictMark({
     <span
       title={`Marked ${state} by ${stamp}`}
       aria-label={`Ops marked this ${state}`}
-      className={`inline-flex h-[18px] shrink-0 items-center gap-1 rounded-full border px-1.5 text-[10.5px] font-semibold ${
+      className={`inline-flex h-[18px] shrink-0 items-center gap-1 rounded-full border px-1.5 text-[10.5px] font-semibold ${className} ${
         state === "correct"
           ? "border-[#cfe3d2] bg-[#e8f2e9] text-[#3f6c45]"
           : "border-[#e6cdcf] bg-[#f7ebec] text-[#9c3b41]"

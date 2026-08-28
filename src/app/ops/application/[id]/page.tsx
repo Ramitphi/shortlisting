@@ -620,11 +620,10 @@ export default function OpsApplicationPage({
                                 them, never overwrites them. Only the
                                 ops-owned fields (scores, university — read
                                 off the documents) are Ops' to fill. */}
-                            {/* Value and verdict share the cell, so the
-                                icon cluster never wraps to its own ragged
-                                line under the label — narrow columns tuck
-                                it under the value at a tight gap, and the
-                                note form opens across the cell below. */}
+                            {/* Value left, verdict pinned to the row's
+                                right edge — one icon column down the card,
+                                not a cluster trailing each value at its own
+                                x. The note form opens across the cell. */}
                             <div className="flex min-w-[12rem] flex-1 basis-0 flex-wrap items-center gap-x-3 gap-y-1">
                               {f.type === "file" ? (
                                 <div className="min-w-0 break-words text-sm">
@@ -645,6 +644,7 @@ export default function OpsApplicationPage({
                               )}
                               {canComment && f.filledBy !== "ops" && (
                               <FieldVerdict
+                                className="ml-auto"
                                 state={fieldChecks[f.key]?.state}
                                 byName={fieldChecks[f.key]?.by_name}
                                 at={fieldChecks[f.key]?.at}

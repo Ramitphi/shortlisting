@@ -103,7 +103,7 @@ export function ReviewGroupBlock({
 
         </span>
 
-        <span className="flex shrink-0 flex-wrap items-center gap-2">
+        <span className="ml-auto flex shrink-0 flex-wrap items-center gap-2">
           {/* The counsellor's one click: this group is right. */}
           {viewer === "ac" &&
             canTick &&
@@ -150,10 +150,8 @@ export function ReviewGroupBlock({
                 </button>
               </form>
               {/* The reason is asked for when it is needed, not parked in an
-                  input on every section header. The old inline box also made
-                  the button look broken: pressing it with the box empty was a
-                  silent no-op, because the action refuses a verdict with no
-                  reason attached. */}
+                  input on every section header — and it is optional: the
+                  verdict is the point, the note is a courtesy. */}
               <button
                 type="button"
                 onClick={() => setRejecting(true)}
@@ -197,16 +195,16 @@ export function ReviewGroupBlock({
                 What&apos;s wrong with {group.label}?
               </h3>
               <p className="mt-1 text-[13px] leading-relaxed text-body">
-                This goes to the counsellor as a comment on the section, so
-                write what they need to change.
+                Every field below gets marked incorrect — flip back any that
+                are fine. A note reaches the counsellor as a comment, or
+                leave it blank and just mark it.
               </p>
               <textarea
                 name="comment"
-                required
                 autoFocus
                 rows={3}
                 defaultValue={rejected ? opsCheck?.comment ?? "" : ""}
-                placeholder="e.g. the marksheet is a photo of a photocopy — ask for a clean scan"
+                placeholder="Optional — e.g. the marksheet is a photo of a photocopy, ask for a clean scan"
                 className="input mt-3 !h-auto w-full !py-2 !text-[13px]"
               />
               <div className="mt-4 flex gap-2">

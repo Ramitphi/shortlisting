@@ -67,7 +67,13 @@ export function OpsField({
   const hidden = useRef<HTMLInputElement>(null);
 
   return (
-    <form ref={form} action={action} className="w-full max-w-[260px]">
+    <form
+      ref={form}
+      action={action}
+      // Grows into the cell up to the cap but never claims the whole line —
+      // the verdict beside it stays on the same row.
+      className="min-w-[10rem] max-w-[260px] flex-1 basis-0"
+    >
       {field.multi && field.options ? (
         <>
           {/* A DOM write, not React state — requestSubmit runs before the

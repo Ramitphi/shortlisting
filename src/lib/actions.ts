@@ -584,9 +584,9 @@ export async function setGroupReview(
 
   const verdict = String(formData.get("verdict"));
   if (verdict !== "verified" && verdict !== "not_verified") return;
+  // Optional either way — a reason helps the counsellor, but Ops may just
+  // want the verdict down and the conversation to happen on the fields.
   const comment = String(formData.get("comment") ?? "").trim();
-  // "Not verified" without a reason is a dead end for whoever reads it next.
-  if (verdict === "not_verified" && !comment) return;
 
   getDb()
     .prepare(
@@ -617,17 +617,20 @@ export async function setGroupReview(
   // on it; making them then tick each field inside would be the same judgement
   // typed eight times. Only the counsellor's fields — the ops-owned ones are
   // Ops' own to type, so there is nothing to rule on.
-  if (verdict === "verified") {
-    const tick = db2.prepare(
-      `INSERT INTO field_checks (application_id, field_key, state, by_id, at)
-       VALUES (?, ?, 'correct', ?, datetime('now'))
-       ON CONFLICT (application_id, field_key)
-       DO UPDATE SET state = excluded.state, by_id = excluded.by_id, at = excluded.at`
-    );
-    for (const key of group.fields) {
-      const f = FORM_FIELDS.find((x) => x.key === key);
-      if (f && f.filledBy !== "ops") tick.run(applicationId, key, user.id);
-    }
+  // Both verdicts, symmetrically: ruling on the section rules on what is in
+  // it, so the field icons below always agree with the header. A field the
+  // blanket verdict gets wrong is one click to flip back — and flipping them
+  // all back flips the section with them (see setFieldCheck).
+  const mark = db2.prepare(
+    `INSERT INTO field_checks (application_id, field_key, state, by_id, at)
+     VALUES (?, ?, ?, ?, datetime('now'))
+     ON CONFLICT (application_id, field_key)
+     DO UPDATE SET state = excluded.state, by_id = excluded.by_id, at = excluded.at`
+  );
+  const fieldState = verdict === "verified" ? "correct" : "incorrect";
+  for (const key of group.fields) {
+    const f = FORM_FIELDS.find((x) => x.key === key);
+    if (f && f.filledBy !== "ops") mark.run(applicationId, key, fieldState, user.id);
   }
 
   const pin = commentableFieldOf(group);
@@ -642,7 +645,7 @@ export async function setGroupReview(
          AND author_id = ? AND text LIKE ?`
     )
     .run(applicationId, pin, user.id, `${group.label}: %`);
-  if (verdict === "not_verified") {
+  if (verdict === "not_verified" && comment) {
     db2
       .prepare(
         "INSERT INTO remarks (application_id, field_key, author_id, text, kind) VALUES (?, ?, ?, ?, 'action')"

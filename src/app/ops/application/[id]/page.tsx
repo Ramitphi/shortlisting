@@ -1,15 +1,15 @@
 "use client";
 
 import { useDbVersion } from "@/components/db-provider";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Shell, requireRole } from "@/components/shell";
-import { activityInline, staffView } from "@/lib/auth";
+import { activityInline } from "@/lib/auth";
 import {
   BackLink,
   CardChip,
   CertifiedChip,
   FieldComments,
-  NeedsFixing,
   VerifiedSeal,
   FieldVerdict,
   ChangedPin,
@@ -102,8 +102,10 @@ import {
 
 export default function OpsApplicationPage({
   params,
+  searchParams,
 }: {
   params: { id: string };
+  searchParams: { tab?: string };
 }) {
   // Re-render on any browser-db or session change.
   useDbVersion();
@@ -246,9 +248,6 @@ export default function OpsApplicationPage({
     keywords: t.clause_id ?? "",
   }));
 
-  // No tabs: every section stacks in one working column and the rail
-  // carries what is missing. The FAB switch only changes the typography.
-  const deel = staffView() === "deel";
 
   /**
    * Comments on a field, with Ops' own controls folded into the popover so a
@@ -328,9 +327,21 @@ export default function OpsApplicationPage({
   const unruledCount = programs.filter(
     (p) => p.eligibility !== "eligible" && p.eligibility !== "not_eligible"
   ).length;
+  // Two tabs over the sectioned stack: the vetting board on one, the
+  // decision (summary, undertakings, programmes) on the other. The cards
+  // keep their icon-and-title anatomy — the tabs only split the walk.
+  const TABS = [
+    { key: "profile", label: "Profile" },
+    { key: "eligibility", label: "Eligibility" },
+  ] as const;
+  type TabKey = (typeof TABS)[number]["key"];
+  const tab: TabKey =
+    searchParams.tab === "eligibility" ? "eligibility" : "profile";
+  const onLastTab = tab === "eligibility";
+
   const readiness = [
     {
-      href: "#requested-programs" as string | null,
+      href: "?tab=eligibility" as string | null,
       blocking: true,
       done: eligibleCount > 0,
       todo:
@@ -340,19 +351,19 @@ export default function OpsApplicationPage({
       why:
         programs.length === 0
           ? "The counsellor recommends programmes on the call; there is nothing to rule on yet."
-          : "The counsellor shortlists only among the eligible, so mark at least one. Tap to jump there.",
+          : "The counsellor shortlists only among the eligible, so mark at least one. Tap to review.",
     },
     {
       // Every section has to carry a verdict before this goes back. "Not
       // verified" is a perfectly good answer — it is *no* answer that leaves
       // the counsellor holding a profile nobody actually ruled on.
-      href: "#eligibility-details" as string | null,
+      href: "?tab=profile" as string | null,
       blocking: true,
       done: ruledGroups === opsGroups.length,
       todo: `${opsGroups.length - ruledGroups} section${
         opsGroups.length - ruledGroups === 1 ? "" : "s"
       } not ruled on`,
-      why: "Mark each section Verified or Not verified — the counsellor sees the verdicts, not your intentions. Tap to jump there.",
+      why: "Mark each section Verified or Not verified — the counsellor sees the verdicts, not your intentions. Tap to review.",
     },
     {
       // The locker lives in the header now, so this one states the fact
@@ -476,15 +487,11 @@ export default function OpsApplicationPage({
           viewer="ops"
           openRemarks={recheckComments}
           staleVerdicts={staleVerdicts}
-          verdictHref="#requested-programs"
+          verdictHref="?tab=eligibility"
         />
       )}
 
-      <div
-        className={`-mb-12 flex min-h-[calc(100dvh-13.5rem)] flex-col${
-          deel ? " deel-view" : ""
-        }`}
-      >
+      <div className="-mb-12 flex min-h-[calc(100dvh-13.5rem)] flex-col">
       {/* Content left, Activity in the right rail — unless the timeline is
           switched off, in which case the content takes the whole width and the
           log lives behind the header button. */}
@@ -492,7 +499,55 @@ export default function OpsApplicationPage({
         className={`grid flex-1 gap-6 ${inlineActivity ? "lg:grid-cols-3" : ""}`}
       >
         <div className={`space-y-5 ${inlineActivity ? "lg:col-span-2" : ""}`}>
+          {/* Tabs — the vetting board and the decision, walked in order. */}
+          <div className="card p-1.5">
+            <div className="flex gap-1">
+              {TABS.map((t) => {
+                const active = t.key === tab;
+                const count =
+                  t.key === "profile"
+                    ? openRemarks > 0
+                      ? String(openRemarks)
+                      : undefined
+                    : staleVerdicts > 0
+                      ? "!"
+                      : eligibleCount > 0
+                        ? `${eligibleCount}/${programs.length}`
+                        : vetting
+                          ? "!"
+                          : undefined;
+                return (
+                  <Link
+                    key={t.key}
+                    href={`/ops/application/${app.id}?tab=${t.key}`}
+                    scroll={false}
+                    className={`flex min-w-0 flex-1 basis-0 items-center justify-center gap-2 rounded-xl px-3 py-2 text-[13px] font-medium transition-colors ${
+                      active ? "bg-ink text-paper" : "text-body hover:bg-muted"
+                    }`}
+                  >
+                    <span className="truncate">{t.label}</span>
+                    {count && (
+                      <span
+                        className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none ${
+                          active
+                            ? "bg-white/20"
+                            : count === "!" ||
+                                (t.key === "profile" && openRemarks > 0)
+                              ? "bg-[#f6efdd] text-[#8a6d2f]"
+                              : "bg-cream text-caption"
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+
           {/* ── Field-by-field vetting ── */}
+          {tab === "profile" && (
           <SectionCard
               id="eligibility-details"
               className="fade-up"
@@ -646,17 +701,21 @@ export default function OpsApplicationPage({
                 </p>
               )}
             </SectionCard>
+          )}
 
           {/* Three sections in the order the decision is actually made:
               what we know about the learner, what they will have to sign, and
               the programmes to rule on. */}
+          {tab === "eligibility" && (
           <ProfileSummary
             responses={responses}
             learnerName={app.learner_name}
           />
+          )}
 
 
           {/* ── Undertaking & Acknowledgement ── */}
+          {tab === "eligibility" && (
           <SectionCard
               id="undertakings"
               className="fade-up"
@@ -749,7 +808,9 @@ export default function OpsApplicationPage({
                 </p>
               )}
             </SectionCard>
+          )}
           {/* ── Requested Programs: the counsellor's picks, Ops' verdicts ── */}
+          {tab === "eligibility" && (
           <SectionCard
               id="requested-programs"
               className="fade-up"
@@ -957,20 +1018,11 @@ export default function OpsApplicationPage({
                   </div>
                 )}
             </SectionCard>
+          )}
         </div>
 
         {inlineActivity && (
           <div className="space-y-5">
-            {/* What stands between this application and its next step, above
-                the history — the reader wants the to-do before the archive. */}
-            {deel && (
-              <NeedsFixing
-                items={outstanding
-                  .filter((r) => !r.done)
-                  .map((r) => ({ label: r.todo, detail: r.why }))}
-                doneText="Everything checked — this can be marked reviewed."
-              />
-            )}
             <SectionCard
               className="fade-up !p-5"
               icon={<IconClockFill />}
@@ -998,7 +1050,7 @@ export default function OpsApplicationPage({
                     disabled button, and colour-coding two chips beside it was
                     a third signal saying the same thing. The blocking one
                     keeps a small alert glyph, which costs no colour. */}
-                {outstanding.length > 0 ? (
+                {onLastTab && outstanding.length > 0 ? (
                   <span className="flex flex-wrap items-center gap-2">
                     {outstanding.map((r) => {
                       const chip = (
@@ -1007,19 +1059,19 @@ export default function OpsApplicationPage({
                           {r.todo}
                         </CardChip>
                       );
-                      // The chip jumps to the section it is about — plain
-                      // anchors, since everything is on this page now. The
+                      // The chip links to the tab that fixes it. The
                       // documents one states the fact and points at the
                       // header instead of linking.
                       return r.href ? (
-                        <a
+                        <Link
                           key={r.todo}
                           href={r.href}
+                          scroll={false}
                           title={r.why}
                           className="transition-opacity hover:opacity-75"
                         >
                           {chip}
-                        </a>
+                        </Link>
                       ) : (
                         <span key={r.todo} title={r.why}>
                           {chip}
@@ -1029,31 +1081,52 @@ export default function OpsApplicationPage({
                   </span>
                 ) : (
                 <span className="text-xs text-caption">
-                  {`${eligibleCount} of ${programs.length} programme(s) eligible · ${docs.length} undertaking(s)${
-                    openRemarks > 0 ? ` · ${openRemarks} open comment(s)` : ""
-                  } · ready to send`}
+                  {onLastTab
+                    ? `${eligibleCount} of ${programs.length} programme(s) eligible · ${docs.length} undertaking(s)${
+                        openRemarks > 0 ? ` · ${openRemarks} open comment(s)` : ""
+                      } · ready to send`
+                    : "Comment on the counsellor's answers, fill the ops fields — changes save as you go"}
                 </span>
                 )}
                 <div className="ml-auto flex items-center gap-2">
-                  <form action={markReviewed.bind(null, app.id)}>
-                    <button
-                      className="btn-success"
-                      disabled={blocked}
-                      title={
-                        blocked
-                          ? // Name the actual blocker. There is more than one
-                            // now, and "see the note above" sent Ops looking
-                            // for the wrong thing.
-                            outstanding
-                              .filter((r) => r.blocking)
-                              .map((r) => r.todo)
-                              .join(" · ")
-                          : ""
-                      }
+                  {onLastTab ? (
+                    <>
+                      <Link
+                        href={`/ops/application/${app.id}?tab=profile`}
+                        scroll={false}
+                        className="btn-secondary"
+                      >
+                        Back
+                      </Link>
+                      <form action={markReviewed.bind(null, app.id)}>
+                        <button
+                          className="btn-success"
+                          disabled={blocked}
+                          title={
+                            blocked
+                              ? // Name the actual blocker. There is more than
+                                // one, and "see the note above" sent Ops
+                                // looking for the wrong thing.
+                                outstanding
+                                  .filter((r) => r.blocking)
+                                  .map((r) => r.todo)
+                                  .join(" · ")
+                              : ""
+                          }
+                        >
+                          Mark as Reviewed &amp; Notify AC
+                        </button>
+                      </form>
+                    </>
+                  ) : (
+                    <Link
+                      href={`/ops/application/${app.id}?tab=eligibility`}
+                      scroll={false}
+                      className="btn-primary"
                     >
-                      Mark as Reviewed &amp; Notify AC
-                    </button>
-                  </form>
+                      Next
+                    </Link>
+                  )}
                 </div>
               </>
             ) : reRuling ? (

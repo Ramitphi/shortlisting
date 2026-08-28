@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { RoleSwitcher } from "./role-switcher";
 import { UgBody } from "./ug-body";
-import { activityInline, learnerView, type User, staffView } from "@/lib/auth";
+import { activityInline, learnerView, type User } from "@/lib/auth";
 import { logout } from "@/lib/actions";
 import {
   IconBriefcase,
@@ -327,7 +327,6 @@ export function UpgradShell({
         currentRole={user.role}
         currentEmail={user.email}
         activityInline={activityInline()}
-        deelView={staffView() === "deel"}
         learnerV2={v2}
       />
     </div>

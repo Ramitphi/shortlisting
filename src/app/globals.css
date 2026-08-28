@@ -325,26 +325,3 @@ select.input {
   transform: translateY(-2px);
   box-shadow: 0 12px 24px -12px rgb(49 48 43 / 0.14);
 }
-
-/*
- * The reference restructure ("Deel view") — a scope class, not a theme fork.
- * Same tokens, but the type hierarchy is turned up: titles earn their size,
- * labels drop back, and the steps between them are unmistakable. Wrapped
- * around the application/form journeys when the switch is on.
- */
-.deel-view h1 {
-  font-size: 32px;
-  letter-spacing: -0.022em;
-}
-.deel-view .card {
-  border-color: transparent;
-  box-shadow: 0 1px 2px rgb(16 17 20 / 0.05), 0 8px 24px -12px rgb(16 17 20 / 0.08);
-}
-.deel-view .card h2 {
-  font-size: 17px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-.deel-view .label {
-  font-size: 12px;
-}

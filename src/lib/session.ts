@@ -55,16 +55,6 @@ export function setActivityView(v: "inline" | "drawer"): void {
   write(ACTIVITY_KEY, v);
 }
 
-const STAFF_VIEW_KEY = "shortlisting_staff_view";
-
-export function staffViewRaw(): string | null {
-  return read(STAFF_VIEW_KEY);
-}
-
-export function setStaffView(v: "classic" | "deel"): void {
-  write(STAFF_VIEW_KEY, v);
-}
-
 export function learnerViewRaw(): string | null {
   return read(LEARNER_VIEW_KEY);
 }

@@ -10,8 +10,6 @@ import {
   setLearnerView,
   setSessionUid,
   activityViewRaw,
-  staffViewRaw,
-  setStaffView,
   learnerViewRaw,
 } from "./session";
 import { requireUser } from "./auth";
@@ -77,12 +75,6 @@ export async function resetDemoData() {
 export async function toggleActivityView() {
   requireUser();
   setActivityView(activityViewRaw() === "drawer" ? "inline" : "drawer");
-}
-
-/** Prototype-only: toggles the reference type treatment + Needs-fixing rail. */
-export async function toggleStaffView() {
-  requireUser();
-  setStaffView(staffViewRaw() === "deel" ? "classic" : "deel");
 }
 
 /**
@@ -1913,9 +1905,9 @@ export async function sendOfferLetter(applicationId: number, formData: FormData)
   notify(app.learner_id, `Your offer letter for ${chosen.name} (${chosen.institute}) is here!`, "/learner");
   if (app.ac_id) notify(app.ac_id, `Offer letter sent to ${app.learner_name} for ${chosen.name}`, `/ac/application/${applicationId}`);
   dirty();
-  // Back to the application, which now stacks everything on one page — the
-  // toast is what says the letter has gone.
-  goto(`/ops/application/${applicationId}?toast=offer`);
+  // Back to the tab the send happened on — landing on the default one
+  // would hide the very state the toast is announcing.
+  goto(`/ops/application/${applicationId}?tab=eligibility&toast=offer`);
 }
 
 // ---------- Admin ----------

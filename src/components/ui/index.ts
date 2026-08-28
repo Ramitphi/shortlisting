@@ -31,5 +31,4 @@ export { FieldVerdict, FieldVerdictMark } from "./field-verdict";
 export { VerifiedSeal } from "./verified-seal";
 export { TaskRow } from "./task-row";
 export { CappedTimeline } from "./capped-timeline";
-export { NeedsFixing } from "./needs-fixing";
 export { SectionCard } from "./section-card";

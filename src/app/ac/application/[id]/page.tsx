@@ -1,9 +1,10 @@
 "use client";
 
 import { useDbVersion } from "@/components/db-provider";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Shell, requireRole } from "@/components/shell";
-import { activityInline, staffView } from "@/lib/auth";
+import { activityInline } from "@/lib/auth";
 import {
   BackLink,
   EmptyState,
@@ -12,7 +13,6 @@ import {
   CappedTimeline,
   Meta,
   FieldComments,
-  NeedsFixing,
   VerifiedSeal,
   FieldVerdictMark,
   ChangedPin,
@@ -299,10 +299,23 @@ export default function AcApplicationPage({
   // away in the header). Ops' pins and verdicts render live as they work —
   // read-only for the counsellor until the application comes back.
   const withOps = app.status === "under_review";
-  // The reference typography treatment — FAB-toggled.
-  const deel = staffView() === "deel";
 
-  // The pick travels in the URL so it survives navigations.
+  // Two tabs over the sectioned stack: the form on one, the decision
+  // (summary, undertakings, programmes) on the other. The cards inside
+  // keep their own icon-and-title anatomy — the tabs only split the walk.
+  const TABS = [
+    { key: "profile", label: "Profile" },
+    { key: "eligibility", label: "Eligibility" },
+  ] as const;
+  type TabKey = (typeof TABS)[number]["key"];
+  // While Ops holds it there is nothing to decide yet — one tab, no bar.
+  const visibleTabs = withOps ? TABS.filter((t) => t.key === "profile") : TABS;
+  const requestedTab = searchParams.tab as TabKey | undefined;
+  const tab: TabKey = visibleTabs.some((t) => t.key === requestedTab)
+    ? (requestedTab as TabKey)
+    : "profile";
+
+  // The pick travels in the URL so it survives the tab walk.
   const selected = Number(searchParams.sel) || null;
   // Ops ruled; the shortlist radio only offers what survived.
   const eligiblePrograms = programs.filter((p) => p.eligibility === "eligible");
@@ -350,38 +363,6 @@ export default function AcApplicationPage({
     programs.some((p) => p.shortlisted)
   );
   const inline = activityInline();
-  // What stands between this application and its next step, for the rail —
-  // the classic layout spreads this across badges and footer chips.
-  const fixItems: { label: string; detail?: string }[] = [];
-  // A draft's missing answers are the whole to-do list.
-  if (app.status === "draft") {
-    for (const need of missingForSubmit(responses, programs.length)) {
-      fixItems.push({ label: need });
-    }
-  }
-  if (openRemarks.length > 0)
-    fixItems.push({
-      label: `${openRemarks.length} comment${openRemarks.length === 1 ? "" : "s"} from Ops to answer`,
-      detail: "Fix the field, then acknowledge or reply",
-    });
-  if (canShortlist && eligiblePrograms.length > 0 && !programs.some((p) => p.shortlisted))
-    fixItems.push({
-      label: "Pick the programme to send",
-      detail: `${eligiblePrograms.length} ruled eligible by Ops`,
-    });
-  if (app.status === "shortlisted") {
-    const unsigned = docs.filter((d) => !d.signed_at).length;
-    if (unsigned > 0)
-      fixItems.push({
-        label: `${unsigned} undertaking${unsigned === 1 ? "" : "s"} unsigned`,
-        detail: "With the learner to sign",
-      });
-    else if (!certified)
-      fixItems.push({
-        label: "Awaiting the learner's certification",
-        detail: "Signed — the final confirm is theirs",
-      });
-  }
   const timeline = inline ? (
     <SectionCard
       className="fade-up !p-5"
@@ -392,10 +373,7 @@ export default function AcApplicationPage({
     </SectionCard>
   ) : null;
   const rail = inline ? (
-    <div className="space-y-5">
-      {deel && <NeedsFixing items={fixItems} />}
-      {timeline}
-    </div>
+    <div className="space-y-5">{timeline}</div>
   ) : null;
 
   const activityButton = inline ? null : (
@@ -713,7 +691,7 @@ export default function AcApplicationPage({
         <div
           className={`${
             canShortlist ? "-mb-12 flex min-h-[calc(100dvh-13.5rem)] flex-col" : ""
-          }${deel ? " deel-view" : ""}`}
+          }`}
         >
         {/* Content left, Activity in the right rail — unless the timeline is
             switched off, in which case the content takes the whole width and
@@ -726,11 +704,62 @@ export default function AcApplicationPage({
               "how will AC resolve these remarks" if the field is locked? The
               remark sits beside the field, the fix happens in the field, the
               tick on the pin closes it — no separate Comments screen. */}
+          {/* Tabs — a single tab isn't a tab bar, so it hides while Ops
+              holds the application. */}
+          {visibleTabs.length > 1 && (
+            <div className="card p-1.5">
+              <div className="flex gap-1">
+                {visibleTabs.map((t) => {
+                  const active = t.key === tab;
+                  const count =
+                    t.key === "profile"
+                      ? openRemarks.length > 0
+                        ? String(openRemarks.length)
+                        : undefined
+                      : app.status === "shortlisted" || app.status === "completed"
+                        ? docs.length > 0
+                          ? `${docs.filter((d) => d.signed_at).length}/${docs.length}`
+                          : undefined
+                        : programs.length > 0
+                          ? String(programs.length)
+                          : undefined;
+                  return (
+                    <Link
+                      key={t.key}
+                      href={`/ac/application/${app.id}?tab=${t.key}${
+                        searchParams.sel ? `&sel=${searchParams.sel}` : ""
+                      }`}
+                      scroll={false}
+                      className={`flex min-w-0 flex-1 basis-0 items-center justify-center gap-2 rounded-xl px-3 py-2 text-[13px] font-medium transition-colors ${
+                        active ? "bg-ink text-paper" : "text-body hover:bg-muted"
+                      }`}
+                    >
+                      <span className="truncate">{t.label}</span>
+                      {count && (
+                        <span
+                          className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none ${
+                            active
+                              ? "bg-white/20"
+                              : t.key === "profile" && openRemarks.length > 0
+                                ? "bg-[#f6efdd] text-[#8a6d2f]"
+                                : "bg-cream text-caption"
+                          }`}
+                        >
+                          {count}
+                        </span>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* One card per form section, each self-titled with a filled
-              glyph — the stack replaced the "Eligibility Form" umbrella card
-              and its intro copy: the section names say what this is, and the
-              state story (recheck, appeal) is the banner's job above. */}
-          {FORM_SECTIONS.map((section) => (
+              glyph — the section names say what this is, and the state
+              story (recheck, appeal) is the banner's job above. */}
+          {tab === "profile" &&
+            FORM_SECTIONS.map((section) => (
                   <SectionCard
                     key={section}
                     className="fade-up"
@@ -800,7 +829,7 @@ export default function AcApplicationPage({
           {/* Three sections in the order the decision is actually made:
               what we know about the learner, what they will have to sign, and
               the programmes we are putting in front of them. */}
-          {!withOps && (
+          {!withOps && tab === "eligibility" && (
             <ProfileSummary
               responses={responses}
               learnerName={app.learner_name}
@@ -808,7 +837,7 @@ export default function AcApplicationPage({
           )}
 
             {/* ── Undertaking: documents + offer letter ── */}
-            {!withOps && (
+            {!withOps && tab === "eligibility" && (
               <SectionCard
                 id="undertakings"
                 className="fade-up"
@@ -849,7 +878,7 @@ export default function AcApplicationPage({
               </SectionCard>
             )}
           {/* ── Requested Programs: pick and send the shortlist ── */}
-            {!withOps && (
+            {!withOps && tab === "eligibility" && (
               <SectionCard
                 id="requested-programs"
                 className="fade-up"
@@ -1121,19 +1150,26 @@ export default function AcApplicationPage({
             <div className="pointer-events-none absolute inset-y-0 left-1/2 w-screen -translate-x-1/2 border-t border-line bg-white/90 backdrop-blur-md" />
             <div className="relative flex flex-wrap items-center gap-3">
               <span className="text-xs text-caption">
-                {/* Everything is on one page, so the walk copy collapsed to
-                    the send line. The pick lives in the radios, not in the
-                    URL, so the server cannot know whether one has been made —
-                    the line stays true either way rather than claiming
-                    "ready to send" or contradicting an enabled button. */}
+                {/* The pick lives in the radios, not in the URL, so the
+                    server cannot know whether one has been made — the line
+                    stays true either way rather than claiming "ready to
+                    send" or contradicting an enabled button. */}
                 {programs.length === 0
                   ? "No eligible programmes — speak to the Ops team"
+                  : tab === "profile"
+                    ? openRemarks.length > 0
+                      ? `${openRemarks.length} comment${openRemarks.length === 1 ? "" : "s"} from Ops to answer — fix the field, then acknowledge or reply`
+                      : "Check the details, then open Eligibility to pick a programme"
                   : openRemarks.length > 0
                     ? `${openRemarks.length} comment${openRemarks.length === 1 ? "" : "s"} from Ops to answer · pick one of ${eligiblePrograms.length} eligible programme(s), then send`
                     : `Pick one of ${eligiblePrograms.length} eligible programme(s), then send`}
               </span>
               <div className="ml-auto flex items-center gap-2">
                 <AcFlowBar
+                  appId={app.id}
+                  tabs={visibleTabs.map((t) => t.key)}
+                  tab={tab}
+                  selected={selected}
                   hasPrograms={eligiblePrograms.length > 0}
                   action={shortlistProgram.bind(null, app.id)}
                 />

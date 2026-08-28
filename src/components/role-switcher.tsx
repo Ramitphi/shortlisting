@@ -6,7 +6,6 @@ import { IconCheck, IconUsers } from "./ui";
 import {
   resetDemoData,
   toggleActivityView,
-  toggleStaffView,
   toggleLearnerView,
 } from "@/lib/actions";
 import { LEARNER_V2_ENABLED } from "@/lib/auth";
@@ -53,7 +52,6 @@ export function RoleSwitcher({
   currentRole,
   currentEmail,
   activityInline,
-  deelView = false,
   learnerV2 = false,
 }: {
   currentRole: string;
@@ -61,8 +59,6 @@ export function RoleSwitcher({
   currentEmail?: string;
   /** Which of the two activity presentations is currently showing. */
   activityInline: boolean;
-  /** Application journeys: true = reference type treatment + Needs-fixing rail. */
-  deelView?: boolean;
   /** Learner experience: false = redesigned flow, true = current-site v2. */
   learnerV2?: boolean;
 }) {
@@ -243,37 +239,6 @@ export function RoleSwitcher({
               </button>
             </form>
             )}
-
-            {/* The two structures of the application journeys, switchable
-                live so they can be compared. The stack itself is now the
-                only layout — this switch turns the reference treatment up:
-                the stronger type hierarchy and the Needs-fixing rail. */}
-            <form action={toggleStaffView} className="border-t border-line">
-              <button className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-muted">
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[13px] font-medium text-ink">
-                    Deel restructure
-                  </span>
-                  <span className="block text-[11.5px] text-caption">
-                    {deelView
-                      ? "Deel type hierarchy + Needs-fixing rail on"
-                      : "Standard type, no Needs-fixing rail"}
-                  </span>
-                </span>
-                <span
-                  className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${
-                    deelView ? "bg-ink" : "bg-line-strong"
-                  }`}
-                  aria-hidden
-                >
-                  <span
-                    className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all ${
-                      deelView ? "left-[18px]" : "left-0.5"
-                    }`}
-                  />
-                </span>
-              </button>
-            </form>
 
             {/* Two presentations of the same activity log, side by side for
                 comparison. Off takes the timeline out of the layout entirely

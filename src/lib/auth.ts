@@ -3,7 +3,6 @@ import {
   sessionUid,
   activityViewRaw,
   learnerViewRaw,
-  staffViewRaw,
 } from "./session";
 import type { Role } from "./domain";
 
@@ -65,16 +64,6 @@ export function activityInline(): boolean {
  * hides the FAB switch, and bounces the /learner/applications routes home.
  * Flip it to true to bring v2 back for a comparison.
  */
-/**
- * Prototype-only: how far the AC/Ops application journeys lean into the
- * reference treatment. The stacked one-column structure is the only layout
- * now; "deel" additionally turns on the stronger type hierarchy and the
- * Needs-fixing rail. Toggled from the role-switcher FAB.
- */
-export function staffView(): "classic" | "deel" {
-  return staffViewRaw() === "deel" ? "deel" : "classic";
-}
-
 export const LEARNER_V2_ENABLED = false;
 
 export function learnerView(): "v1" | "v2" {

@@ -6,7 +6,6 @@ import {
   getCurrentUser,
   learnerView,
   AuthRedirect,
-  staffView,
   type User,
 } from "@/lib/auth";
 import { ROLE_LABELS, roleHome, type AppStatus, type Role } from "@/lib/domain";
@@ -323,7 +322,6 @@ export function Shell({
         currentRole={user.role}
         currentEmail={user.email}
         activityInline={activityInline()}
-        deelView={staffView() === "deel"}
         learnerV2={learnerView() === "v2"}
       />
     </div>

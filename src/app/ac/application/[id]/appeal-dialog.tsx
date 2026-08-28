@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { IconSearch, IconSparkle } from "@/components/ui";
+import { IconCheck, IconSearch, IconSparkle } from "@/components/ui";
 
 /**
  * The counsellor's push-back on an Ops verdict.
@@ -38,7 +38,36 @@ export function AppealDialog({
   const [kind, setKind] = useState<"reconsider" | "suggest">(
     rejected.length > 0 ? "reconsider" : "suggest"
   );
+  // The suggest branch's search: what's typed, and what's been picked.
+  // Rejected programmes are searchable here too — picking one turns the
+  // appeal into a reconsider, so the counsellor never has to know which
+  // branch a programme technically belongs to.
+  const [query, setQuery] = useState("");
+  const [picked, setPicked] = useState<{
+    kind: "reconsider" | "suggest";
+    id: number;
+    name: string;
+    institute: string;
+  } | null>(null);
   useEffect(() => setMounted(true), []);
+
+  const q = query.trim().toLowerCase();
+  const hits = [
+    ...rejected.map((r) => ({
+      kind: "reconsider" as const,
+      id: r.id,
+      name: r.name,
+      institute: r.institute,
+    })),
+    ...catalogue.map((c) => ({
+      kind: "suggest" as const,
+      id: c.id,
+      name: c.name,
+      institute: c.institute,
+    })),
+  ].filter(
+    (h) => !q || `${h.name} ${h.institute}`.toLowerCase().includes(q)
+  );
 
   // Nothing to appeal and nothing to suggest — no control at all.
   if (rejected.length === 0 && catalogue.length === 0) return null;
@@ -97,8 +126,6 @@ export function AppealDialog({
                   >
                     <input
                       type="radio"
-                      name="kind"
-                      value="reconsider"
                       checked={kind === "reconsider"}
                       onChange={() => setKind("reconsider")}
                       className="sr-only"
@@ -121,8 +148,6 @@ export function AppealDialog({
                   >
                     <input
                       type="radio"
-                      name="kind"
-                      value="suggest"
                       checked={kind === "suggest"}
                       onChange={() => setKind("suggest")}
                       className="sr-only"
@@ -143,6 +168,7 @@ export function AppealDialog({
               {kind === "reconsider" && rejected.length > 0 && (
                 <label className="mt-4 block">
                   <span className="label">Programme</span>
+                  <input type="hidden" name="kind" value="reconsider" />
                   <select name="programId" required className="input w-full">
                     {rejected.map((p) => (
                       <option key={p.id} value={p.id}>
@@ -153,30 +179,90 @@ export function AppealDialog({
                 </label>
               )}
               {kind === "suggest" && catalogue.length > 0 && (
-                <label className="mt-4 block">
+                <div className="mt-4">
                   <span className="label">Programme</span>
-                  {/* Presentational only — the catalogue is short enough that
-                      the select is the real control. No `name`, so it posts
-                      nothing and cannot interfere with the submit. */}
-                  <span className="relative mb-2 block">
+                  <span className="relative block">
                     <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-caption">
                       <IconSearch className="h-4 w-4" />
                     </span>
                     <input
                       type="text"
-                      placeholder="Search the catalogue…"
-                      aria-label="Search the catalogue"
+                      value={query}
+                      onChange={(e) => {
+                        setQuery(e.target.value);
+                        setPicked(null);
+                      }}
+                      placeholder="Search courses…"
+                      aria-label="Search courses"
                       className="input w-full !pl-9"
                     />
                   </span>
-                  <select name="catalogueId" required className="input w-full">
-                    {catalogue.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} · {c.institute}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+
+                  {/* What the appeal will actually send. A rejected pick
+                      posts a reconsider — the search doesn't care which
+                      list the programme came from, only the payload does. */}
+                  {picked && (
+                    <>
+                      <input type="hidden" name="kind" value={picked.kind} />
+                      <input
+                        type="hidden"
+                        name={
+                          picked.kind === "reconsider"
+                            ? "programId"
+                            : "catalogueId"
+                        }
+                        value={picked.id}
+                      />
+                    </>
+                  )}
+
+                  <div className="mt-2 max-h-44 overflow-y-auto rounded-xl border border-line">
+                    {hits.length === 0 ? (
+                      <p className="px-3.5 py-3 text-[12.5px] text-caption">
+                        Nothing matches &ldquo;{query.trim()}&rdquo; — try
+                        fewer words.
+                      </p>
+                    ) : (
+                      hits.map((h) => {
+                        const active =
+                          picked?.id === h.id && picked.kind === h.kind;
+                        return (
+                          <button
+                            key={`${h.kind}-${h.id}`}
+                            type="button"
+                            onClick={() => setPicked(h)}
+                            className={`flex w-full items-center gap-2 border-b border-line px-3.5 py-2.5 text-left transition-colors last:border-b-0 ${
+                              active ? "bg-cream/60" : "hover:bg-paper"
+                            }`}
+                          >
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-[13px] font-medium text-ink">
+                                {h.name}
+                              </span>
+                              <span className="block truncate text-[11.5px] text-caption">
+                                {h.institute}
+                              </span>
+                            </span>
+                            {h.kind === "reconsider" && (
+                              <span className="shrink-0 rounded-md bg-[#f6efdd] px-1.5 py-0.5 text-[10px] font-semibold text-[#8a6d2f]">
+                                Ruled out — asks Ops to reconsider
+                              </span>
+                            )}
+                            <span
+                              className={`flex h-4.5 w-4.5 h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border transition-colors ${
+                                active
+                                  ? "border-ink bg-ink text-paper"
+                                  : "border-line-strong text-transparent"
+                              }`}
+                            >
+                              <IconCheck className="h-2.5 w-2.5" />
+                            </span>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
               )}
 
               <label className="mt-3 block">
@@ -198,7 +284,17 @@ export function AppealDialog({
                 >
                   Cancel
                 </button>
-                <button className="btn-primary flex-1">Send appeal</button>
+                <button
+                  className="btn-primary flex-1"
+                  disabled={kind === "suggest" && !picked}
+                  title={
+                    kind === "suggest" && !picked
+                      ? "Pick a programme from the search first"
+                      : ""
+                  }
+                >
+                  Send appeal
+                </button>
               </div>
             </form>
           </div>,

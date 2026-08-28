@@ -494,60 +494,20 @@ export function CallForm({
     return [profile, academics, financing, programmesCount > 0];
   }, [v, degree, countries, isMinor, isMasters, programmesCount]);
 
-  // Which section the reader is on, for the strip's dark pill: the last
-  // section whose top has passed the reading line just under the sticky
-  // strip. Computed from viewport rects on scroll — the shell scrolls an
-  // inner container, so the listener attaches to whatever ancestor of the
-  // form actually scrolls rather than assuming the window.
+  // Where the counsellor is in the walk. Driven by the controls ONLY — the
+  // strip used to follow the scroll position, which meant reading ahead (or
+  // a stray trackpad nudge) silently moved them to a section they had not
+  // finished, and the footer's next step moved with it. Scrolling reads;
+  // clicking a step or Next is what advances.
   const [activeStep, setActiveStep] = useState(0);
-  useEffect(() => {
-    if (mode === "review") return;
-    const ids = STEPS.map((st) => `step-${st.id}`);
-    let node: HTMLElement | null = document.getElementById("call-form");
-    let scroller: HTMLElement | Window = window;
-    while (node) {
-      const st = getComputedStyle(node);
-      if (
-        node.scrollHeight > node.clientHeight &&
-        /(auto|scroll)/.test(st.overflowY)
-      ) {
-        scroller = node;
-        break;
-      }
-      node = node.parentElement;
-    }
-    let raf = 0;
-    const measure = () => {
-      raf = 0;
-      let idx = 0;
-      let last = 0;
-      for (let i = 0; i < ids.length; i++) {
-        const el = document.getElementById(ids[i]);
-        if (!el) continue;
-        last = i;
-        if (el.getBoundingClientRect().top <= 132) idx = i;
-      }
-      // The last section can be too short to ever cross the reading line —
-      // at the bottom of the scroll it wins regardless.
-      const sc =
-        scroller === window
-          ? document.scrollingElement
-          : (scroller as HTMLElement);
-      if (sc && sc.scrollTop + sc.clientHeight >= sc.scrollHeight - 8)
-        idx = last;
-      setActiveStep(idx);
-    };
-    const onScroll = () => {
-      if (!raf) raf = requestAnimationFrame(measure);
-    };
-    scroller.addEventListener("scroll", onScroll, { passive: true });
-    measure();
-    return () => {
-      scroller.removeEventListener("scroll", onScroll);
-      if (raf) cancelAnimationFrame(raf);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, Boolean(programmes)]);
+
+  /** Move the walk to a section and bring it under the sticky strip. */
+  const goToStep = (i: number) => {
+    setActiveStep(i);
+    document
+      .getElementById(`step-${STEPS[i].id}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   /** Group wrapper: the page's block when it supplies one, else a heading. */
   const group = (key: string, label: string, children: React.ReactNode) =>
@@ -622,15 +582,7 @@ export function CallForm({
                   key={st.id}
                   type="button"
                   title={st.hint}
-                  onClick={() => {
-                    setActiveStep(i);
-                    // The shell scrolls an inner container, not the window —
-                    // scrollIntoView finds it; the card's scroll-mt clears
-                    // the sticky strip.
-                    document
-                      .getElementById(`step-${st.id}`)
-                      ?.scrollIntoView({ behavior: "smooth", block: "start" });
-                  }}
+                  onClick={() => goToStep(i)}
                   className={`flex min-w-0 flex-1 basis-0 items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-[13px] font-medium transition-colors ${
                     active
                       ? "bg-ink text-paper"
@@ -1141,9 +1093,13 @@ export function CallForm({
         <div className="pointer-events-none absolute inset-y-0 left-1/2 w-screen -translate-x-1/2 border-t border-line bg-white/90 backdrop-blur-md" />
         {/* Status on the left, one primary action on the right. There is no
             walk any more — the whole form is on screen — so the bar carries
-            what the old Review step carried: how far from submittable. */}
+            what the old Review step carried: how far from submittable, and
+            where in the walk the counsellor has got to. */}
         <div className="relative flex flex-wrap items-center gap-3">
           <span className="text-xs text-caption">
+            <span className="mr-2 font-medium text-body">
+              Step {activeStep + 1} of {STEPS.length}
+            </span>
             {missing.length > 0
               ? `${missing.length} required detail${
                   missing.length === 1 ? "" : "s"
@@ -1152,8 +1108,6 @@ export function CallForm({
           </span>
 
           <div className="ml-auto flex flex-wrap items-center gap-2">
-            {/* The step buttons used to save as they navigated; with them
-                gone, saving needs its own quiet control. */}
             <button
               className="btn-secondary"
               formAction={saveAction}
@@ -1161,17 +1115,31 @@ export function CallForm({
             >
               Save draft
             </button>
-            {/* Saves what is on screen AND opens the confirmation — the same
-                double duty a step button did, so nothing typed is lost if
-                the dialog is cancelled. */}
-            <button
-              className="btn-primary"
-              formAction={saveAction}
-              formNoValidate
-              onClick={() => setConfirmOpen(true)}
-            >
-              Submit for Vetting
-            </button>
+            {/* The walk's one forward control. Every section is on screen —
+                this is what MOVES the walk, so reading ahead never advances
+                it and the counsellor reaches Submit by finishing, not by
+                scrolling past. Saves on the way, like the old step buttons. */}
+            {activeStep < STEPS.length - 1 ? (
+              <button
+                className="btn-primary"
+                formAction={saveAction}
+                formNoValidate
+                onClick={() => goToStep(activeStep + 1)}
+              >
+                Next
+              </button>
+            ) : (
+              /* Saves what is on screen AND opens the confirmation, so
+                 nothing typed is lost if the dialog is cancelled. */
+              <button
+                className="btn-primary"
+                formAction={saveAction}
+                formNoValidate
+                onClick={() => setConfirmOpen(true)}
+              >
+                Submit for Vetting
+              </button>
+            )}
           </div>
         </div>
       </div>

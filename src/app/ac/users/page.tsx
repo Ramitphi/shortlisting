@@ -184,7 +184,8 @@ export default function AcUsersPage({
             }
           />
         ) : (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-sm">
             <thead>
               <tr className="border-b border-line text-left text-xs text-caption">
                 <th className="px-4 py-2.5 font-medium">Learner</th>
@@ -206,12 +207,16 @@ export default function AcUsersPage({
                   <td className="px-4 py-3">
                     <StatusBadge
                       status={a.status}
+                      // Any live re-check, wherever it is sitting — the
+                      // dashboard's rule. Keying this off recheck_state
+                      // hid "Appealed by you" entirely, because an appeal
+                      // is with Ops by definition.
                       recheckLabel={
-                        a.recheck_state === "ac"
+                        a.recheck_at
                           ? a.recheck_kind === "appeal"
                             ? "Appealed by you"
                             : "Re-check"
-                          : undefined
+                          : null
                       }
                     />
                   </td>
@@ -236,6 +241,7 @@ export default function AcUsersPage({
               ))}
             </tbody>
           </table>
+            </div>
         )}
       </div>
     </Shell>

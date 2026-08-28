@@ -13,7 +13,7 @@ import {
   IconLayers,
   IconSend,
 } from "@/components/ui";
-import { listApplications } from "@/lib/queries";
+import { listApplications, type Application } from "@/lib/queries";
 import {
   ALL_STATUSES,
   opsNeedsAction,
@@ -50,6 +50,10 @@ export default function OpsUsersPage({
     : undefined;
 
   let apps = all;
+  // Same rule as the dashboard: a re-check is Ops' unless it has been handed
+  // to the counsellor to work through.
+  const opsRecheck = (a: Application) =>
+    Boolean(a.recheck_at) && a.recheck_state !== "ac";
   if (view === "action") apps = apps.filter(opsNeedsAction);
   if (view === "closed") apps = apps.filter((a) => CLOSED.includes(a.status));
   if (statusFilter) apps = apps.filter((a) => a.status === statusFilter);
@@ -215,7 +219,8 @@ export default function OpsUsersPage({
             text={q ? `No applications matching "${q}"` : "Nothing in this view"}
           />
         ) : (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-sm">
             <thead>
               <tr className="border-b border-line text-left text-xs text-caption">
                 <th className="px-4 py-2.5 font-medium">Learner</th>
@@ -237,7 +242,19 @@ export default function OpsUsersPage({
                   </td>
                   <td className="px-4 py-3 text-body">{a.ac_name ?? "—"}</td>
                   <td className="px-4 py-3">
-                    <StatusBadge status={a.status} />
+                    {/* Same chip as the dashboard: a re-check rides on
+                        top of any status, so the badge alone would hide
+                        the row that needs a ruling. */}
+                    <StatusBadge
+                      status={a.status}
+                      recheckLabel={
+                        a.recheck_at
+                          ? a.recheck_kind === "appeal"
+                            ? "Appealed by AC"
+                            : "Re-check"
+                          : null
+                      }
+                    />
                   </td>
                   <td className="px-4 py-3 text-caption">{a.updated_at} UTC</td>
                   <td className="px-4 py-3 text-right">
@@ -249,17 +266,26 @@ export default function OpsUsersPage({
                           : "btn-secondary !py-1.5"
                       }
                     >
-                      {a.status === "under_review"
-                        ? a.ops_name
-                          ? "Continue Vetting"
-                          : "View & Vet"
-                        : "View"}
+                      {/* The dashboard's ladder, verbatim — a row that
+                          needs a ruling said "View" in a solid black
+                          button, which is the most passive verb in the
+                          product wearing the loudest style. */}
+                      {opsRecheck(a)
+                        ? a.recheck_kind === "appeal"
+                          ? "Rule on Appeal"
+                          : "Re-check Details"
+                        : a.status === "under_review"
+                          ? a.ops_name
+                            ? "Continue Vetting"
+                            : "View & Vet Details"
+                          : "View"}
                     </Link>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+            </div>
         )}
       </div>
     </Shell>

@@ -228,7 +228,8 @@ export default function OpsDashboard({
             }
           />
         ) : (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-sm">
             <thead>
               <tr className="border-b border-line text-left text-xs text-caption">
                 <th className="px-4 py-2.5 font-medium">Learner</th>
@@ -300,6 +301,7 @@ export default function OpsDashboard({
               ))}
             </tbody>
           </table>
+            </div>
         )}
       </div>
     </Shell>

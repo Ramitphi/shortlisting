@@ -12,6 +12,7 @@ import {
   FieldComments,
   VerifiedSeal,
   FieldVerdict,
+  FieldVerdictMark,
   ChangedPin,
   AiInsightLine,
   DocumentDialog,
@@ -677,6 +678,19 @@ export default function OpsApplicationPage({
                                 </button>
                               </form>
                               </FieldVerdict>
+                              )}
+                              {/* Once vetting closes the controls go, but
+                                  the ruling stays: Ops' own board should
+                                  not be the one screen that forgets what
+                                  they decided. Read-only, like the
+                                  counsellor sees it. */}
+                              {!(canComment && f.filledBy !== "ops") && (
+                                <FieldVerdictMark
+                                  className="ml-auto"
+                                  state={fieldChecks[f.key]?.state}
+                                  byName={fieldChecks[f.key]?.by_name}
+                                  at={fieldChecks[f.key]?.at}
+                                />
                               )}
                             </div>
                           </div>

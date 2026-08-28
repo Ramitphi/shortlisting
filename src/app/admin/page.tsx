@@ -107,7 +107,8 @@ export default function AdminPage() {
               Assign an individual the AC or Ops role (or any other) from here.
             </p>
           </div>
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-sm">
             <thead>
               <tr className="border-b border-line text-left text-xs text-caption">
                 <th className="px-4 py-2.5 font-medium">User</th>
@@ -152,6 +153,7 @@ export default function AdminPage() {
               ))}
             </tbody>
           </table>
+            </div>
         </div>
 
         <div id="add-user" className="card fade-up h-fit scroll-mt-6 p-5" style={{ animationDelay: "240ms" }}>

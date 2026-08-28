@@ -26,19 +26,21 @@ export function DetailRows({
             key={f.key}
             className="flex items-center justify-between gap-6 py-4"
           >
-            <span className="text-[15px] text-body">{f.label}</span>
+            {/* The seal sits with the LABEL, the way it does on the staff
+                boards — trailing the value left one ragged right edge, with
+                the numbers stopping at a different x on every checked row. */}
+            <span className="flex min-w-0 items-center gap-2 text-[15px] text-body">
+              <span className="min-w-0">{f.label}</span>
+              {f.filledBy === "ops" && (
+                <VerifiedSeal
+                  verified
+                  label="Verified by the upGrad team from your documents"
+                />
+              )}
+            </span>
             {value ? (
-              <span className="flex items-center gap-2 text-right text-[15px] font-medium text-ink">
+              <span className="text-right text-[15px] font-medium text-ink">
                 {value}
-                {/* The same seal the staff screens put against a checked
-                    name — a mark, not a word, so the value stays the thing
-                    being read. */}
-                {f.filledBy === "ops" && (
-                  <VerifiedSeal
-                    verified
-                    label="Verified by the upGrad team from your documents"
-                  />
-                )}
               </span>
             ) : (
               (empty?.(f) ?? <span className="text-[15px] text-caption">—</span>)

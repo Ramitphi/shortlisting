@@ -36,7 +36,7 @@ export function SectionCard({
     // land with the header visible instead of flush under the viewport top.
     <section id={id} className={cn("card scroll-mt-6 p-6", className)}>
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-        <span className="flex min-w-0 items-center gap-3">
+        <span className="flex min-w-0 items-start gap-3">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cream text-ink [&_svg]:h-[17px] [&_svg]:w-[17px]">
             {icon}
           </span>

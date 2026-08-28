@@ -19,7 +19,12 @@ import {
   IconUsers,
 } from "@/components/ui";
 import { listApplications, type Application } from "@/lib/queries";
-import { ALL_STATUSES, STATUS_LABELS, type AppStatus } from "@/lib/domain";
+import {
+  ALL_STATUSES,
+  STATUS_LABELS,
+  acNeedsAction,
+  type AppStatus,
+} from "@/lib/domain";
 
 
 export default function AcDashboard({
@@ -210,7 +215,8 @@ export default function AcDashboard({
             }
           />
         ) : (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-sm">
             <thead>
               <tr className="border-b border-line text-left text-xs text-caption">
                 <th className="px-4 py-2.5 font-medium">Learner</th>
@@ -247,9 +253,17 @@ export default function AcDashboard({
                   </td>
                   <td className="px-4 py-3 text-caption">{a.updated_at} UTC</td>
                   <td className="px-4 py-3 text-right">
+                    {/* Primary only when the move is the counsellor's —
+                        the same rule the other three list screens use. A
+                        table where every row is a solid black button says
+                        nothing about which row to open first. */}
                     <Link
                       href={`/ac/application/${a.id}`}
-                      className="btn-primary !py-1.5"
+                      className={
+                        acNeedsAction(a)
+                          ? "btn-primary !py-1.5"
+                          : "btn-secondary !py-1.5"
+                      }
                     >
                       {acRecheck(a)
                         ? "Resolve Comments"
@@ -264,6 +278,7 @@ export default function AcDashboard({
               ))}
             </tbody>
           </table>
+            </div>
         )}
       </div>
 

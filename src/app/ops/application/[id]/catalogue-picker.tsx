@@ -89,7 +89,7 @@ export function CataloguePicker({
         mounted &&
         createPortal(
           <div
-            className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/30 p-4 pt-[8vh] backdrop-blur-[2px]"
+            className="fixed inset-0 z-[90] flex items-start justify-center overflow-y-auto bg-ink/30 p-4 pt-[8vh] backdrop-blur-[2px]"
             onClick={() => setOpen(false)}
           >
           <div

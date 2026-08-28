@@ -10,6 +10,7 @@ import {
   IconCheck,
   IconClock,
   IconDoc,
+  IconUsers,
   IconSignature,
 } from "@/components/ui";
 import {
@@ -129,7 +130,7 @@ export default function LearnerApplicationsList() {
                         </b>
                       </span>
                       <span className="flex items-center gap-2 text-body">
-                        <IconDoc className="h-4 w-4 shrink-0 text-caption" />
+                        <IconUsers className="h-4 w-4 shrink-0 text-caption" />
                         Counsellor:{" "}
                         <b className="font-semibold text-ink">
                           {app.ac_name ?? "—"}

@@ -48,7 +48,7 @@ export function CertifyDialog({
         mounted &&
         createPortal(
           <div
-            className="fixed inset-0 z-[60] flex items-center justify-center bg-ink/45 p-4 backdrop-blur-[2px]"
+            className="fixed inset-0 z-[90] flex items-center justify-center bg-ink/45 p-4 backdrop-blur-[2px]"
             onClick={() => setOpen(false)}
           >
             <div

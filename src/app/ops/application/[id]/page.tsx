@@ -621,11 +621,13 @@ export default function OpsApplicationPage({
                                 them, never overwrites them. Only the
                                 ops-owned fields (scores, university — read
                                 off the documents) are Ops' to fill. */}
-                            {/* Value left, verdict pinned to the row's
-                                right edge — one icon column down the card,
-                                not a cluster trailing each value at its own
-                                x. The note form opens across the cell. */}
-                            <div className="flex min-w-[12rem] flex-1 basis-0 flex-wrap items-center gap-x-3 gap-y-1">
+                            {/* Value cell shrinks rather than pushing the
+                                verdict off the line — the icons are a
+                                sibling of this cell, not a child, so the
+                                note form they open gets the full row width
+                                on its own line instead of a column-wide
+                                sliver that drags the label off-centre. */}
+                            <div className="flex min-w-[8rem] flex-1 basis-0 items-center">
                               {f.type === "file" ? (
                                 <div className="min-w-0 break-words text-sm">
                                   <FileValue label={f.label} value={responses[f.key]} />
@@ -643,6 +645,7 @@ export default function OpsApplicationPage({
                                   )}
                                 </div>
                               )}
+                            </div>
                               {canComment && f.filledBy !== "ops" && (
                               <FieldVerdict
                                 className="ml-auto"
@@ -692,7 +695,6 @@ export default function OpsApplicationPage({
                                   at={fieldChecks[f.key]?.at}
                                 />
                               )}
-                            </div>
                           </div>
                           {/* The AI vet's read of the documents, under the
                               row it is about — full width, out of the way. */}

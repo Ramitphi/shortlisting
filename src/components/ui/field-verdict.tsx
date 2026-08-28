@@ -97,11 +97,13 @@ export function FieldVerdict({
           </button>
         )}
       </div>
-      {/* The note form opens on its own full-width line under the row — the
-          row is a key-value line now, and a form crammed into its tail cell
-          broke the column rhythm. `basis-full` wraps it inside the row flex. */}
+      {/* The note opens on its own full-width line under the row. It is a
+          sibling of the value cell, not a child of it: crammed into the
+          tail cell it was a sliver of the row's width and it pulled the
+          label to the vertical middle of a two-line row. `basis-full`
+          wraps it onto its own line inside the row's flex. */}
       {noteOpen && children && (
-        <div className="basis-full pt-1.5">{children}</div>
+        <div className="basis-full pt-2">{children}</div>
       )}
     </>
   );

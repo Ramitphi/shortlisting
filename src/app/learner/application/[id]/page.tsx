@@ -11,7 +11,6 @@ import {
   DocumentDialog,
   DocumentTable,
   EmptyState,
-  StatusBadge,
   UndertakingCard,
   IconCalendar,
   IconCap,
@@ -179,15 +178,13 @@ export default function LearnerApplicationPage({
       >
         ← All applications
       </Link>
-      <div className="mt-2 flex flex-wrap items-center gap-3">
-        <h1 className="text-[28px] font-medium tracking-tight">My application</h1>
-        <StatusBadge
-          status={app.status}
-          learner
-          certified={certified}
-          recheck={Boolean(recheck)}
-        />
-      </div>
+      {/* No status chip beside the title. The walk under it already says
+          what to do — the stepper, the re-check notice, the sign and
+          certify controls — so the chip was a label for a state the page
+          spends its whole length explaining. */}
+      <h1 className="mt-2 text-[28px] font-medium tracking-tight">
+        My application
+      </h1>
       <p className="mt-1 text-[14px] text-body">
         Last updated {app.updated_at.slice(0, 10)}
         {app.ac_name && (

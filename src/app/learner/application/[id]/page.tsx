@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment } from "react";
 import { useDbVersion } from "@/components/db-provider";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -241,7 +242,11 @@ export default function LearnerApplicationPage({
                 const done = w.n < step;
                 const active = w.n === step;
                 return (
-                  <div key={w.n} className="flex flex-1 items-center">
+                  // The step does NOT stretch — only the rail between two
+                  // steps does. Stretching the wrapper split the row into
+                  // equal thirds, so the two rails came out different
+                  // lengths and the last step trailed dead space.
+                  <Fragment key={w.n}>
                     <div className="flex min-w-0 items-center gap-2.5">
                       <span
                         className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[13px] font-medium ${
@@ -272,7 +277,7 @@ export default function LearnerApplicationPage({
                         aria-hidden
                       />
                     )}
-                  </div>
+                  </Fragment>
                 );
               })}
             </div>

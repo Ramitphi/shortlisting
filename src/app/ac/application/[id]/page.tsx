@@ -779,7 +779,7 @@ export default function AcApplicationPage({
                             key={f.key}
                             className="flex flex-wrap items-center gap-x-4 gap-y-1.5 py-2 first:pt-0 last:pb-0"
                           >
-                            <span className="flex w-[200px] shrink-0 items-center gap-1.5 text-[12.5px] text-caption">
+                            <span className="flex min-w-[11rem] max-w-[17.5rem] flex-1 basis-[200px] items-center gap-1.5 text-[12.5px] text-caption">
                               <span className="min-w-0 truncate" title={f.label}>
                                 {f.label}
                               </span>

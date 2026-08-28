@@ -13,7 +13,6 @@ import {
   IconClipboardCheck,
   IconDoc,
   IconInbox,
-  IconLayers,
   IconPen,
   IconRefresh,
   IconSend,
@@ -81,12 +80,16 @@ export default function OpsDashboard({
       surface="white"
       hero={{
         title: `${greeting()}, ${firstName}`,
-        subtitle: "The vetting pipeline at a glance.",
+        subtitle: `${all.length} application${
+          all.length === 1 ? "" : "s"
+        } in the pipeline.`,
       }}
     >
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-        <StatTile icon={<IconLayers />} label="In Pipeline" value={all.length} />
+      {/* Five tiles, the same row every other list screen uses. The sixth
+          was "In Pipeline", which only ever restated the length of the table
+          directly below it — the total says more in the greeting. */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
         <StatTile
           icon={<IconInbox />}
           label="Needs Action"

@@ -111,7 +111,11 @@ export function LearnerDetailsForm({
           )}
         </label>
         {readOnly ? (
-          <div className="text-sm">
+          /* The same box as every editable field beside it, in a muted
+             fill — a bare line of text among bordered inputs read as a
+             field that had failed to render rather than one that is
+             simply not the learner's to change. */
+          <div className="flex h-[48px] items-center rounded-lg border border-line bg-muted px-3 text-[14px] text-ink">
             {value || <span className="text-caption">—</span>}
           </div>
         ) : f.key === "countries" ? (

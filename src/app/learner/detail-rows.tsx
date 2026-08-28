@@ -1,3 +1,4 @@
+import { VerifiedSeal } from "@/components/ui";
 import type { FieldDef } from "@/lib/domain";
 
 /**
@@ -29,10 +30,14 @@ export function DetailRows({
             {value ? (
               <span className="flex items-center gap-2 text-right text-[15px] font-medium text-ink">
                 {value}
+                {/* The same seal the staff screens put against a checked
+                    name — a mark, not a word, so the value stays the thing
+                    being read. */}
                 {f.filledBy === "ops" && (
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-caption">
+                  <VerifiedSeal
                     verified
-                  </span>
+                    label="Verified by the upGrad team from your documents"
+                  />
                 )}
               </span>
             ) : (

@@ -18,6 +18,7 @@ import {
   IconPlus,
   IconShield,
   IconTrash,
+  VerifiedSeal,
 } from "@/components/ui";
 
 type Values = Record<string, string>;
@@ -102,9 +103,11 @@ export function LearnerDetailsForm({
             <sup className="text-application-card-ungency-text">*</sup>
           )}
           {opsOwned && (
-            <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
+            <VerifiedSeal
               verified
-            </span>
+              label="Verified by the upGrad team from your documents"
+              className="ml-1.5 align-middle"
+            />
           )}
         </label>
         {readOnly ? (

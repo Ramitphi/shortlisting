@@ -189,6 +189,10 @@ export interface FieldDef {
    *  a percentage can't be 104 no matter which screen typed it. */
   min?: number;
   max?: number;
+  /** Multi-pick chips over `options`; the value is the picks joined ", ". */
+  multi?: boolean;
+  /** Cap on picks for a multi field. */
+  maxPick?: number;
 }
 
 export const FORM_SECTIONS = [
@@ -275,7 +279,7 @@ export const FORM_FIELDS: FieldDef[] = [
   { key: "guardian_email", label: "Parent / Legal Guardian Email", type: "email", section: "Profile Data" },
   { key: "guardian_phone", label: "Parent / Legal Guardian Phone", type: "tel", section: "Profile Data" },
   { key: "degree_level", label: "Degree to Pursue", type: "select", section: "Profile Data", options: [...DEGREE_LEVELS], required: true },
-  { key: "countries", label: "Countries to Study In", type: "text", section: "Profile Data", required: true },
+  { key: "countries", label: "Countries to Study In", type: "text", section: "Profile Data", required: true, options: [...COUNTRIES], multi: true, maxPick: 3 },
   // ── Section B — Academic Data ────────────────────────────────────────────
   { key: "marksheet_10", label: "Class 10 Marksheet", type: "file", section: "Academic Data", required: true },
   { key: "score_10", label: "Class 10 Score", type: "number", section: "Academic Data", filledBy: "ops", min: 0, max: 100 },

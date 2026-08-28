@@ -793,9 +793,13 @@ export default function AcApplicationPage({
                               )}
                               <FieldComments comments={commentsFor(f.key)} />
                             </span>
-                            <div className="min-w-[12rem] flex-1 basis-0">
+                            {/* Value and verdict share the cell, so a chip
+                                never wraps to its own ragged line under the
+                                label — narrow columns tuck it under the
+                                value instead, at a tight gap. */}
+                            <div className="flex min-w-[12rem] flex-1 basis-0 flex-wrap items-center gap-x-3 gap-y-1">
                               {f.type === "file" ? (
-                                <div className="text-sm">
+                                <div className="min-w-0 text-sm">
                                   <FileValue label={f.label} value={responses[f.key]} />
                                 </div>
                               ) : canShortlist && f.filledBy !== "ops" ? (
@@ -805,20 +809,20 @@ export default function AcApplicationPage({
                                   action={updateFieldValue.bind(null, app.id, f.key)}
                                 />
                               ) : (
-                                <div className="break-words text-[13.5px] font-medium text-ink">
+                                <div className="min-w-0 break-words text-[13.5px] font-medium text-ink">
                                   {responses[f.key] || (
                                     <span className="font-normal text-caption">—</span>
                                   )}
                                 </div>
                               )}
+                              {/* Ops' verdict on this exact answer —
+                                  read-only here, it is their call to make. */}
+                              <FieldVerdictMark
+                                state={fieldChecks[f.key]?.state}
+                                byName={fieldChecks[f.key]?.by_name}
+                                at={fieldChecks[f.key]?.at}
+                              />
                             </div>
-                            {/* Ops' verdict on this exact answer — read-only
-                                here, it is their call to make. */}
-                            <FieldVerdictMark
-                              state={fieldChecks[f.key]?.state}
-                              byName={fieldChecks[f.key]?.by_name}
-                              at={fieldChecks[f.key]?.at}
-                            />
                           </div>
                         )
                       )}

@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { IconCheck } from "@/components/ui";
-import type { FieldDef } from "@/lib/domain";
+import { IconCheck, MultiSelect } from "@/components/ui";
+import { COUNTRY_FLAGS, type FieldDef } from "@/lib/domain";
 
 /**
  * A single eligibility field, editable in place while Ops holds the
@@ -61,9 +61,32 @@ export function OpsField({
     error ? " !border-accent" : ""
   }`;
 
+  // Multi-pick values live as a ", "-joined string; the dropdown edits the
+  // list — same silhouette as the single-pick selects around it.
+  const picks = field.multi ? draft.split(", ").filter(Boolean) : [];
+  const hidden = useRef<HTMLInputElement>(null);
+
   return (
     <form ref={form} action={action} className="w-full max-w-[260px]">
-      {field.type === "select" ? (
+      {field.multi && field.options ? (
+        <>
+          {/* A DOM write, not React state — requestSubmit runs before the
+              re-render, so the form has to carry the value already. */}
+          <input ref={hidden} type="hidden" name="value" defaultValue={draft} />
+          <MultiSelect
+            values={picks}
+            options={[...field.options]}
+            max={field.maxPick}
+            iconFor={(o) => COUNTRY_FLAGS[o] ?? ""}
+            onChange={(next) => {
+              const joined = next.join(", ");
+              setDraft(joined);
+              if (hidden.current) hidden.current.value = joined;
+              commit(joined);
+            }}
+          />
+        </>
+      ) : field.type === "select" ? (
         <select
           name="value"
           value={draft}

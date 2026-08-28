@@ -620,9 +620,14 @@ export default function OpsApplicationPage({
                                 them, never overwrites them. Only the
                                 ops-owned fields (scores, university — read
                                 off the documents) are Ops' to fill. */}
-                            <div className="min-w-[12rem] flex-1 basis-0">
+                            {/* Value and verdict share the cell, so the
+                                icon cluster never wraps to its own ragged
+                                line under the label — narrow columns tuck
+                                it under the value at a tight gap, and the
+                                note form opens across the cell below. */}
+                            <div className="flex min-w-[12rem] flex-1 basis-0 flex-wrap items-center gap-x-3 gap-y-1">
                               {f.type === "file" ? (
-                                <div className="break-words text-sm">
+                                <div className="min-w-0 break-words text-sm">
                                   <FileValue label={f.label} value={responses[f.key]} />
                                 </div>
                               ) : (vetting || reRuling) && f.filledBy === "ops" ? (
@@ -632,14 +637,13 @@ export default function OpsApplicationPage({
                                   action={updateFieldValue.bind(null, app.id, f.key)}
                                 />
                               ) : (
-                                <div className="break-words text-[13.5px] font-medium text-ink">
+                                <div className="min-w-0 break-words text-[13.5px] font-medium text-ink">
                                   {responses[f.key] || (
                                     <span className="font-normal text-caption">—</span>
                                   )}
                                 </div>
                               )}
-                            </div>
-                            {canComment && f.filledBy !== "ops" && (
+                              {canComment && f.filledBy !== "ops" && (
                               <FieldVerdict
                                 state={fieldChecks[f.key]?.state}
                                 byName={fieldChecks[f.key]?.by_name}
@@ -673,7 +677,8 @@ export default function OpsApplicationPage({
                                 </button>
                               </form>
                               </FieldVerdict>
-                            )}
+                              )}
+                            </div>
                           </div>
                           {/* The AI vet's read of the documents, under the
                               row it is about — full width, out of the way. */}

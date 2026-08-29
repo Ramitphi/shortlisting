@@ -5,13 +5,12 @@ import { useDbVersion } from "@/components/db-provider";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { requireRole } from "@/components/shell";
+import { undertakingVariant } from "@/lib/auth";
 import { UpgradShell, type UgSection } from "@/components/upgrad-shell";
 import {
   CardChip,
-  DocumentDialog,
   DocumentTable,
   EmptyState,
-  UndertakingCard,
   IconCalendar,
   IconCap,
   IconCheck,
@@ -28,6 +27,7 @@ import {
   recheckOf,
 } from "@/lib/queries";
 import {
+  signAllDocuments,
   certifyDetails,
   removeLearnerDoc,
   signDocument,
@@ -36,8 +36,8 @@ import {
   verifyLearnerDoc,
 } from "@/lib/actions";
 import {
+  undertakingFieldsFor,
   DOC_CATEGORIES,
-  DOC_TYPE_LABELS,
   FORM_FIELDS,
   FORM_SECTIONS,
   LEARNER_STAGES,
@@ -46,6 +46,11 @@ import {
 import { docRows, signeesFor } from "@/lib/documents";
 import { CertifyDialog } from "../../certify-block";
 import { DetailRows } from "../../detail-rows";
+import {
+  AllSignedCelebration,
+  UndertakingVariantView,
+  type UndertakingItem,
+} from "../../undertaking-variants";
 import { ProfileSectionCards } from "../../profile-cards";
 
 
@@ -139,35 +144,24 @@ export default function LearnerApplicationPage({
   const shellSection: UgSection = section === "review" ? "application" : section;
 
 
+  // Six candidate treatments of this list, switched from the demo FAB —
+  // see undertaking-variants.tsx for the ranking and the reasoning.
+  const variant = undertakingVariant();
+  const undertakingItems: UndertakingItem[] = docs.map((d) => ({
+    doc: d,
+    signees: signeesFor(app, responses, d),
+    fields: undertakingFieldsFor(d.clause_id, responses),
+  }));
   const undertakingGrid = (signable: boolean) => (
-    <div className="space-y-2">
-      {docs.map((d) => (
-        <UndertakingCard
-          key={d.id}
-          title={d.title}
-          signedAt={d.signed_at}
-          action={
-            <DocumentDialog
-              docType={DOC_TYPE_LABELS[d.type]}
-              title={d.title}
-              content={d.content}
-              signees={signeesFor(app, responses, d)}
-              canSign={signable && !d.signed_at}
-              otpPhone={responses.mobile}
-              action={signDocument.bind(null, d.id)}
-              triggerLabel={
-                signable && !d.signed_at ? "Review & sign" : "View document"
-              }
-              triggerClassName={
-                signable && !d.signed_at
-                  ? "btn-primary w-full !h-9"
-                  : "btn-secondary w-full !h-9"
-              }
-            />
-          }
-        />
-      ))}
-    </div>
+    <UndertakingVariantView
+      variant={variant}
+      items={undertakingItems}
+      signable={signable}
+      learnerName={responses.full_name || app.learner_name || "the learner"}
+      phone={responses.mobile}
+      signDoc={(docId) => signDocument.bind(null, docId)}
+      signAll={signAllDocuments.bind(null, app.id)}
+    />
   );
 
   return (
@@ -354,6 +348,7 @@ export default function LearnerApplicationPage({
               lives here too now that the overview screen is gone. */}
           {step === 2 && (
             <>
+              <AllSignedCelebration allSigned={allSigned} certified={certified} />
               <div className="card mt-4 p-6">
                 <h2 className="text-[18px] font-medium">
                   Undertaking &amp; Acknowledgement

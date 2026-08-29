@@ -1,8 +1,13 @@
+import {
+  UNDERTAKING_VARIANT_META,
+  type UndertakingVariant,
+} from "./domain";
 import { getDb, dbReady } from "./db";
 import {
   sessionUid,
   activityViewRaw,
   learnerViewRaw,
+  undertakingVariantRaw,
 } from "./session";
 import type { Role } from "./domain";
 
@@ -64,6 +69,14 @@ export function activityInline(): boolean {
  * hides the FAB switch, and bounces the /learner/applications routes home.
  * Flip it to true to bring v2 back for a comparison.
  */
+/** Which learner undertaking UI is live — see UNDERTAKING_VARIANT_META. */
+export function undertakingVariant(): UndertakingVariant {
+  const raw = undertakingVariantRaw();
+  return (UNDERTAKING_VARIANT_META.some((m) => m.id === raw)
+    ? raw
+    : "v1") as UndertakingVariant;
+}
+
 export const LEARNER_V2_ENABLED = false;
 
 export function learnerView(): "v1" | "v2" {

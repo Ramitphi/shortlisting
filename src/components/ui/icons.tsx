@@ -587,3 +587,15 @@ export function IconNoteFill({ className }: { className?: string }) {
     </svg>
   );
 }
+
+export function IconFeather({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M20.9 3.05c-4.77-.44-8.7 1-11.3 3.6-2.03 2.03-3.2 4.77-3.5 8.02l-3.04 3.04a.95.95 0 1 0 1.34 1.34l3.04-3.04c3.25-.3 5.99-1.47 8.02-3.5 2.6-2.6 4.04-6.53 3.6-11.3l-.08-.08-.08-.08ZM18.42 5.7 8.6 15.52l.94.94 9.82-9.82-.94-.94Z"
+      />
+    </svg>
+  );
+}

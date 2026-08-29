@@ -55,6 +55,16 @@ export function setActivityView(v: "inline" | "drawer"): void {
   write(ACTIVITY_KEY, v);
 }
 
+const UNDERTAKING_KEY = "shortlisting_undertaking_variant";
+
+export function undertakingVariantRaw(): string | null {
+  return read(UNDERTAKING_KEY);
+}
+
+export function setUndertakingVariant(v: string): void {
+  write(UNDERTAKING_KEY, v);
+}
+
 export function learnerViewRaw(): string | null {
   return read(LEARNER_VIEW_KEY);
 }

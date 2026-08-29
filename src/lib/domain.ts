@@ -825,3 +825,65 @@ export function triggeredClausesFor(responses: Record<string, string>): string[]
   return Array.from(new Set(ids));
 }
 
+/**
+ * Which answers each clause rests on — the other half of the trigger table
+ * above. `triggeredClausesFor` reads answers and produces clauses; this maps
+ * a clause back to the answers that produced it, so the learner can be shown
+ * WHAT they are certifying, not just a legal title.
+ */
+export const CLAUSE_FIELDS: Record<string, string[]> = {
+  "CON-Parents-01": ["dob", "guardian_name", "guardian_email"],
+  "ACK-Age/Visa-01": ["dob", "degree_level"],
+  "UT-uG Doc-01": ["status_12", "completion_12"],
+  "UT-uG Doc/Result-03": ["has_marksheet_12"],
+  "UT-PG Doc-02": ["bachelor_status", "pg_status", "pg_docs"],
+  "UT-PG Doc/Result-04": ["bachelor_docs"],
+  "UT-Backlog-01": ["backlogs"],
+  "UT/ACK-Loan-01": ["finance_plan"],
+};
+
+/** One answer behind an undertaking, ready to render. */
+export interface UndertakingField {
+  key: string;
+  label: string;
+  value: string;
+}
+
+/**
+ * The answers a document certifies, with their current values. Generic
+ * documents (process acknowledgement, the degree-tag clauses) have no
+ * clause id and rest on the whole application rather than one answer —
+ * they return an empty list and the UI says so in words.
+ */
+export function undertakingFieldsFor(
+  clauseId: string | null,
+  responses: Record<string, string>
+): UndertakingField[] {
+  const keys = clauseId ? (CLAUSE_FIELDS[clauseId] ?? []) : [];
+  return keys
+    .map((key) => {
+      const f = FORM_FIELDS.find((x) => x.key === key);
+      if (!f) return null;
+      return { key, label: f.label, value: (responses[key] ?? "").trim() };
+    })
+    .filter((x): x is UndertakingField => x !== null)
+    .filter((x) => x.value !== "");
+}
+
+/**
+ * The learner-side undertaking UI, in the order the team prefers them —
+ * v1 first. Switched live from the demo FAB so the variants can be walked
+ * in one sitting. v6 is the inline-at-the-field reference the PM floated,
+ * kept at the back of the queue on purpose.
+ */
+export const UNDERTAKING_VARIANT_META = [
+  { id: "v1", name: "Signature cards", hint: "Answers on the card, sign with OTP" },
+  { id: "v2", name: "Context at signing", hint: "Answers inside the sign panel" },
+  { id: "v3", name: "Guided, one at a time", hint: "Walks document by document" },
+  { id: "v4", name: "Read & tick, one OTP", hint: "Tick each, one OTP signs all" },
+  { id: "v5", name: "Field-first agreements", hint: "Grouped under the answer" },
+  { id: "v6", name: "Inline at the field", hint: "Checkbox + OTP at the field (PM ref)" },
+] as const;
+
+export type UndertakingVariant = (typeof UNDERTAKING_VARIANT_META)[number]["id"];
+

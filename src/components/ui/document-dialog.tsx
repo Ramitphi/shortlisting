@@ -101,6 +101,7 @@ export function DocumentDialog({
   canSign = false,
   action,
   otpPhone,
+  certifying,
   triggerLabel,
   triggerClassName,
 }: {
@@ -116,6 +117,11 @@ export function DocumentDialog({
    * for "it is really them holding the phone".
    */
   otpPhone?: string;
+  /**
+   * The answers this document certifies, shown in the sign rail so the
+   * signer sees WHAT they are vouching for at the moment they vouch.
+   */
+  certifying?: { label: string; value: string }[];
   triggerLabel?: React.ReactNode;
   triggerClassName?: string;
 }) {
@@ -300,6 +306,24 @@ export function DocumentDialog({
                         </dd>
                       </div>
                     </dl>
+
+                    {certifying && certifying.length > 0 && (
+                      <div className="rounded-xl border border-[#e1d5ee] bg-[#efe9f6]/60 p-3.5">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.07em] text-[#6b4d8f]">
+                          You are certifying
+                        </div>
+                        <dl className="mt-2 space-y-1.5 text-[12.5px]">
+                          {certifying.map((c) => (
+                            <div key={c.label} className="flex justify-between gap-3">
+                              <dt className="text-caption">{c.label}</dt>
+                              <dd className="min-w-0 truncate text-right font-medium text-ink">
+                                {c.value}
+                              </dd>
+                            </div>
+                          ))}
+                        </dl>
+                      </div>
+                    )}
 
                     <form
                       action={async (formData: FormData) => {

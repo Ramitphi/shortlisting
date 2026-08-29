@@ -125,6 +125,8 @@ export interface Doc {
   created_at: string;
   template_id: number | null;
   source: "auto" | "ops";
+  /** The trigger clause behind this document, from its template. */
+  clause_id: string | null;
 }
 
 /** One filled slot in the learner's document locker. */
@@ -301,7 +303,12 @@ export function getPrograms(applicationId: number): Program[] {
 
 export function getDocuments(applicationId: number): Doc[] {
   return getDb()
-    .prepare("SELECT * FROM documents WHERE application_id = ? ORDER BY created_at ASC")
+    .prepare(
+      `SELECT d.*, t.clause_id AS clause_id
+       FROM documents d
+       LEFT JOIN document_templates t ON t.id = d.template_id
+       WHERE d.application_id = ? ORDER BY d.created_at ASC`
+    )
     .all(applicationId) as Doc[];
 }
 

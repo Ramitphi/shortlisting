@@ -7,6 +7,7 @@ import { getDb } from "./db";
 import { dirty, goto, hardGoto } from "./browser-db";
 import {
   setActivityView,
+  setUndertakingVariant,
   setLearnerView,
   setSessionUid,
   activityViewRaw,
@@ -15,6 +16,7 @@ import {
 import { requireUser } from "./auth";
 import { attachMissingForms, attachRequiredForms, claimApplication } from "./vetting";
 import {
+  UNDERTAKING_VARIANT_META,
   CLAUSES,
   FORM_FIELDS,
   REVIEW_GROUP_BY_KEY,
@@ -1836,6 +1838,32 @@ export async function returnRecheckToOps(
 }
 
 // ---------- Stage 4: Learner signs UT & Ack; offer letter issued ----------
+
+/** Demo FAB: pick which learner undertaking UI variant is live. */
+export async function setUndertakingVariantAction(v: string) {
+  requireUser();
+  if (!UNDERTAKING_VARIANT_META.some((m) => m.id === v)) return;
+  setUndertakingVariant(v);
+  dirty();
+}
+
+/**
+ * Sign every unsigned document with one signature — the one-OTP variants.
+ * Each document goes through signDocument itself, so the per-document
+ * gating, the timeline entries and the all-signed notification are exactly
+ * the ones the one-at-a-time flow produces.
+ */
+export async function signAllDocuments(
+  applicationId: number,
+  formData: FormData
+) {
+  const user = requireUser("learner");
+  const app = getApplication(applicationId);
+  if (!app || app.learner_id !== user.id) return;
+  for (const d of getDocuments(applicationId)) {
+    if (!d.signed_at) await signDocument(d.id, formData);
+  }
+}
 
 export async function signDocument(docId: number, formData: FormData) {
   const user = requireUser("learner");

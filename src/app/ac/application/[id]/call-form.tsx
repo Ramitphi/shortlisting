@@ -501,12 +501,27 @@ export function CallForm({
   // clicking a step or Next is what advances.
   const [activeStep, setActiveStep] = useState(0);
 
-  /** Move the walk to a section and bring it under the sticky strip. */
+  /**
+   * Move the walk to a section. Each step is its OWN page — only the active
+   * section is mounted — so this swaps the content and returns the reader to
+   * the top of it rather than scrolling down a stack. The shell scrolls an
+   * inner container, so find whichever ancestor actually scrolls.
+   */
   const goToStep = (i: number) => {
     setActiveStep(i);
-    document
-      .getElementById(`step-${STEPS[i].id}`)
-      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    let node: HTMLElement | null = document.getElementById("call-form");
+    while (node) {
+      const st = getComputedStyle(node);
+      if (
+        node.scrollHeight > node.clientHeight &&
+        /(auto|scroll)/.test(st.overflowY)
+      ) {
+        node.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
+      node = node.parentElement;
+    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   /** Group wrapper: the page's block when it supplies one, else a heading. */
@@ -560,10 +575,12 @@ export function CallForm({
         }`}
       >
       <div className={`min-w-0 space-y-5 self-start ${sidebar ? "lg:col-span-2" : ""}`}>
-        {/* Stepper — a nav strip over the open stack, not pagination: the
-            tick is live progress, the flag is open Ops comments, the click
-            is a smooth jump. Sticky, because a jump strip that scrolls away
-            with the top of the page can never be jumped from. */}
+        {/* The walk's tabs. Each step is its own page — Profile shows only
+            profile, Academics only academics — so nothing below the fold
+            belongs to another step and reading can never wander into work
+            the counsellor has not reached. The tick is live progress, the
+            flag is open Ops comments. Sticky, so the walk is always in
+            reach on a long section. */}
         {!resolving && (
         <div className="sticky top-3 z-30">
         <div className="card p-1.5 shadow-[0_10px_30px_-18px_rgba(49,48,43,0.35)]">
@@ -645,9 +662,10 @@ export function CallForm({
         )}
 
         {/* ── Profile ── */}
+        {(resolving || activeStep === 0) && (
           <SectionCard
             id="step-profile"
-            className="fade-up !scroll-mt-20"
+            className="fade-up"
             icon={<IconUserFill />}
             title="Profile"
             subtitle="Confirm the details you have from the lead form while on the call."
@@ -773,11 +791,13 @@ export function CallForm({
               </>
             ))}
           </SectionCard>
+        )}
 
         {/* ── Academics ── */}
+        {(resolving || activeStep === 1) && (
           <SectionCard
             id="step-academics"
-            className="fade-up !scroll-mt-20"
+            className="fade-up"
             icon={<IconCapFill />}
             title="Academics"
             subtitle="Ops will read scores off the documents — you only capture status and uploads."
@@ -1025,11 +1045,13 @@ export function CallForm({
               )}
             </div>
           </SectionCard>
+        )}
 
         {/* ── Financing ── */}
+        {(resolving || activeStep === 2) && (
           <SectionCard
             id="step-financing"
-            className="fade-up !scroll-mt-20"
+            className="fade-up"
             icon={<IconWalletFill />}
             title="Financing"
             subtitle="How the learner plans to fund tuition and living costs on campus."
@@ -1057,12 +1079,13 @@ export function CallForm({
               </>
             ))}
           </SectionCard>
+        )}
 
         {/* ── Programmes — the AI vet recommends, the counsellor picks ── */}
-        {programmes && (
+        {(resolving || activeStep === 3) && programmes && (
           <SectionCard
             id="step-programmes"
-            className="fade-up !scroll-mt-20"
+            className="fade-up"
             icon={<IconLayersFill />}
             title="Requested programmes"
             subtitle="The AI reads everything captured on this call and puts its best matches below — add the ones worth sending. Ops rules on the eligibility of each, and only the eligible ones can be shortlisted."

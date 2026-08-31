@@ -12,7 +12,7 @@ import type { RecheckChange, RecheckVariant } from "@/lib/domain";
  * pieces that belong to it and the pages stay ignorant of the ranking.
  */
 
-/** The marker beside a changed field's label. r3 relies on its band instead. */
+/** The marker beside a changed field's label. r1's band speaks instead. */
 export function LearnerChangeMark({
   variant,
   change,
@@ -22,7 +22,7 @@ export function LearnerChangeMark({
   change?: RecheckChange;
   at?: string | null;
 }) {
-  if (variant === "r3") return null;
+  if (variant === "r1") return null;
   if (change && (variant === "r2" || variant === "r4" || variant === "r5")) {
     // The pin carries the diff on hover where the layout does not show it.
     return (
@@ -38,7 +38,12 @@ export function LearnerChangeMark({
   return <ChangedPin at={at} />;
 }
 
-/** r1 — the old answer struck through, right under the new one. */
+/**
+ * r1 — the old answer, revealed on hover. The band says "this moved";
+ * resting the pointer on the row slides the was-line in under the value,
+ * so the diff is one gesture away without every changed row running two
+ * lines tall all the time.
+ */
 export function LearnerWasLine({
   variant,
   change,
@@ -48,22 +53,24 @@ export function LearnerWasLine({
 }) {
   if (variant !== "r1" || !change) return null;
   return (
-    <div className="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-[#8a6d2f]">
-      <IconRefresh className="h-3 w-3 shrink-0" />
-      <span>
-        was{" "}
-        <span className="line-through decoration-[#8a6d2f]/50">
-          {change.from || "—"}
+    <div className="max-h-0 overflow-hidden opacity-0 transition-all duration-150 group-hover/changed:mt-1 group-hover/changed:max-h-6 group-hover/changed:opacity-100">
+      <div className="flex items-center gap-1.5 whitespace-nowrap text-[11.5px] leading-none text-[#8a6d2f]">
+        <IconRefresh className="h-3 w-3 shrink-0" />
+        <span className="min-w-0 truncate">
+          was{" "}
+          <span className="line-through decoration-[#8a6d2f]/50">
+            {change.from || "—"}
+          </span>
         </span>
-      </span>
+      </div>
     </div>
   );
 }
 
-/** The amber band a changed row wears under r3. */
+/** The amber band a changed row wears under r1 — also the hover scope. */
 export function changedRowClass(variant: RecheckVariant, changed: boolean) {
-  return variant === "r3" && changed
-    ? " -mx-2 rounded-lg bg-[#faf3df] px-2"
+  return variant === "r1" && changed
+    ? " group/changed -mx-2.5 rounded-lg bg-[#faf3df] px-2.5 transition-colors hover:bg-[#f5ebcf]"
     : "";
 }
 

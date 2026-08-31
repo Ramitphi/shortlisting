@@ -912,10 +912,9 @@ export function parseRecheckChanges(
  * today's yellow marker, kept as the baseline.
  */
 export const RECHECK_VARIANT_META = [
-  { id: "r1", name: "Was → now on the row", hint: "Old value struck through under the new" },
+  { id: "r1", name: "Highlight, diff on hover", hint: "Amber row; was → now appears on hover" },
   { id: "r6", name: "Note in the section", hint: "Amber footer line inside the section, like Ops' comments" },
   { id: "r2", name: "Changes panel", hint: "One card listing every old → new" },
-  { id: "r3", name: "Highlighted rows", hint: "Amber band on each changed row" },
   { id: "r4", name: "Chip strip", hint: "Changed fields as chips above the board" },
   { id: "r5", name: "Marker only (today)", hint: "The yellow pin, as it is now" },
 ] as const;

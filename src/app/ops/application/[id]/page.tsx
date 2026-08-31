@@ -601,7 +601,14 @@ export default function OpsApplicationPage({
                         (r) => r.field_key === f.key
                       );
                       return (
-                        <div key={f.key} className="py-2 first:pt-0 last:pb-0">
+                        <div
+                          key={f.key}
+                          className={
+                            changedLabels.has(f.label)
+                              ? "py-1 first:pt-0 last:pb-0"
+                              : "py-2 first:pt-0 last:pb-0"
+                          }
+                        >
                           {/* One fact per line: the label sits in a fixed
                               key column, the value beside it, the verdict
                               icons at the tail. Stacking the label above the
@@ -650,12 +657,6 @@ export default function OpsApplicationPage({
                                 <div className="min-w-0 break-words text-[13.5px] font-medium text-ink">
                                   {responses[f.key] || (
                                     <span className="font-normal text-caption">—</span>
-                                  )}
-                                  {changedLabels.has(f.label) && (
-                                    <LearnerWasLine
-                                      change={recheckChanges[f.label]}
-                                      at={recheck?.at}
-                                    />
                                   )}
                                 </div>
                               )}
@@ -709,6 +710,15 @@ export default function OpsApplicationPage({
                                   at={fieldChecks[f.key]?.at}
                                 />
                               )}
+                            {/* The reveal — a second, full-width line of
+                                the band; the first line's alignment never
+                                moves for it. */}
+                            {changedLabels.has(f.label) && (
+                              <LearnerWasLine
+                                change={recheckChanges[f.label]}
+                                at={recheck?.at}
+                              />
+                            )}
                           </div>
                           {/* The AI vet's read of the documents, under the
                               row it is about — full width, out of the way. */}

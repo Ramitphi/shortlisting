@@ -784,9 +784,11 @@ export default function AcApplicationPage({
                         (f) => (
                           <div
                             key={f.key}
-                            className={`flex flex-wrap items-center gap-x-4 gap-y-1.5 py-2 first:pt-0 last:pb-0${changedRowClass(
+                            className={`flex flex-wrap items-center gap-x-4 gap-y-1.5 ${
                               changedLabels.has(f.label)
-                            )}`}
+                                ? "my-1"
+                                : "py-2 first:pt-0 last:pb-0"
+                            }${changedRowClass(changedLabels.has(f.label))}`}
                           >
                             <span className="flex min-w-[11rem] max-w-[17.5rem] flex-1 basis-[200px] items-center gap-1.5 text-[12.5px] text-caption">
                               <span className="min-w-0 truncate" title={f.label}>
@@ -818,12 +820,6 @@ export default function AcApplicationPage({
                                   {responses[f.key] || (
                                     <span className="font-normal text-caption">—</span>
                                   )}
-                                  {changedLabels.has(f.label) && (
-                                    <LearnerWasLine
-                                      change={recheckChanges[f.label]}
-                                      at={recheck?.at}
-                                    />
-                                  )}
                                 </div>
                               )}
                               {/* Ops' verdict on this exact answer —
@@ -835,6 +831,15 @@ export default function AcApplicationPage({
                                 at={fieldChecks[f.key]?.at}
                               />
                             </div>
+                            {/* The reveal — a second, full-width line of
+                                the band; the first line's alignment never
+                                moves for it. */}
+                            {changedLabels.has(f.label) && (
+                              <LearnerWasLine
+                                change={recheckChanges[f.label]}
+                                at={recheck?.at}
+                              />
+                            )}
                           </div>
                         )
                       )}

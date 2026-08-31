@@ -31,6 +31,7 @@ export function ReviewGroupBlock({
   reviewAction,
   docs = [],
   triggered = [],
+  design = false,
   children,
 }: {
   group: ReviewGroup;
@@ -47,6 +48,12 @@ export function ReviewGroupBlock({
   canReview?: boolean;
   toggleAction?: () => void | Promise<void>;
   reviewAction?: (formData: FormData) => void | Promise<void>;
+  /**
+   * Design-mode playground: the group sheds its own box — a plain heading
+   * line above the children, the way the reference sets a heading over ONE
+   * boxed table. The children bring the box.
+   */
+  design?: boolean;
   /** The group's own documents, already joined to what is uploaded. */
   docs?: DocRow[];
   /** Titles of the undertakings these answers trigger. */
@@ -63,12 +70,22 @@ export function ReviewGroupBlock({
   return (
     // overflow-hidden so the header's fill is clipped by the radius — without
     // it the tinted bar squares off the top corners and pokes past the border.
-    <section className="overflow-hidden rounded-xl border border-line">
+    <section
+      className={
+        design ? "" : "overflow-hidden rounded-xl border border-line"
+      }
+    >
       {/* Header, two fixed zones: identity and state on the left, the
           actions on the right — never interleaved, so the eye always knows
           where to look. State chips stay small next to the title; the
           buttons are the only button-shaped things in the row. */}
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-line bg-paper px-4 py-3">
+      <div
+        className={
+          design
+            ? "mb-2.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-2"
+            : "flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-line bg-paper px-4 py-3"
+        }
+      >
         <span className="flex min-w-0 flex-wrap items-center gap-2">
         <h3 className="text-[13.5px] font-semibold text-ink">{group.label}</h3>
 
@@ -224,11 +241,17 @@ export function ReviewGroupBlock({
           document.body
         )}
 
-      <div className="p-4">{children}</div>
+      <div className={design ? "" : "p-4"}>{children}</div>
 
       {/* What backs this group up, and what it commits the learner to. */}
       {(docs.length > 0 || triggered.length > 0 || rejected) && (
-        <div className="space-y-2 border-t border-line px-4 py-3">
+        <div
+          className={
+            design
+              ? "mt-2.5 space-y-2"
+              : "space-y-2 border-t border-line px-4 py-3"
+          }
+        >
           {rejected && opsCheck?.comment && (
             <p className="flex items-start gap-1.5 text-[12.5px] leading-snug text-[#8a6d2f]">
               <IconAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />

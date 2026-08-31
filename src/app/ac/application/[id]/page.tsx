@@ -781,7 +781,13 @@ export default function AcApplicationPage({
                         label's tail where a scan finds them. One fact per
                         line reads faster than a two-column grid of stacked
                         label-over-value cells. */}
-                    <div className={design ? "space-y-7" : "divide-y divide-line"}>
+                    <div
+                      className={
+                        design
+                          ? "divide-y divide-line overflow-hidden rounded-[4px] border border-line bg-white"
+                          : "divide-y divide-line"
+                      }
+                    >
                       {FORM_FIELDS.filter((f) => f.section === section).map(
                         (f) => {
                           const changed = changedLabels.has(f.label);
@@ -817,17 +823,24 @@ export default function AcApplicationPage({
                           // separators; a changed BLOCK carries the blue
                           // rule from label to helper line.
                           if (design) {
+                            // The reference's anatomy: one box, cut into
+                            // rows; each row a grey label cell and a white
+                            // value cell split by an internal rule. A
+                            // changed row's slice carries the blue edge.
                             return (
                               <div
                                 key={f.key}
-                                className={
+                                className={`grid grid-cols-[190px_minmax(0,1fr)]${
                                   changed
-                                    ? "border-l-[3px] border-[#3d5a80] pl-4"
+                                    ? " border-l-[3px] border-l-[#3d5a80]"
                                     : ""
-                                }
+                                }`}
                               >
-                                <div className="flex flex-wrap items-center gap-1.5">
-                                  <span className="text-[13px] text-body">
+                                <div className="flex items-center gap-1.5 border-r border-line bg-cream/60 px-4 py-3">
+                                  <span
+                                    className="min-w-0 text-[13px] leading-snug text-ink"
+                                    title={f.label}
+                                  >
                                     {f.label}
                                   </span>
                                   {f.filledBy === "ops" && (
@@ -835,17 +848,23 @@ export default function AcApplicationPage({
                                       ops
                                     </span>
                                   )}
-                                  <FieldComments comments={commentsFor(f.key)} />
-                                  {verdictChip}
                                 </div>
-                                <div className="mt-1.5">{valueControl}</div>
-                                {changed && (
-                                  <LearnerWasLine
-                                    design
-                                    change={recheckChanges[f.label]}
-                                    at={recheck?.at}
-                                  />
-                                )}
+                                <div className="px-4 py-3">
+                                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                    {valueControl}
+                                    <span className="ml-auto flex shrink-0 items-center gap-1.5">
+                                      <FieldComments comments={commentsFor(f.key)} />
+                                      {verdictChip}
+                                    </span>
+                                  </div>
+                                  {changed && (
+                                    <LearnerWasLine
+                                      design
+                                      change={recheckChanges[f.label]}
+                                      at={recheck?.at}
+                                    />
+                                  )}
+                                </div>
                               </div>
                             );
                           }

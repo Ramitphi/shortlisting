@@ -584,6 +584,7 @@ export default function OpsApplicationPage({
                 <ReviewGroupBlock
                   key={group.key}
                   group={group}
+                  design={design}
                   acCheck={groupChecks[group.key]?.ac}
                   opsCheck={groupChecks[group.key]?.ops}
                   viewer="ops"
@@ -594,7 +595,13 @@ export default function OpsApplicationPage({
                     .filter((c) => triggeredClauses.includes(c))
                     .map((c) => CLAUSES[c]?.title ?? c)}
                 >
-                  <div className={design ? "space-y-7" : "divide-y divide-line"}>
+                  <div
+                    className={
+                      design
+                        ? "divide-y divide-line overflow-hidden rounded-[4px] border border-line bg-white"
+                        : "divide-y divide-line"
+                    }
+                  >
                     {group.fields
                       .map((k) => FORM_FIELDS.find((f) => f.key === k))
                       .filter((f): f is (typeof FORM_FIELDS)[number] => Boolean(f))
@@ -679,17 +686,25 @@ export default function OpsApplicationPage({
                       // rule, label to helper line, content indented beside
                       // it. Everything else identical in function.
                       if (design) {
+                        // The reference's anatomy, verbatim: one box, cut
+                        // into rows; each row cut into a grey label cell
+                        // and a white value cell by an internal rule. A
+                        // changed row's slice of the box carries the blue
+                        // on its left edge.
                         return (
                           <div
                             key={f.key}
-                            className={
+                            className={`grid grid-cols-[190px_minmax(0,1fr)]${
                               changed
-                                ? "border-l-[3px] border-[#3d5a80] pl-4"
+                                ? " border-l-[3px] border-l-[#3d5a80]"
                                 : ""
-                            }
+                            }`}
                           >
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              <span className="text-[13px] text-body">
+                            <div className="flex items-center gap-1.5 border-r border-line bg-cream/60 px-4 py-3">
+                              <span
+                                className="min-w-0 text-[13px] leading-snug text-ink"
+                                title={f.label}
+                              >
                                 {f.label}
                               </span>
                               {f.filledBy === "ops" && (
@@ -697,18 +712,24 @@ export default function OpsApplicationPage({
                                   ops
                                 </span>
                               )}
-                              <FieldComments comments={commentsFor(f.key)} />
-                              {verdictControl}
                             </div>
-                            <div className="mt-1.5">{valueControl}</div>
-                            {changed && (
-                              <LearnerWasLine
-                                design
-                                change={recheckChanges[f.label]}
-                                at={recheck?.at}
-                              />
-                            )}
-                            {aiLine}
+                            <div className="px-4 py-3">
+                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                {valueControl}
+                                <span className="ml-auto flex shrink-0 items-center gap-1.5">
+                                  <FieldComments comments={commentsFor(f.key)} />
+                                  {verdictControl}
+                                </span>
+                              </div>
+                              {changed && (
+                                <LearnerWasLine
+                                  design
+                                  change={recheckChanges[f.label]}
+                                  at={recheck?.at}
+                                />
+                              )}
+                              {aiLine}
+                            </div>
                           </div>
                         );
                       }

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Shell, requireRole } from "@/components/shell";
 import {
-  activityInline } from "@/lib/auth";
+  activityInline, recheckView } from "@/lib/auth";
 import {
   BackLink,
   EmptyState,
@@ -196,7 +196,8 @@ export default function AcApplicationPage({
     : [];
   /** The labels the learner moved — marked wherever the fields are read. */
   const changedLabels = new Set(recheck?.fields ?? []);
-  // What each changed answer moved from — revealed on hover of the band.
+  // What each changed answer moved from — shown per the FAB-picked display.
+  const recheckVariant = recheckView();
   const recheckChanges =
     recheck?.kind === "learner" ? parseRecheckChanges(app.recheck_changes) : {};
 
@@ -788,7 +789,7 @@ export default function AcApplicationPage({
                               changedLabels.has(f.label)
                                 ? "my-1"
                                 : "py-2 first:pt-0 last:pb-0"
-                            }${changedRowClass(changedLabels.has(f.label))}`}
+                            }${changedRowClass(recheckVariant, changedLabels.has(f.label))}`}
                           >
                             <span className="flex min-w-[11rem] max-w-[17.5rem] flex-1 basis-[200px] items-center gap-1.5 text-[12.5px] text-caption">
                               <span className="min-w-0 truncate" title={f.label}>
@@ -836,6 +837,7 @@ export default function AcApplicationPage({
                                 moves for it. */}
                             {changedLabels.has(f.label) && (
                               <LearnerWasLine
+                                variant={recheckVariant}
                                 change={recheckChanges[f.label]}
                                 at={recheck?.at}
                               />

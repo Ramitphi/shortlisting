@@ -5,7 +5,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Shell, requireRole } from "@/components/shell";
 import {
-  activityInline } from "@/lib/auth";
+  activityInline, recheckView } from "@/lib/auth";
 import {
   BackLink,
   CardChip,
@@ -186,7 +186,8 @@ export default function OpsApplicationPage({
     : 0;
   // The labels the learner moved, for the "changed" marks on the fields.
   const changedLabels = new Set(recheck?.fields ?? []);
-  // What each changed answer moved from — revealed on hover of the band.
+  // What each changed answer moved from — shown per the FAB-picked display.
+  const recheckVariant = recheckView();
   const recheckChanges =
     recheck?.kind === "learner" ? parseRecheckChanges(app.recheck_changes) : {};
 
@@ -617,6 +618,7 @@ export default function OpsApplicationPage({
                               it and the eye can scan the value column. */}
                           <div
                             className={`flex flex-wrap items-center gap-x-4 gap-y-1.5${changedRowClass(
+                              recheckVariant,
                               changedLabels.has(f.label)
                             )}`}
                           >
@@ -715,6 +717,7 @@ export default function OpsApplicationPage({
                                 moves for it. */}
                             {changedLabels.has(f.label) && (
                               <LearnerWasLine
+                                variant={recheckVariant}
                                 change={recheckChanges[f.label]}
                                 at={recheck?.at}
                               />

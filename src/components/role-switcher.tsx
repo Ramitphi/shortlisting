@@ -108,7 +108,7 @@ export function RoleSwitcher({
 
       <div className="fixed bottom-24 right-6 z-[71] flex flex-col items-end gap-2">
         {open && (
-          <div className="w-[19rem] overflow-hidden rounded-2xl border border-line bg-white shadow-[0_28px_60px_-18px_rgba(49,48,43,0.4)]">
+          <div className="max-h-[calc(100dvh-11rem)] w-[19rem] overflow-y-auto overflow-x-hidden rounded-2xl border border-line bg-white shadow-[0_28px_60px_-18px_rgba(49,48,43,0.4)]">
             <div className="border-b border-line px-4 py-2.5">
               <div className="text-[12.5px] font-semibold text-ink">
                 View as
@@ -258,7 +258,7 @@ export function RoleSwitcher({
                 Learner side — ranked, 1 is our pick
               </div>
             </div>
-            <div className="max-h-56 overflow-y-auto">
+            <div>
               {UNDERTAKING_VARIANT_META.map((m, i) => {
                 const active = undertakingVariant() === m.id;
                 return (
@@ -307,7 +307,7 @@ export function RoleSwitcher({
                 Staff boards — ranked, 1 is our pick
               </div>
             </div>
-            <div className="max-h-56 overflow-y-auto">
+            <div>
               {RECHECK_VARIANT_META.map((m, i) => {
                 const active = recheckView() === m.id;
                 return (

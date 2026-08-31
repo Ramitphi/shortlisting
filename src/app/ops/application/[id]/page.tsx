@@ -561,6 +561,7 @@ export default function OpsApplicationPage({
           <SectionCard
               id="eligibility-details"
               className="fade-up"
+              design={design}
               icon={<IconShieldFill />}
               title="Eligibility Details"
               subtitle={

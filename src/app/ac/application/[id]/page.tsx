@@ -772,6 +772,7 @@ export default function AcApplicationPage({
                   <SectionCard
                     key={section}
                     className="fade-up"
+                    design={design}
                     icon={SECTION_GLYPHS[section] ?? <IconClipboardFill />}
                     title={section}
                   >

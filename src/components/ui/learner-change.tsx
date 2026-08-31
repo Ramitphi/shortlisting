@@ -18,11 +18,11 @@ import type { RecheckChange } from "@/lib/domain";
 export function changedRowClass(design: boolean, changed: boolean) {
   if (!changed) return "";
   if (design)
-    // The rule INDENTS the content — bar, gap, then everything else a
-    // step to the right, the helper line included, exactly like the
-    // reference. The row keeps its own vertical padding so the bar has
-    // height to span.
-    return " border-l-[3px] border-[#3d5a80] py-2.5 pl-4";
+    // The box method: the changed row becomes its own contained
+    // rectangle — full border, rounded — and the container's LEFT edge
+    // carries the blue. Nothing else moves; the box's negative margins
+    // keep its content flush with the unboxed rows around it.
+    return " -mx-3 my-1 rounded-lg border border-line !border-l-[3px] border-l-[#3d5a80] bg-white px-3 py-2.5";
   return " group/changed -mx-2.5 rounded-lg bg-[#faf3df] px-2.5 py-2 transition-colors hover:bg-[#f5ebcf]";
 }
 

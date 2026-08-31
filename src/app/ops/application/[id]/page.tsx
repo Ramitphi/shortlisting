@@ -5,7 +5,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Shell, requireRole } from "@/components/shell";
 import {
-  recheckView, activityInline } from "@/lib/auth";
+  activityInline } from "@/lib/auth";
 import {
   BackLink,
   CardChip,
@@ -43,10 +43,7 @@ import {
   IconPenFill,
   IconLayersFill,
   IconClockFill,
-  LearnerChangeMark,
   LearnerWasLine,
-  LearnerChangesFooter,
-  LearnerChangesPanel,
   changedRowClass,
   SectionCard,
 } from "@/components/ui";
@@ -189,8 +186,7 @@ export default function OpsApplicationPage({
     : 0;
   // The labels the learner moved, for the "changed" marks on the fields.
   const changedLabels = new Set(recheck?.fields ?? []);
-  // How those changes are shown — the FAB-switched candidate treatments.
-  const recheckVariant = recheckView();
+  // What each changed answer moved from — revealed on hover of the band.
   const recheckChanges =
     recheck?.kind === "learner" ? parseRecheckChanges(app.recheck_changes) : {};
 
@@ -503,17 +499,6 @@ export default function OpsApplicationPage({
         />
       )}
 
-      {recheck && recheck.kind === "learner" && (
-        <div className="mb-5">
-          <LearnerChangesPanel
-            variant={recheckVariant}
-            changes={recheckChanges}
-            labels={recheck.fields}
-            at={recheck.at}
-          />
-        </div>
-      )}
-
       <div className="-mb-12 flex min-h-[calc(100dvh-13.5rem)] flex-col">
       {/* Content left, Activity in the right rail — unless the timeline is
           switched off, in which case the content takes the whole width and the
@@ -625,7 +610,6 @@ export default function OpsApplicationPage({
                               it and the eye can scan the value column. */}
                           <div
                             className={`flex flex-wrap items-center gap-x-4 gap-y-1.5${changedRowClass(
-                              recheckVariant,
                               changedLabels.has(f.label)
                             )}`}
                           >
@@ -637,13 +621,6 @@ export default function OpsApplicationPage({
                                 <span className="shrink-0 text-[9.5px] font-semibold uppercase tracking-wide text-accent">
                                   ops
                                 </span>
-                              )}
-                              {changedLabels.has(f.label) && (
-                                <LearnerChangeMark
-                                  variant={recheckVariant}
-                                  change={recheckChanges[f.label]}
-                                  at={recheck?.at}
-                                />
                               )}
                               <FieldComments comments={commentsFor(f.key)} />
                             </span>
@@ -676,8 +653,8 @@ export default function OpsApplicationPage({
                                   )}
                                   {changedLabels.has(f.label) && (
                                     <LearnerWasLine
-                                      variant={recheckVariant}
                                       change={recheckChanges[f.label]}
+                                      at={recheck?.at}
                                     />
                                   )}
                                 </div>
@@ -749,18 +726,6 @@ export default function OpsApplicationPage({
                       );
                     })}
                   </div>
-                  {/* r6 — the section announces its own changes, in the
-                      voice the group footer already speaks in. */}
-                  <LearnerChangesFooter
-                    variant={recheckVariant}
-                    changes={recheckChanges}
-                    labels={group.fields
-                      .map(
-                        (k) => FORM_FIELDS.find((x) => x.key === k)?.label ?? k
-                      )
-                      .filter((l) => changedLabels.has(l))}
-                    at={recheck?.at}
-                  />
                 </ReviewGroupBlock>
               ))}
               </div>

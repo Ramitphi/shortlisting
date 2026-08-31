@@ -906,18 +906,4 @@ export function parseRecheckChanges(
   }
 }
 
-/**
- * How the staff boards show a learner's post-vetting edits — five candidate
- * treatments in our order of preference, switched from the demo FAB. r5 is
- * today's yellow marker, kept as the baseline.
- */
-export const RECHECK_VARIANT_META = [
-  { id: "r1", name: "Highlight, diff on hover", hint: "Amber row; was → now appears on hover" },
-  { id: "r6", name: "Note in the section", hint: "Amber footer line inside the section, like Ops' comments" },
-  { id: "r2", name: "Changes panel", hint: "One card listing every old → new" },
-  { id: "r4", name: "Chip strip", hint: "Changed fields as chips above the board" },
-  { id: "r5", name: "Marker only (today)", hint: "The yellow pin, as it is now" },
-] as const;
-
-export type RecheckVariant = (typeof RECHECK_VARIANT_META)[number]["id"];
 

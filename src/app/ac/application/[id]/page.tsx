@@ -5,7 +5,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Shell, requireRole } from "@/components/shell";
 import {
-  recheckView, activityInline } from "@/lib/auth";
+  activityInline } from "@/lib/auth";
 import {
   BackLink,
   EmptyState,
@@ -43,10 +43,7 @@ import {
   IconPenFill,
   IconLayersFill,
   IconClockFill,
-  LearnerChangeMark,
   LearnerWasLine,
-  LearnerChangesFooter,
-  LearnerChangesPanel,
   changedRowClass,
   SectionCard,
 } from "@/components/ui";
@@ -199,7 +196,7 @@ export default function AcApplicationPage({
     : [];
   /** The labels the learner moved — marked wherever the fields are read. */
   const changedLabels = new Set(recheck?.fields ?? []);
-  const recheckVariant = recheckView();
+  // What each changed answer moved from — revealed on hover of the band.
   const recheckChanges =
     recheck?.kind === "learner" ? parseRecheckChanges(app.recheck_changes) : {};
 
@@ -768,14 +765,6 @@ export default function AcApplicationPage({
           {/* One card per form section, each self-titled with a filled
               glyph — the section names say what this is, and the state
               story (recheck, appeal) is the banner's job above. */}
-          {tab === "profile" && recheck && recheck.kind === "learner" && (
-            <LearnerChangesPanel
-              variant={recheckVariant}
-              changes={recheckChanges}
-              labels={recheck.fields}
-              at={recheck.at}
-            />
-          )}
           {tab === "profile" &&
             FORM_SECTIONS.map((section) => (
                   <SectionCard
@@ -796,7 +785,6 @@ export default function AcApplicationPage({
                           <div
                             key={f.key}
                             className={`flex flex-wrap items-center gap-x-4 gap-y-1.5 py-2 first:pt-0 last:pb-0${changedRowClass(
-                              recheckVariant,
                               changedLabels.has(f.label)
                             )}`}
                           >
@@ -808,13 +796,6 @@ export default function AcApplicationPage({
                                 <span className="shrink-0 text-[9.5px] font-semibold uppercase tracking-wide text-accent">
                                   ops
                                 </span>
-                              )}
-                              {changedLabels.has(f.label) && (
-                                <LearnerChangeMark
-                                  variant={recheckVariant}
-                                  change={recheckChanges[f.label]}
-                                  at={recheck?.at}
-                                />
                               )}
                               <FieldComments comments={commentsFor(f.key)} />
                             </span>
@@ -839,8 +820,8 @@ export default function AcApplicationPage({
                                   )}
                                   {changedLabels.has(f.label) && (
                                     <LearnerWasLine
-                                      variant={recheckVariant}
                                       change={recheckChanges[f.label]}
+                                      at={recheck?.at}
                                     />
                                   )}
                                 </div>
@@ -858,14 +839,6 @@ export default function AcApplicationPage({
                         )
                       )}
                     </div>
-                    <LearnerChangesFooter
-                      variant={recheckVariant}
-                      changes={recheckChanges}
-                      labels={FORM_FIELDS.filter(
-                        (f) => f.section === section && changedLabels.has(f.label)
-                      ).map((f) => f.label)}
-                      at={recheck?.at}
-                    />
                   </SectionCard>
                 ))}
 

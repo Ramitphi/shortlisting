@@ -1,7 +1,5 @@
 import {
-  RECHECK_VARIANT_META,
   UNDERTAKING_VARIANT_META,
-  type RecheckVariant,
   type UndertakingVariant,
 } from "./domain";
 import { getDb, dbReady } from "./db";
@@ -9,7 +7,7 @@ import {
   sessionUid,
   activityViewRaw,
   learnerViewRaw,
-  recheckViewRaw,
+  designModeRaw,
   undertakingVariantRaw,
 } from "./session";
 import type { Role } from "./domain";
@@ -80,12 +78,13 @@ export function undertakingVariant(): UndertakingVariant {
     : "v1") as UndertakingVariant;
 }
 
-/** Which learner-change display is live — r1 unless the WIP is picked. */
-export function recheckView(): RecheckVariant {
-  const raw = recheckViewRaw();
-  return (RECHECK_VARIANT_META.some((m) => m.id === raw)
-    ? raw
-    : "r1") as RecheckVariant;
+/**
+ * The designer's playground switch. Off, every surface wears the shipped
+ * treatment; on, the work-in-progress designs render instead — currently
+ * the blue-rule learner-change display.
+ */
+export function designMode(): boolean {
+  return designModeRaw() === "on";
 }
 
 export const LEARNER_V2_ENABLED = false;

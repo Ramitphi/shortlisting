@@ -893,19 +893,6 @@ export interface RecheckChange {
   to: string;
 }
 
-/**
- * The learner-change display: r1 is the finalised treatment (amber band,
- * diff on hover); r7 is the designer's work-in-progress reference — a
- * quiet blue rule beside the changed rows with the old value in helper
- * text, the way Google's long forms mark the fields that matter.
- */
-export const RECHECK_VARIANT_META = [
-  { id: "r1", name: "Highlight, diff on hover", hint: "Amber row; was → now on hover" },
-  { id: "r7", name: "Blue rule", hint: "Designer WIP" },
-] as const;
-
-export type RecheckVariant = (typeof RECHECK_VARIANT_META)[number]["id"];
-
 /** applications.recheck_changes is JSON keyed by field LABEL. */
 export function parseRecheckChanges(
   json: string | null | undefined

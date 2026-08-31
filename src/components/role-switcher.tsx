@@ -5,15 +5,14 @@ import { createPortal } from "react-dom";
 import { IconCheck, IconUsers } from "./ui";
 import {
   resetDemoData,
-  setRecheckVariantAction,
+  toggleDesignMode,
   setUndertakingVariantAction,
   toggleActivityView,
   toggleLearnerView,
 } from "@/lib/actions";
-import { LEARNER_V2_ENABLED, recheckView, undertakingVariant } from "@/lib/auth";
+import { LEARNER_V2_ENABLED, designMode, undertakingVariant } from "@/lib/auth";
 import { dbReady, getDb } from "@/lib/db";
 import {
-  RECHECK_VARIANT_META,
   STATUS_LABELS,
   UNDERTAKING_VARIANT_META,
   type AppStatus,
@@ -297,54 +296,33 @@ export function RoleSwitcher({
               })}
             </div>
 
-            {/* The learner-change display: the shipped treatment, and the
-                designer's blue-rule reference alongside it for review. */}
-            <div className="border-t border-line px-4 py-2.5">
-              <div className="text-[12.5px] font-semibold text-ink">
-                Learner-change display
-              </div>
-              <div className="text-[11.5px] text-caption">
-                Staff boards — 1 is the shipped treatment
-              </div>
-            </div>
-            <div>
-              {RECHECK_VARIANT_META.map((m, i) => {
-                const active = recheckView() === m.id;
-                return (
-                  <form
-                    key={m.id}
-                    action={setRecheckVariantAction.bind(null, m.id)}
-                  >
-                    <button
-                      className={`flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors ${
-                        active ? "bg-cream/70" : "hover:bg-muted"
-                      }`}
-                    >
-                      <span
-                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold ${
-                          active ? "bg-ink text-paper" : "bg-cream text-caption"
-                        }`}
-                      >
-                        {i + 1}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[12.5px] font-medium text-ink">
-                          {m.name}
-                        </span>
-                        <span className="block truncate text-[11px] text-caption">
-                          {m.hint}
-                        </span>
-                      </span>
-                      {active && (
-                        <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-[#3f6c45]">
-                          live
-                        </span>
-                      )}
-                    </button>
-                  </form>
-                );
-              })}
-            </div>
+            {/* The designer's playground. Off, every surface is the shipped
+                design; on, the WIP treatments render instead — currently
+                the blue-rule learner-change display. */}
+            <form action={toggleDesignMode} className="border-t border-line">
+              <button className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-muted">
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-medium text-ink">
+                    Design mode
+                  </span>
+                  <span className="block text-[11.5px] text-caption">
+                    Only for the designer
+                  </span>
+                </span>
+                <span
+                  className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${
+                    designMode() ? "bg-ink" : "bg-line-strong"
+                  }`}
+                  aria-hidden
+                >
+                  <span
+                    className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all ${
+                      designMode() ? "left-[18px]" : "left-0.5"
+                    }`}
+                  />
+                </span>
+              </button>
+            </form>
 
             {/* Two presentations of the same activity log, side by side for
                 comparison. Off takes the timeline out of the layout entirely

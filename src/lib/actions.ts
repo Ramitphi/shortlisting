@@ -7,7 +7,8 @@ import { getDb } from "./db";
 import { dirty, goto, hardGoto } from "./browser-db";
 import {
   setActivityView,
-  setRecheckView,
+  designModeRaw,
+  setDesignMode,
   setUndertakingVariant,
   setLearnerView,
   setSessionUid,
@@ -17,7 +18,6 @@ import {
 import { requireUser } from "./auth";
 import { attachMissingForms, attachRequiredForms, claimApplication } from "./vetting";
 import {
-  RECHECK_VARIANT_META,
   UNDERTAKING_VARIANT_META,
   parseRecheckChanges,
   CLAUSES,
@@ -1859,11 +1859,10 @@ export async function returnRecheckToOps(
 
 // ---------- Stage 4: Learner signs UT & Ack; offer letter issued ----------
 
-/** Demo FAB: pick which learner-change display the staff boards wear. */
-export async function setRecheckVariantAction(v: string) {
+/** Demo FAB: the designer's playground switch — WIP treatments on or off. */
+export async function toggleDesignMode() {
   requireUser();
-  if (!RECHECK_VARIANT_META.some((m) => m.id === v)) return;
-  setRecheckView(v);
+  setDesignMode(designModeRaw() !== "on");
   dirty();
 }
 

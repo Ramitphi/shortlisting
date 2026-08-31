@@ -65,14 +65,14 @@ export function setUndertakingVariant(v: string): void {
   write(UNDERTAKING_KEY, v);
 }
 
-const RECHECK_VIEW_KEY = "shortlisting_recheck_variant";
+const DESIGN_MODE_KEY = "shortlisting_design_mode";
 
-export function recheckViewRaw(): string | null {
-  return read(RECHECK_VIEW_KEY);
+export function designModeRaw(): string | null {
+  return read(DESIGN_MODE_KEY);
 }
 
-export function setRecheckView(v: string): void {
-  write(RECHECK_VIEW_KEY, v);
+export function setDesignMode(on: boolean): void {
+  write(DESIGN_MODE_KEY, on ? "on" : null);
 }
 
 export function learnerViewRaw(): string | null {

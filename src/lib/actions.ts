@@ -7,6 +7,7 @@ import { getDb } from "./db";
 import { dirty, goto, hardGoto } from "./browser-db";
 import {
   setActivityView,
+  setRecheckView,
   setUndertakingVariant,
   setLearnerView,
   setSessionUid,
@@ -16,7 +17,9 @@ import {
 import { requireUser } from "./auth";
 import { attachMissingForms, attachRequiredForms, claimApplication } from "./vetting";
 import {
+  RECHECK_VARIANT_META,
   UNDERTAKING_VARIANT_META,
+  parseRecheckChanges,
   CLAUSES,
   FORM_FIELDS,
   REVIEW_GROUP_BY_KEY,
@@ -1471,6 +1474,9 @@ export async function updateLearnerDetails(
   const before = getFormResponses(applicationId);
   const changed: string[] = [];
   const changedKeys: string[] = [];
+  // What each answer moved FROM and TO, keyed by label — the staff boards
+  // render this instead of making Ops dig the old value out of the timeline.
+  const changedValues: Record<string, { from: string; to: string }> = {};
 
   const tx = db.transaction(() => {
     for (const f of FORM_FIELDS) {
@@ -1483,6 +1489,7 @@ export async function updateLearnerDetails(
       if ((before[f.key] ?? "") !== next) {
         changed.push(f.label);
         changedKeys.push(f.key);
+        changedValues[f.label] = { from: before[f.key] ?? "", to: next };
       }
       upsert.run(applicationId, f.key, next);
     }
@@ -1529,11 +1536,24 @@ export async function updateLearnerDetails(
             .filter(Boolean)
         )
       ).join(", ");
+      // Merged the same way as the field list: a second edit updates TO but
+      // keeps the original vetted FROM, so the diff always reads against
+      // what Ops actually ruled on.
+      const prevChanges = already
+        ? parseRecheckChanges(app.recheck_changes)
+        : {};
+      for (const [label, ch] of Object.entries(changedValues)) {
+        prevChanges[label] = {
+          from: prevChanges[label]?.from ?? ch.from,
+          to: ch.to,
+        };
+      }
       getDb()
         .prepare(
           `UPDATE applications
            SET recheck_at = COALESCE(recheck_at, datetime('now')),
                recheck_fields = ?,
+               recheck_changes = ?,
                recheck_state = 'ops',
                -- An open appeal stays an appeal: both causes are now on the
                -- desk, and the appeal is the one nobody else can re-raise.
@@ -1541,7 +1561,7 @@ export async function updateLearnerDetails(
                                    THEN 'appeal' ELSE 'learner' END
            WHERE id = ?`
         )
-        .run(fields, applicationId);
+        .run(fields, JSON.stringify(prevChanges), applicationId);
     }
     // A changed answer that a verdict rested on un-makes the verdict. The
     // ruling stays on screen — Ops needs to see what they said last time —
@@ -1648,7 +1668,7 @@ export async function clearRecheck(applicationId: number) {
     .prepare(
       `UPDATE applications
        SET recheck_at = NULL, recheck_fields = NULL, recheck_state = NULL,
-           recheck_kind = NULL
+           recheck_kind = NULL, recheck_changes = NULL
        WHERE id = ?`
     )
     .run(applicationId);
@@ -1838,6 +1858,14 @@ export async function returnRecheckToOps(
 }
 
 // ---------- Stage 4: Learner signs UT & Ack; offer letter issued ----------
+
+/** Demo FAB: pick how the staff boards show a learner's post-vetting edits. */
+export async function setRecheckVariantAction(v: string) {
+  requireUser();
+  if (!RECHECK_VARIANT_META.some((m) => m.id === v)) return;
+  setRecheckView(v);
+  dirty();
+}
 
 /** Demo FAB: pick which learner undertaking UI variant is live. */
 export async function setUndertakingVariantAction(v: string) {

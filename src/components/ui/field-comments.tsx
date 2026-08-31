@@ -124,102 +124,111 @@ export function FieldComments({ comments }: { comments: FieldComment[] }) {
                     ? "For your information"
                     : "Resolved"}
               </div>
+              {/* One flat stack of notes, the way Figma stacks them — a
+                  reply is just the next note, not a branch. The thread
+                  rows in the data flatten into the same list, and ONE
+                  composer at the bottom appends to the newest open
+                  comment's thread. Nothing for the reader to untangle,
+                  and nothing new for the backend to store. */}
               <div className="max-h-[260px] overflow-y-auto">
-                {comments.map((c) => (
-                  <div
-                    key={c.id}
-                    className="border-b border-line px-3.5 py-2.5 last:border-0"
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[12px] font-semibold text-ink">
-                        {c.author}
-                      </span>
-                      <span className="text-[11px] text-caption">
-                        {c.at.slice(11, 16)}
-                      </span>
-                      {c.resolved ? (
-                        <span className="ml-auto flex h-4 w-4 items-center justify-center rounded-full bg-[#4c9257] text-white">
-                          <IconCheck className="h-2.5 w-2.5" />
+                {comments
+                  .flatMap((c) => [
+                    { key: `c${c.id}`, author: c.author, at: c.at, text: c.text, info: c.kind === "info", resolved: c.resolved, controls: c, isComment: true },
+                    ...(c.thread ?? []).map((m) => ({
+                      key: `m${c.id}-${m.id}`,
+                      author: m.author,
+                      at: m.at,
+                      text: m.text,
+                      info: false,
+                      resolved: false,
+                      controls: null as FieldComment | null,
+                      isComment: false,
+                    })),
+                  ])
+                  .map((row) => (
+                    <div
+                      key={row.key}
+                      className="border-b border-line px-3.5 py-2.5 last:border-0"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span className="truncate text-[12px] font-semibold text-ink">
+                          {row.author}
                         </span>
-                      ) : (
-                        c.actions && (
-                          <span className="ml-auto shrink-0">{c.actions}</span>
-                        )
-                      )}
+                        <span className="text-[11px] text-caption">
+                          {row.at.slice(11, 16)}
+                        </span>
+                        {row.isComment && row.controls && (
+                          <span className="ml-auto flex shrink-0 items-center gap-1">
+                            {row.resolved ? (
+                              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#4c9257] text-white">
+                                <IconCheck className="h-2.5 w-2.5" />
+                              </span>
+                            ) : (
+                              <>
+                                {row.controls.acknowledgeAction && (
+                                  <form action={row.controls.acknowledgeAction}>
+                                    <button
+                                      className={`flex h-5 w-5 items-center justify-center rounded-full border transition-colors ${
+                                        row.controls.acknowledgedAt
+                                          ? "border-[#4c9257] bg-[#e8f2e9] text-[#3f6c45]"
+                                          : "border-line text-caption hover:border-[#4c9257] hover:bg-[#e8f2e9] hover:text-[#3f6c45]"
+                                      }`}
+                                      title={
+                                        row.controls.acknowledgedAt
+                                          ? "Acknowledged"
+                                          : "Acknowledge"
+                                      }
+                                      aria-label={
+                                        row.controls.acknowledgedAt
+                                          ? "Acknowledged"
+                                          : "Acknowledge"
+                                      }
+                                    >
+                                      <IconThumbUp className="h-2.5 w-2.5" />
+                                    </button>
+                                  </form>
+                                )}
+                                {row.controls.actions}
+                              </>
+                            )}
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-[12.5px] leading-relaxed text-body">
+                        {row.info && (
+                          <span className="mr-1.5 rounded px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-caption ring-1 ring-line">
+                            info
+                          </span>
+                        )}
+                        {row.text}
+                      </p>
                     </div>
-                    <p className="mt-1 text-[12.5px] leading-relaxed text-body">
-                      {c.kind === "info" && (
-                        <span className="mr-1.5 rounded px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-caption ring-1 ring-line">
-                          info
-                        </span>
-                      )}
-                      {c.text}
-                    </p>
-
-                    {/* The conversation, stacked oldest first. */}
-                    {(c.thread ?? []).length > 0 && (
-                      <div className="mt-1.5 space-y-1.5 border-l-2 border-line pl-2">
-                        {(c.thread ?? []).map((m) => (
-                          <div key={m.id}>
-                            <div className="flex items-center gap-1.5">
-                              <span className="truncate text-[11px] font-semibold text-ink">
-                                {m.author}
-                              </span>
-                              <span className="text-[10.5px] text-caption">
-                                {m.at.slice(11, 16)}
-                              </span>
-                            </div>
-                            <p className="text-[11.5px] leading-relaxed text-body">
-                              {m.text}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {!c.resolved && (c.acknowledgeAction || c.replyAction) && (
-                      <div className="mt-2 flex items-center gap-1.5">
-                        {/* Icon only, label on hover — and once it is on, it
-                            stays on to show the comment was acknowledged. */}
-                        {c.acknowledgeAction && (
-                          <form action={c.acknowledgeAction}>
-                            <button
-                              className={`flex h-6 w-6 items-center justify-center rounded-lg border transition-colors ${
-                                c.acknowledgedAt
-                                  ? "border-[#4c9257] bg-[#e8f2e9] text-[#3f6c45]"
-                                  : "border-line text-body hover:border-[#4c9257] hover:bg-[#e8f2e9] hover:text-[#3f6c45]"
-                              }`}
-                              title={
-                                c.acknowledgedAt ? "Acknowledged" : "Acknowledge"
-                              }
-                              aria-label={
-                                c.acknowledgedAt ? "Acknowledged" : "Acknowledge"
-                              }
-                            >
-                              <IconThumbUp className="h-3 w-3" />
-                            </button>
-                          </form>
-                        )}
-                        {c.replyAction && (
-                          <form
-                            action={c.replyAction}
-                            className="flex flex-1 items-center gap-1"
-                          >
-                            <input
-                              name={`reply_${c.id}`}
-                              placeholder="Reply…"
-                              className="input !h-6 !w-full !py-0 !text-[11.5px]"
-                            />
-                            <button className="h-6 shrink-0 rounded-lg border border-line px-2 text-[11.5px] text-body transition-colors hover:bg-muted hover:text-ink">
-                              Send
-                            </button>
-                          </form>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  ))}
               </div>
+
+              {/* The one composer. It appends to the newest comment that
+                  can still take an answer. */}
+              {(() => {
+                const target =
+                  [...comments].reverse().find((c) => !c.resolved && c.replyAction) ??
+                  [...comments].reverse().find((c) => c.replyAction);
+                if (!target?.replyAction) return null;
+                return (
+                  <form
+                    action={target.replyAction}
+                    className="flex items-center gap-1.5 border-t border-line px-3 py-2"
+                  >
+                    <input
+                      name={`reply_${target.id}`}
+                      placeholder="Add a note…"
+                      className="input !h-7 !w-full !py-0 !text-[12px]"
+                    />
+                    <button className="h-7 shrink-0 rounded-lg border border-line px-2.5 text-[11.5px] text-body transition-colors hover:bg-muted hover:text-ink">
+                      Send
+                    </button>
+                  </form>
+                );
+              })()}
             </div>
           </>,
           document.body

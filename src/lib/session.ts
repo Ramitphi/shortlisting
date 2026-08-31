@@ -65,6 +65,16 @@ export function setUndertakingVariant(v: string): void {
   write(UNDERTAKING_KEY, v);
 }
 
+const RECHECK_VIEW_KEY = "shortlisting_recheck_variant";
+
+export function recheckViewRaw(): string | null {
+  return read(RECHECK_VIEW_KEY);
+}
+
+export function setRecheckView(v: string): void {
+  write(RECHECK_VIEW_KEY, v);
+}
+
 export function learnerViewRaw(): string | null {
   return read(LEARNER_VIEW_KEY);
 }

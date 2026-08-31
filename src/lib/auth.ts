@@ -1,5 +1,7 @@
 import {
+  RECHECK_VARIANT_META,
   UNDERTAKING_VARIANT_META,
+  type RecheckVariant,
   type UndertakingVariant,
 } from "./domain";
 import { getDb, dbReady } from "./db";
@@ -7,6 +9,7 @@ import {
   sessionUid,
   activityViewRaw,
   learnerViewRaw,
+  recheckViewRaw,
   undertakingVariantRaw,
 } from "./session";
 import type { Role } from "./domain";
@@ -75,6 +78,14 @@ export function undertakingVariant(): UndertakingVariant {
   return (UNDERTAKING_VARIANT_META.some((m) => m.id === raw)
     ? raw
     : "v1") as UndertakingVariant;
+}
+
+/** How the staff boards show a learner's post-vetting edits. */
+export function recheckView(): RecheckVariant {
+  const raw = recheckViewRaw();
+  return (RECHECK_VARIANT_META.some((m) => m.id === raw)
+    ? raw
+    : "r1") as RecheckVariant;
 }
 
 export const LEARNER_V2_ENABLED = false;

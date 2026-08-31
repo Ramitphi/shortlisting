@@ -887,3 +887,38 @@ export const UNDERTAKING_VARIANT_META = [
 
 export type UndertakingVariant = (typeof UNDERTAKING_VARIANT_META)[number]["id"];
 
+/** One learner edit during a re-check: what the answer was, what it is now. */
+export interface RecheckChange {
+  from: string;
+  to: string;
+}
+
+/** applications.recheck_changes is JSON keyed by field LABEL. */
+export function parseRecheckChanges(
+  json: string | null | undefined
+): Record<string, RecheckChange> {
+  if (!json) return {};
+  try {
+    const v = JSON.parse(json);
+    return v && typeof v === "object" ? v : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * How the staff boards show a learner's post-vetting edits — five candidate
+ * treatments in our order of preference, switched from the demo FAB. r5 is
+ * today's yellow marker, kept as the baseline.
+ */
+export const RECHECK_VARIANT_META = [
+  { id: "r1", name: "Was → now on the row", hint: "Old value struck through under the new" },
+  { id: "r6", name: "Note in the section", hint: "Amber footer line inside the section, like Ops' comments" },
+  { id: "r2", name: "Changes panel", hint: "One card listing every old → new" },
+  { id: "r3", name: "Highlighted rows", hint: "Amber band on each changed row" },
+  { id: "r4", name: "Chip strip", hint: "Changed fields as chips above the board" },
+  { id: "r5", name: "Marker only (today)", hint: "The yellow pin, as it is now" },
+] as const;
+
+export type RecheckVariant = (typeof RECHECK_VARIANT_META)[number]["id"];
+

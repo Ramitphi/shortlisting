@@ -27,6 +27,7 @@ export interface Application {
   recheck_at: string | null;
   /** The labels the learner changed, comma-separated — what Ops must re-read. */
   recheck_fields: string | null;
+  recheck_changes: string | null;
   /** Whose move it is: 'ops' to re-read, 'ac' to resolve Ops' comments. */
   recheck_state: RecheckState | null;
   recheck_kind?: string | null;

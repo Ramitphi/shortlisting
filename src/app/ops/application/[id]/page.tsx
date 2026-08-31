@@ -4,7 +4,8 @@ import { useDbVersion } from "@/components/db-provider";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Shell, requireRole } from "@/components/shell";
-import { activityInline } from "@/lib/auth";
+import {
+  recheckView, activityInline } from "@/lib/auth";
 import {
   BackLink,
   CardChip,
@@ -42,6 +43,11 @@ import {
   IconPenFill,
   IconLayersFill,
   IconClockFill,
+  LearnerChangeMark,
+  LearnerWasLine,
+  LearnerChangesFooter,
+  LearnerChangesPanel,
+  changedRowClass,
   SectionCard,
 } from "@/components/ui";
 import {
@@ -88,6 +94,7 @@ import { CataloguePicker, type PickerItem } from "./catalogue-picker";
 import { OpsField } from "./ops-field";
 import { SendOfferDialog } from "./send-offer-dialog";
 import {
+  parseRecheckChanges,
   CLAUSES,
   DOC_CATEGORIES,
   FORM_FIELDS,
@@ -182,6 +189,10 @@ export default function OpsApplicationPage({
     : 0;
   // The labels the learner moved, for the "changed" marks on the fields.
   const changedLabels = new Set(recheck?.fields ?? []);
+  // How those changes are shown — the FAB-switched candidate treatments.
+  const recheckVariant = recheckView();
+  const recheckChanges =
+    recheck?.kind === "learner" ? parseRecheckChanges(app.recheck_changes) : {};
 
   const opsPending = pendingFor(
     app.status,
@@ -492,6 +503,17 @@ export default function OpsApplicationPage({
         />
       )}
 
+      {recheck && recheck.kind === "learner" && (
+        <div className="mb-5">
+          <LearnerChangesPanel
+            variant={recheckVariant}
+            changes={recheckChanges}
+            labels={recheck.fields}
+            at={recheck.at}
+          />
+        </div>
+      )}
+
       <div className="-mb-12 flex min-h-[calc(100dvh-13.5rem)] flex-col">
       {/* Content left, Activity in the right rail — unless the timeline is
           switched off, in which case the content takes the whole width and the
@@ -601,7 +623,12 @@ export default function OpsApplicationPage({
                               value gave every field two lines and made the
                               section read as a wall; a key-value line halves
                               it and the eye can scan the value column. */}
-                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                          <div
+                            className={`flex flex-wrap items-center gap-x-4 gap-y-1.5${changedRowClass(
+                              recheckVariant,
+                              changedLabels.has(f.label)
+                            )}`}
+                          >
                             <span className="flex min-w-[11rem] max-w-[17.5rem] flex-1 basis-[200px] items-center gap-1.5 text-[12.5px] text-caption">
                               <span className="min-w-0 truncate" title={f.label}>
                                 {f.label}
@@ -612,7 +639,11 @@ export default function OpsApplicationPage({
                                 </span>
                               )}
                               {changedLabels.has(f.label) && (
-                                <ChangedPin at={recheck?.at} />
+                                <LearnerChangeMark
+                                  variant={recheckVariant}
+                                  change={recheckChanges[f.label]}
+                                  at={recheck?.at}
+                                />
                               )}
                               <FieldComments comments={commentsFor(f.key)} />
                             </span>
@@ -642,6 +673,12 @@ export default function OpsApplicationPage({
                                 <div className="min-w-0 break-words text-[13.5px] font-medium text-ink">
                                   {responses[f.key] || (
                                     <span className="font-normal text-caption">—</span>
+                                  )}
+                                  {changedLabels.has(f.label) && (
+                                    <LearnerWasLine
+                                      variant={recheckVariant}
+                                      change={recheckChanges[f.label]}
+                                    />
                                   )}
                                 </div>
                               )}
@@ -712,6 +749,18 @@ export default function OpsApplicationPage({
                       );
                     })}
                   </div>
+                  {/* r6 — the section announces its own changes, in the
+                      voice the group footer already speaks in. */}
+                  <LearnerChangesFooter
+                    variant={recheckVariant}
+                    changes={recheckChanges}
+                    labels={group.fields
+                      .map(
+                        (k) => FORM_FIELDS.find((x) => x.key === k)?.label ?? k
+                      )
+                      .filter((l) => changedLabels.has(l))}
+                    at={recheck?.at}
+                  />
                 </ReviewGroupBlock>
               ))}
               </div>

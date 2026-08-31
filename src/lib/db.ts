@@ -262,6 +262,9 @@ function migrateColumns(db: BrowserDb) {
   // appealing a verdict both put the application back on Ops' desk, but they
   // are different questions and the screens have to say which.
   addColumn(db, "applications", "recheck_kind", "TEXT");
+  // Old → new per changed field, JSON keyed by label — what the staff
+  // boards render when a learner edits after vetting.
+  addColumn(db, "applications", "recheck_changes", "TEXT");
   // Not every comment is a job. 'info' is context to read; 'action' is
   // something the counsellor has to do before the shortlist goes out.
   addColumn(db, "remarks", "kind", "TEXT NOT NULL DEFAULT 'action'");

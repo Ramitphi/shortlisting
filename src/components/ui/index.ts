@@ -32,3 +32,10 @@ export { VerifiedSeal } from "./verified-seal";
 export { TaskRow } from "./task-row";
 export { CappedTimeline } from "./capped-timeline";
 export { SectionCard } from "./section-card";
+export {
+  LearnerChangeMark,
+  LearnerWasLine,
+  LearnerChangesFooter,
+  LearnerChangesPanel,
+  changedRowClass,
+} from "./learner-change";

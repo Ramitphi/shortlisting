@@ -4,7 +4,8 @@ import { useDbVersion } from "@/components/db-provider";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Shell, requireRole } from "@/components/shell";
-import { activityInline } from "@/lib/auth";
+import {
+  recheckView, activityInline } from "@/lib/auth";
 import {
   BackLink,
   EmptyState,
@@ -42,6 +43,11 @@ import {
   IconPenFill,
   IconLayersFill,
   IconClockFill,
+  LearnerChangeMark,
+  LearnerWasLine,
+  LearnerChangesFooter,
+  LearnerChangesPanel,
+  changedRowClass,
   SectionCard,
 } from "@/components/ui";
 import {
@@ -78,6 +84,7 @@ import {
   verifyLearnerDoc,
 } from "@/lib/actions";
 import {
+  parseRecheckChanges,
   CLAUSES,
   DOC_CATEGORIES,
   FORM_FIELDS,
@@ -192,6 +199,9 @@ export default function AcApplicationPage({
     : [];
   /** The labels the learner moved — marked wherever the fields are read. */
   const changedLabels = new Set(recheck?.fields ?? []);
+  const recheckVariant = recheckView();
+  const recheckChanges =
+    recheck?.kind === "learner" ? parseRecheckChanges(app.recheck_changes) : {};
 
   // ANY live re-check re-opens the edit board. The learner changed something,
   // so somebody has to be able to ACT on it — fix fields, swap programme
@@ -758,6 +768,14 @@ export default function AcApplicationPage({
           {/* One card per form section, each self-titled with a filled
               glyph — the section names say what this is, and the state
               story (recheck, appeal) is the banner's job above. */}
+          {tab === "profile" && recheck && recheck.kind === "learner" && (
+            <LearnerChangesPanel
+              variant={recheckVariant}
+              changes={recheckChanges}
+              labels={recheck.fields}
+              at={recheck.at}
+            />
+          )}
           {tab === "profile" &&
             FORM_SECTIONS.map((section) => (
                   <SectionCard
@@ -777,7 +795,10 @@ export default function AcApplicationPage({
                         (f) => (
                           <div
                             key={f.key}
-                            className="flex flex-wrap items-center gap-x-4 gap-y-1.5 py-2 first:pt-0 last:pb-0"
+                            className={`flex flex-wrap items-center gap-x-4 gap-y-1.5 py-2 first:pt-0 last:pb-0${changedRowClass(
+                              recheckVariant,
+                              changedLabels.has(f.label)
+                            )}`}
                           >
                             <span className="flex min-w-[11rem] max-w-[17.5rem] flex-1 basis-[200px] items-center gap-1.5 text-[12.5px] text-caption">
                               <span className="min-w-0 truncate" title={f.label}>
@@ -789,7 +810,11 @@ export default function AcApplicationPage({
                                 </span>
                               )}
                               {changedLabels.has(f.label) && (
-                                <ChangedPin at={recheck?.at} />
+                                <LearnerChangeMark
+                                  variant={recheckVariant}
+                                  change={recheckChanges[f.label]}
+                                  at={recheck?.at}
+                                />
                               )}
                               <FieldComments comments={commentsFor(f.key)} />
                             </span>
@@ -812,6 +837,12 @@ export default function AcApplicationPage({
                                   {responses[f.key] || (
                                     <span className="font-normal text-caption">—</span>
                                   )}
+                                  {changedLabels.has(f.label) && (
+                                    <LearnerWasLine
+                                      variant={recheckVariant}
+                                      change={recheckChanges[f.label]}
+                                    />
+                                  )}
                                 </div>
                               )}
                               {/* Ops' verdict on this exact answer —
@@ -827,6 +858,14 @@ export default function AcApplicationPage({
                         )
                       )}
                     </div>
+                    <LearnerChangesFooter
+                      variant={recheckVariant}
+                      changes={recheckChanges}
+                      labels={FORM_FIELDS.filter(
+                        (f) => f.section === section && changedLabels.has(f.label)
+                      ).map((f) => f.label)}
+                      at={recheck?.at}
+                    />
                   </SectionCard>
                 ))}
 

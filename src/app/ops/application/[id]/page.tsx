@@ -594,7 +594,7 @@ export default function OpsApplicationPage({
                     .filter((c) => triggeredClauses.includes(c))
                     .map((c) => CLAUSES[c]?.title ?? c)}
                 >
-                  <div className="divide-y divide-line">
+                  <div className={design ? "space-y-7" : "divide-y divide-line"}>
                     {group.fields
                       .map((k) => FORM_FIELDS.find((f) => f.key === k))
                       .filter((f): f is (typeof FORM_FIELDS)[number] => Boolean(f))
@@ -602,25 +602,131 @@ export default function OpsApplicationPage({
                       const fieldRemarks = remarks.filter(
                         (r) => r.field_key === f.key
                       );
+                      const changed = changedLabels.has(f.label);
+                      const valueControl =
+                        f.type === "file" ? (
+                          <div className="min-w-0 break-words text-sm">
+                            <FileValue label={f.label} value={responses[f.key]} />
+                          </div>
+                        ) : (vetting || reRuling) && f.filledBy === "ops" ? (
+                          <OpsField
+                            field={f}
+                            value={responses[f.key] ?? ""}
+                            action={updateFieldValue.bind(null, app.id, f.key)}
+                          />
+                        ) : (
+                          <div className="min-w-0 break-words text-[13.5px] font-medium text-ink">
+                            {responses[f.key] || (
+                              <span className="font-normal text-caption">—</span>
+                            )}
+                          </div>
+                        );
+                      const verdictControl =
+                        canComment && f.filledBy !== "ops" ? (
+                          <FieldVerdict
+                            className="ml-auto"
+                            state={fieldChecks[f.key]?.state}
+                            byName={fieldChecks[f.key]?.by_name}
+                            at={fieldChecks[f.key]?.at}
+                            correctAction={setFieldCheck.bind(
+                              null,
+                              app.id,
+                              f.key,
+                              "correct"
+                            )}
+                            incorrectAction={setFieldCheck.bind(
+                              null,
+                              app.id,
+                              f.key,
+                              "incorrect"
+                            )}
+                          >
+                            <form
+                              key={`${f.key}-${fieldRemarks.length}`}
+                              action={addRemark.bind(null, app.id, f.key)}
+                              className="flex items-center gap-2"
+                            >
+                              <input
+                                name="text"
+                                autoFocus
+                                className="input !h-8 w-full !py-0 !text-[12.5px]"
+                                placeholder="Leave a note…"
+                              />
+                              <button className="btn-secondary !h-8 !px-3 !text-[12.5px]">
+                                Add
+                              </button>
+                            </form>
+                          </FieldVerdict>
+                        ) : (
+                          <FieldVerdictMark
+                            className="ml-auto"
+                            state={fieldChecks[f.key]?.state}
+                            byName={fieldChecks[f.key]?.by_name}
+                            at={fieldChecks[f.key]?.at}
+                          />
+                        );
+                      const aiLine =
+                        vetting &&
+                        f.type !== "file" &&
+                        (() => {
+                          const ai = fieldInsight(f.key, responses, uploadedKeys);
+                          return ai ? <AiInsightLine insight={ai} /> : null;
+                        })();
+
+                      // Design mode — the reference structure, whole form:
+                      // label above, value below, air between fields, no
+                      // separators. A changed field's BLOCK carries the blue
+                      // rule, label to helper line, content indented beside
+                      // it. Everything else identical in function.
+                      if (design) {
+                        return (
+                          <div
+                            key={f.key}
+                            className={
+                              changed
+                                ? "border-l-[3px] border-[#3d5a80] pl-4"
+                                : ""
+                            }
+                          >
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="text-[13px] text-body">
+                                {f.label}
+                              </span>
+                              {f.filledBy === "ops" && (
+                                <span className="shrink-0 text-[9.5px] font-semibold uppercase tracking-wide text-accent">
+                                  ops
+                                </span>
+                              )}
+                              <FieldComments comments={commentsFor(f.key)} />
+                              {verdictControl}
+                            </div>
+                            <div className="mt-1.5">{valueControl}</div>
+                            {changed && (
+                              <LearnerWasLine
+                                design
+                                change={recheckChanges[f.label]}
+                                at={recheck?.at}
+                              />
+                            )}
+                            {aiLine}
+                          </div>
+                        );
+                      }
+
+                      // Shipped — the key-value line with the verdict at
+                      // its tail, dividers between rows.
                       return (
                         <div
                           key={f.key}
                           className={
-                            changedLabels.has(f.label)
+                            changed
                               ? "py-1 first:pt-0 last:pb-0"
                               : "py-2 first:pt-0 last:pb-0"
                           }
                         >
-                          {/* One fact per line: the label sits in a fixed
-                              key column, the value beside it, the verdict
-                              icons at the tail. Stacking the label above the
-                              value gave every field two lines and made the
-                              section read as a wall; a key-value line halves
-                              it and the eye can scan the value column. */}
                           <div
                             className={`flex flex-wrap items-center gap-x-4 gap-y-1.5${changedRowClass(
-                              design,
-                              changedLabels.has(f.label)
+                              changed
                             )}`}
                           >
                             <span className="flex min-w-[11rem] max-w-[17.5rem] flex-1 basis-[200px] items-center gap-1.5 text-[12.5px] text-caption">
@@ -634,108 +740,19 @@ export default function OpsApplicationPage({
                               )}
                               <FieldComments comments={commentsFor(f.key)} />
                             </span>
-                            {/* The split the PM drew: the counsellor's
-                                answers are read-only here — Ops comments on
-                                them, never overwrites them. Only the
-                                ops-owned fields (scores, university — read
-                                off the documents) are Ops' to fill. */}
-                            {/* Value cell shrinks rather than pushing the
-                                verdict off the line — the icons are a
-                                sibling of this cell, not a child, so the
-                                note form they open gets the full row width
-                                on its own line instead of a column-wide
-                                sliver that drags the label off-centre. */}
                             <div className="flex min-w-[8rem] flex-1 basis-0 items-center">
-                              {f.type === "file" ? (
-                                <div className="min-w-0 break-words text-sm">
-                                  <FileValue label={f.label} value={responses[f.key]} />
-                                </div>
-                              ) : (vetting || reRuling) && f.filledBy === "ops" ? (
-                                <OpsField
-                                  field={f}
-                                  value={responses[f.key] ?? ""}
-                                  action={updateFieldValue.bind(null, app.id, f.key)}
-                                />
-                              ) : (
-                                <div className="min-w-0 break-words text-[13.5px] font-medium text-ink">
-                                  {responses[f.key] || (
-                                    <span className="font-normal text-caption">—</span>
-                                  )}
-                                </div>
-                              )}
+                              {valueControl}
                             </div>
-                              {canComment && f.filledBy !== "ops" && (
-                              <FieldVerdict
-                                className="ml-auto"
-                                state={fieldChecks[f.key]?.state}
-                                byName={fieldChecks[f.key]?.by_name}
-                                at={fieldChecks[f.key]?.at}
-                                correctAction={setFieldCheck.bind(
-                                  null,
-                                  app.id,
-                                  f.key,
-                                  "correct"
-                                )}
-                                incorrectAction={setFieldCheck.bind(
-                                  null,
-                                  app.id,
-                                  f.key,
-                                  "incorrect"
-                                )}
-                              >
-                              <form
-                                key={`${f.key}-${fieldRemarks.length}`}
-                                action={addRemark.bind(null, app.id, f.key)}
-                                className="flex items-center gap-2"
-                              >
-                                <input
-                                  name="text"
-                                  autoFocus
-                                  className="input !h-8 w-full !py-0 !text-[12.5px]"
-                                  placeholder="Leave a note…"
-                                />
-                                <button className="btn-secondary !h-8 !px-3 !text-[12.5px]">
-                                  Add
-                                </button>
-                              </form>
-                              </FieldVerdict>
-                              )}
-                              {/* Once vetting closes the controls go, but
-                                  the ruling stays: Ops' own board should
-                                  not be the one screen that forgets what
-                                  they decided. Read-only, like the
-                                  counsellor sees it. */}
-                              {!(canComment && f.filledBy !== "ops") && (
-                                <FieldVerdictMark
-                                  className="ml-auto"
-                                  state={fieldChecks[f.key]?.state}
-                                  byName={fieldChecks[f.key]?.by_name}
-                                  at={fieldChecks[f.key]?.at}
-                                />
-                              )}
-                            {/* The reveal — a second, full-width line of
-                                the band; the first line's alignment never
-                                moves for it. */}
-                            {changedLabels.has(f.label) && (
+                            {verdictControl}
+                            {changed && (
                               <LearnerWasLine
-                                design={design}
+                                design={false}
                                 change={recheckChanges[f.label]}
                                 at={recheck?.at}
                               />
                             )}
                           </div>
-                          {/* The AI vet's read of the documents, under the
-                              row it is about — full width, out of the way. */}
-                          {vetting &&
-                            f.type !== "file" &&
-                            (() => {
-                              const ai = fieldInsight(
-                                f.key,
-                                responses,
-                                uploadedKeys
-                              );
-                              return ai ? <AiInsightLine insight={ai} /> : null;
-                            })()}
+                          {aiLine}
                         </div>
                       );
                     })}

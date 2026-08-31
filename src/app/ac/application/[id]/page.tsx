@@ -781,70 +781,109 @@ export default function AcApplicationPage({
                         label's tail where a scan finds them. One fact per
                         line reads faster than a two-column grid of stacked
                         label-over-value cells. */}
-                    <div className="divide-y divide-line">
+                    <div className={design ? "space-y-7" : "divide-y divide-line"}>
                       {FORM_FIELDS.filter((f) => f.section === section).map(
-                        (f) => (
-                          <div
-                            key={f.key}
-                            className={`flex flex-wrap items-center gap-x-4 gap-y-1.5 ${
-                              changedLabels.has(f.label)
-                                ? "my-1"
-                                : "py-2 first:pt-0 last:pb-0"
-                            }${changedRowClass(design, changedLabels.has(f.label))}`}
-                          >
-                            <span className="flex min-w-[11rem] max-w-[17.5rem] flex-1 basis-[200px] items-center gap-1.5 text-[12.5px] text-caption">
-                              <span className="min-w-0 truncate" title={f.label}>
-                                {f.label}
-                              </span>
-                              {f.filledBy === "ops" && (
-                                <span className="shrink-0 text-[9.5px] font-semibold uppercase tracking-wide text-accent">
-                                  ops
-                                </span>
-                              )}
-                              <FieldComments comments={commentsFor(f.key)} />
-                            </span>
-                            {/* Value left, verdict pinned to the row's
-                                right edge — one chip column down the card
-                                rather than a chip trailing each value. */}
-                            <div className="flex min-w-[12rem] flex-1 basis-0 flex-wrap items-center gap-x-3 gap-y-1">
-                              {f.type === "file" ? (
-                                <div className="min-w-0 text-sm">
-                                  <FileValue label={f.label} value={responses[f.key]} />
-                                </div>
-                              ) : canShortlist && f.filledBy !== "ops" ? (
-                                <OpsField
-                                  field={f}
-                                  value={responses[f.key] ?? ""}
-                                  action={updateFieldValue.bind(null, app.id, f.key)}
-                                />
-                              ) : (
-                                <div className="min-w-0 break-words text-[13.5px] font-medium text-ink">
-                                  {responses[f.key] || (
-                                    <span className="font-normal text-caption">—</span>
+                        (f) => {
+                          const changed = changedLabels.has(f.label);
+                          const valueControl =
+                            f.type === "file" ? (
+                              <div className="min-w-0 text-sm">
+                                <FileValue label={f.label} value={responses[f.key]} />
+                              </div>
+                            ) : canShortlist && f.filledBy !== "ops" ? (
+                              <OpsField
+                                field={f}
+                                value={responses[f.key] ?? ""}
+                                action={updateFieldValue.bind(null, app.id, f.key)}
+                              />
+                            ) : (
+                              <div className="min-w-0 break-words text-[13.5px] font-medium text-ink">
+                                {responses[f.key] || (
+                                  <span className="font-normal text-caption">—</span>
+                                )}
+                              </div>
+                            );
+                          const verdictChip = (
+                            <FieldVerdictMark
+                              className="ml-auto"
+                              state={fieldChecks[f.key]?.state}
+                              byName={fieldChecks[f.key]?.by_name}
+                              at={fieldChecks[f.key]?.at}
+                            />
+                          );
+
+                          // Design mode — the reference structure: label
+                          // above, value below, air between fields, no
+                          // separators; a changed BLOCK carries the blue
+                          // rule from label to helper line.
+                          if (design) {
+                            return (
+                              <div
+                                key={f.key}
+                                className={
+                                  changed
+                                    ? "border-l-[3px] border-[#3d5a80] pl-4"
+                                    : ""
+                                }
+                              >
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <span className="text-[13px] text-body">
+                                    {f.label}
+                                  </span>
+                                  {f.filledBy === "ops" && (
+                                    <span className="shrink-0 text-[9.5px] font-semibold uppercase tracking-wide text-accent">
+                                      ops
+                                    </span>
                                   )}
+                                  <FieldComments comments={commentsFor(f.key)} />
+                                  {verdictChip}
                                 </div>
+                                <div className="mt-1.5">{valueControl}</div>
+                                {changed && (
+                                  <LearnerWasLine
+                                    design
+                                    change={recheckChanges[f.label]}
+                                    at={recheck?.at}
+                                  />
+                                )}
+                              </div>
+                            );
+                          }
+
+                          // Shipped — the key-value line with the chip at
+                          // its tail, dividers between rows.
+                          return (
+                            <div
+                              key={f.key}
+                              className={`flex flex-wrap items-center gap-x-4 gap-y-1.5 ${
+                                changed ? "my-1" : "py-2 first:pt-0 last:pb-0"
+                              }${changedRowClass(changed)}`}
+                            >
+                              <span className="flex min-w-[11rem] max-w-[17.5rem] flex-1 basis-[200px] items-center gap-1.5 text-[12.5px] text-caption">
+                                <span className="min-w-0 truncate" title={f.label}>
+                                  {f.label}
+                                </span>
+                                {f.filledBy === "ops" && (
+                                  <span className="shrink-0 text-[9.5px] font-semibold uppercase tracking-wide text-accent">
+                                    ops
+                                  </span>
+                                )}
+                                <FieldComments comments={commentsFor(f.key)} />
+                              </span>
+                              <div className="flex min-w-[12rem] flex-1 basis-0 flex-wrap items-center gap-x-3 gap-y-1">
+                                {valueControl}
+                                {verdictChip}
+                              </div>
+                              {changed && (
+                                <LearnerWasLine
+                                  design={false}
+                                  change={recheckChanges[f.label]}
+                                  at={recheck?.at}
+                                />
                               )}
-                              {/* Ops' verdict on this exact answer —
-                                  read-only here, it is their call to make. */}
-                              <FieldVerdictMark
-                                className="ml-auto"
-                                state={fieldChecks[f.key]?.state}
-                                byName={fieldChecks[f.key]?.by_name}
-                                at={fieldChecks[f.key]?.at}
-                              />
                             </div>
-                            {/* The reveal — a second, full-width line of
-                                the band; the first line's alignment never
-                                moves for it. */}
-                            {changedLabels.has(f.label) && (
-                              <LearnerWasLine
-                                design={design}
-                                change={recheckChanges[f.label]}
-                                at={recheck?.at}
-                              />
-                            )}
-                          </div>
-                        )
+                          );
+                        }
                       )}
                     </div>
                   </SectionCard>

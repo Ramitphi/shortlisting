@@ -14,16 +14,15 @@ import type { RecheckChange } from "@/lib/domain";
  * helper line always visible beneath the value. No tint, no hover.
  */
 
-/** The band (shipped) or rule (design mode) a changed row wears. */
-export function changedRowClass(design: boolean, changed: boolean) {
-  if (!changed) return "";
-  if (design)
-    // The box method: the changed row becomes its own contained
-    // rectangle — full border, rounded — and the container's LEFT edge
-    // carries the blue. Nothing else moves; the box's negative margins
-    // keep its content flush with the unboxed rows around it.
-    return " -mx-3 my-1 rounded-lg border border-line !border-l-[3px] border-l-[#3d5a80] bg-white px-3 py-2.5";
-  return " group/changed -mx-2.5 rounded-lg bg-[#faf3df] px-2.5 py-2 transition-colors hover:bg-[#f5ebcf]";
+/**
+ * The shipped band a changed row wears — also the hover scope. Design
+ * mode does not use this: there the whole form restructures and the
+ * changed BLOCK carries a blue left rule instead (see the boards).
+ */
+export function changedRowClass(changed: boolean) {
+  return changed
+    ? " group/changed -mx-2.5 rounded-lg bg-[#faf3df] px-2.5 py-2 transition-colors hover:bg-[#f5ebcf]"
+    : "";
 }
 
 /**

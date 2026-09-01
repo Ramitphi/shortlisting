@@ -162,9 +162,9 @@ export default function AcDashboard({
                 }
                 icon={<IconSend />}
                 count={reChooseApps.length}
-                label="Programme changed — pick again"
+                label="Programme changed — shortlist again"
                 caption="Their change moved the programme; the earlier pick came off"
-                cta="Choose"
+                cta="Review"
                 tone="amber"
               />
             )}
@@ -278,7 +278,9 @@ export default function AcDashboard({
                           ? a.recheck_kind === "appeal"
                             ? "Appealed by you"
                             : "Re-check"
-                          : null
+                          : reChoose(a)
+                            ? "Programme changed"
+                            : null
                       }
                     />
                   </td>
@@ -298,13 +300,11 @@ export default function AcDashboard({
                     >
                       {acRecheck(a)
                         ? "Resolve Comments"
-                        : reChoose(a)
-                          ? "Choose Programme"
-                          : a.status === "draft"
-                            ? "Fill Details"
-                            : a.status === "reviewed"
-                              ? "Review & Shortlist"
-                              : "View"}
+                        : a.status === "draft"
+                          ? "Fill Details"
+                          : a.status === "reviewed" || reChoose(a)
+                            ? "Review & Shortlist"
+                            : "View"}
                     </Link>
                   </td>
                 </tr>

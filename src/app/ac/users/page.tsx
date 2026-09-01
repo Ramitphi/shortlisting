@@ -223,7 +223,10 @@ export default function AcUsersPage({
                           ? a.recheck_kind === "appeal"
                             ? "Appealed by you"
                             : "Re-check"
-                          : null
+                          : a.status === "shortlisted" &&
+                              !getPrograms(a.id).some((p) => p.shortlisted)
+                            ? "Programme changed"
+                            : null
                       }
                     />
                   </td>

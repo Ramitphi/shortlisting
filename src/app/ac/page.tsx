@@ -18,7 +18,7 @@ import {
   IconSparkle,
   IconUsers,
 } from "@/components/ui";
-import { listApplications, type Application } from "@/lib/queries";
+import { getPrograms, listApplications, type Application } from "@/lib/queries";
 import {
   ALL_STATUSES,
   STATUS_LABELS,
@@ -51,6 +51,16 @@ export default function AcDashboard({
   // whatever status the application is at.
   const acRecheck = (a: Application) => a.recheck_state === "ac";
   const recheckCount = all.filter(acRecheck).length;
+  // The learner's own change moved the programme: during the re-check Ops
+  // re-ruled the shortlisted one out (and added the newly right one), then
+  // closed the re-check. The status still says `shortlisted` but nothing is
+  // sent — choosing again is this counsellor's move, same flow as the first
+  // shortlist.
+  const hasShortlist = (a: Application) =>
+    getPrograms(a.id).some((p) => p.shortlisted);
+  const reChoose = (a: Application) =>
+    a.status === "shortlisted" && !a.recheck_at && !hasShortlist(a);
+  const reChooseApps = all.filter(reChoose);
 
   let apps = q ? listApplications({ acId: user.id, search: q }) : all;
   if (statusFilter) apps = apps.filter((a) => a.status === statusFilter);
@@ -58,13 +68,16 @@ export default function AcDashboard({
   if (recheckFilter) apps = apps.filter(acRecheck);
 
   const count = (s: AppStatus) => all.filter((a) => a.status === s).length;
-  const actionNeeded = all.filter(
-    (a) => a.status === "draft" || a.status === "reviewed" || acRecheck(a)
+  const actionNeeded = all.filter((a) =>
+    acNeedsAction(a, hasShortlist(a))
   ).length;
 
   const draftCount = count("draft");
   const reviewedCount = count("reviewed");
   const shortlistedCount = count("shortlisted");
+  // A withdrawn shortlist is not "with the learner to sign" — it is waiting
+  // on this desk. The two rows below split the status count accordingly.
+  const awaitingSignatures = shortlistedCount - reChooseApps.length;
   const firstName = user.name.split(" ")[0];
 
   return (
@@ -113,6 +126,7 @@ export default function AcDashboard({
       {(draftCount > 0 ||
         reviewedCount > 0 ||
         shortlistedCount > 0 ||
+        reChooseApps.length > 0 ||
         recheckCount > 0) && (
         <section className="card fade-up mt-8 p-5">
           {/* One card of work, not a second wall of tiles: each to-do is a
@@ -137,6 +151,23 @@ export default function AcDashboard({
                 tone="amber"
               />
             )}
+            {/* Just as stuck: the learner's change moved their programme, Ops
+                has re-ruled, and nothing is sent until a new pick goes out. */}
+            {reChooseApps.length > 0 && (
+              <TaskRow
+                href={
+                  reChooseApps.length === 1
+                    ? `/ac/application/${reChooseApps[0].id}`
+                    : "/ac/users?status=shortlisted"
+                }
+                icon={<IconSend />}
+                count={reChooseApps.length}
+                label="Programme changed — pick again"
+                caption="Their change moved the programme; the earlier pick came off"
+                cta="Choose"
+                tone="amber"
+              />
+            )}
             {draftCount > 0 && (
               <TaskRow
                 href="/ac/users?status=draft"
@@ -157,11 +188,11 @@ export default function AcDashboard({
                 tone="purple"
               />
             )}
-            {shortlistedCount > 0 && (
+            {awaitingSignatures > 0 && (
               <TaskRow
                 href="/ac/users?status=shortlisted"
                 icon={<IconSignature />}
-                count={shortlistedCount}
+                count={awaitingSignatures}
                 label="Awaiting signatures"
                 caption="Shortlists with the learner to sign"
                 cta="View"
@@ -260,18 +291,20 @@ export default function AcDashboard({
                     <Link
                       href={`/ac/application/${a.id}`}
                       className={
-                        acNeedsAction(a)
+                        acNeedsAction(a, hasShortlist(a))
                           ? "btn-primary !py-1.5"
                           : "btn-secondary !py-1.5"
                       }
                     >
                       {acRecheck(a)
                         ? "Resolve Comments"
-                        : a.status === "draft"
-                          ? "Fill Details"
-                          : a.status === "reviewed"
-                            ? "Review & Shortlist"
-                            : "View"}
+                        : reChoose(a)
+                          ? "Choose Programme"
+                          : a.status === "draft"
+                            ? "Fill Details"
+                            : a.status === "reviewed"
+                              ? "Review & Shortlist"
+                              : "View"}
                     </Link>
                   </td>
                 </tr>

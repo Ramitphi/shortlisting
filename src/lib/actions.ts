@@ -1685,12 +1685,22 @@ export async function clearRecheck(applicationId: number) {
       : "Ops re-checked the learner's changes",
     fields || undefined
   );
+  // The change may have moved the programme itself: Ops re-ruled the
+  // shortlisted one out (and usually added the newly right one), so the
+  // learner is sitting with nothing sent. The counsellor could not act while
+  // the re-check was open — shortlistProgram refuses then — so THIS is the
+  // moment they have to be told the programme changed and to choose again.
+  const withdrawn =
+    app.status === "shortlisted" &&
+    !getPrograms(applicationId).some((p) => p.shortlisted);
   if (app.ac_id) {
     notify(
       app.ac_id,
       wasAppeal
         ? `Ops has answered your appeal on ${app.learner_name}'s application — see the verdict`
-        : `Ops re-checked ${app.learner_name}'s changed details — the application can continue`,
+        : withdrawn
+          ? `Ops re-checked ${app.learner_name}'s changed details — their change moved the programme. Choose the new programme to send them`
+          : `Ops re-checked ${app.learner_name}'s changed details — the application can continue`,
       `/ac/application/${applicationId}`
     );
   }
@@ -1702,9 +1712,7 @@ export async function clearRecheck(applicationId: number) {
   // Only promise signing and certifying where those controls actually exist:
   // both need a shortlisted programme, and signDocument refuses at any status
   // before `shortlisted`.
-  const canAct =
-    app.status === "shortlisted" &&
-    getPrograms(applicationId).some((p) => p.shortlisted);
+  const canAct = app.status === "shortlisted" && !withdrawn;
   const unsigned = getDocuments(applicationId).filter((d) => !d.signed_at).length;
   // An appeal never involved the learner: they changed nothing, nothing of
   // theirs was re-checked, and telling them "your updated details have been
@@ -1714,9 +1722,11 @@ export async function clearRecheck(applicationId: number) {
   if (!wasAppeal) {
     notify(
       app.learner_id,
-      !canAct
-        ? "Your updated details have been checked — we're carrying on with your application"
-        : app.certified_at
+      withdrawn
+        ? "Your updated details have been checked — we're re-confirming your programme and will let you know"
+        : !canAct
+          ? "Your updated details have been checked — we're carrying on with your application"
+          : app.certified_at
           ? "Your updated details have been checked — nothing more to do for now"
           : unsigned > 0
             ? `Your updated details have been checked — ${unsigned} document${

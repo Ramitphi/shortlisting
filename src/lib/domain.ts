@@ -526,14 +526,27 @@ export function opsNeedsAction(a: {
 }
 
 /** The counsellor's move: a status they own, or a re-check handed to them. */
-export function acNeedsAction(a: {
-  status: AppStatus;
-  recheck_state?: RecheckState | null;
-}): boolean {
+export function acNeedsAction(
+  a: {
+    status: AppStatus;
+    recheck_at?: string | null;
+    recheck_state?: RecheckState | null;
+  },
+  /**
+   * Whether a programme is still shortlisted. Ops ruling the shortlisted one
+   * out during a re-check leaves the status at `shortlisted` with nothing
+   * sent — once the re-check closes, choosing again is the counsellor's move
+   * (see `pendingFor`, which already knows this state).
+   */
+  hasShortlist = true
+): boolean {
+  const reChoose =
+    a.status === "shortlisted" && !hasShortlist && !a.recheck_at;
   return (
     a.status === "draft" ||
     a.status === "reviewed" ||
-    a.recheck_state === "ac"
+    a.recheck_state === "ac" ||
+    reChoose
   );
 }
 

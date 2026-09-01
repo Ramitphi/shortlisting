@@ -13,7 +13,7 @@ import {
   IconSend,
   IconUsers,
 } from "@/components/ui";
-import { listApplications } from "@/lib/queries";
+import { getPrograms, listApplications } from "@/lib/queries";
 import {
   acNeedsAction,
   ALL_STATUSES,
@@ -92,7 +92,14 @@ export default function AcUsersPage({
           label="Needs Action"
           // Same rule as the dashboard: a re-check handed back is their move
           // too, and omitting it made the hub disagree with /ac.
-          value={all.filter(acNeedsAction).length}
+          value={
+            all.filter((a) =>
+              acNeedsAction(
+                a,
+                getPrograms(a.id).some((p) => p.shortlisted)
+              )
+            ).length
+          }
           tone="amber"
           delay={60}
         />

@@ -42,6 +42,7 @@ import {
   FORM_SECTIONS,
   LEARNER_STAGES,
   learnerStage,
+  learnerCanSeeApplication,
 } from "@/lib/domain";
 import { docRows, signeesFor } from "@/lib/documents";
 import { CertifyDialog } from "../../certify-block";
@@ -100,6 +101,11 @@ export default function LearnerApplicationPage({
     (a) => a.id === Number(params.id)
   );
   if (!app) notFound();
+  // Before the first shortlist there is nothing here for them — a bookmarked
+  // or notification link lands on the waiting state instead of the
+  // application. notFound() would be a lie: it does exist, it isn't theirs to
+  // see yet.
+  if (!learnerCanSeeApplication(app.status)) redirect("/learner/application");
 
   // Details are edited INSIDE the application — the profile tab of old (and
   // the site's Profile page) only read them now.

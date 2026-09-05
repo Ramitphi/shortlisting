@@ -5,6 +5,8 @@ import { RoleSwitcher } from "./role-switcher";
 import { UgBody } from "./ug-body";
 import { activityInline, learnerView, type User } from "@/lib/auth";
 import { logout } from "@/lib/actions";
+import { getApplication } from "@/lib/queries";
+import { learnerCanSeeApplication } from "@/lib/domain";
 import {
   IconBriefcase,
   IconDoc,
@@ -169,6 +171,15 @@ export function UpgradShell({
   const v2 = learnerView() === "v2";
   const appHref = (tab: string) =>
     appId ? `/learner/application/${appId}?tab=${tab}` : "/learner/application";
+  // The sub-nav walks INTO the application, so it only exists once the
+  // learner can see one. Looked up here rather than passed in, so every
+  // screen wearing this shell gets the same answer without having to
+  // remember to ask. My applications itself stays — it lands on the
+  // "we're preparing your options" card.
+  const shellApp = appId ? getApplication(appId) : undefined;
+  const appVisible = Boolean(
+    shellApp && learnerCanSeeApplication(shellApp.status)
+  );
 
   return (
     <div className="ug-app min-h-dvh bg-white text-ink">
@@ -285,7 +296,7 @@ export function UpgradShell({
                   href="/learner/application"
                   active={!onProfile}
                 />
-                {!onProfile && (
+                {!onProfile && appVisible && (
                   <div className="pb-2">
                     <SubRow
                       label="Applications"

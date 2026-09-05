@@ -21,7 +21,7 @@ import {
   listApplications,
   recheckOf,
 } from "@/lib/queries";
-import { learnerStatus } from "@/lib/domain";
+import { learnerCanSeeApplication, learnerStatus } from "@/lib/domain";
 import { docRows } from "@/lib/documents";
 
 /**
@@ -49,6 +49,24 @@ export default function LearnerApplicationsList() {
         </div>
       ) : (
         apps.map((app) => {
+          // Nothing of the application reaches the learner until the
+          // counsellor sends the first shortlist — no status, no documents,
+          // no counsellor name. Just the one thing that is true and useful:
+          // it is being worked on, and they will be told when it is ready.
+          if (!learnerCanSeeApplication(app.status)) {
+            return (
+              <div key={app.id} className="card mt-5 px-6 py-10 text-center">
+                <p className="text-[15px] text-body">
+                  We&rsquo;re preparing your options.
+                </p>
+                <p className="mx-auto mt-1.5 max-w-[420px] text-[13.5px] text-caption">
+                  Your programmes are being put together — we&rsquo;ll let you
+                  know as soon as they&rsquo;re ready for you to review.
+                </p>
+              </div>
+            );
+          }
+
           const programme = getPrograms(app.id).filter(
             (p) => p.shortlisted
           )[0];

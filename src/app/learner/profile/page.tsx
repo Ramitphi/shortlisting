@@ -5,6 +5,7 @@ import Link from "next/link";
 import { requireRole } from "@/components/shell";
 import { UpgradShell } from "@/components/upgrad-shell";
 import { getFormResponses, listApplications } from "@/lib/queries";
+import { learnerCanSeeApplication } from "@/lib/domain";
 import { updateLearnerDetails } from "@/lib/actions";
 import { ProfileSectionCards } from "../profile-cards";
 
@@ -32,20 +33,34 @@ export default function LearnerProfilePage() {
         </div>
       ) : (
         <>
-          <p className="mt-1 text-[14px] text-body">
-            To change anything here, edit it inside{" "}
-            <Link
-              href={`/learner/application/${app.id}`}
-              className="font-medium text-accent hover:underline"
-            >
-              your application
-            </Link>
-            .
-          </p>
+          {/* Their own details stay readable throughout — this is the
+              learner's personal data, not the application. But until the
+              application is theirs to see, there is nowhere to send them to
+              change it, so the counsellor is the route. */}
+          {learnerCanSeeApplication(app.status) ? (
+            <p className="mt-1 text-[14px] text-body">
+              To change anything here, edit it inside{" "}
+              <Link
+                href={`/learner/application/${app.id}`}
+                className="font-medium text-accent hover:underline"
+              >
+                your application
+              </Link>
+              .
+            </p>
+          ) : (
+            <p className="mt-1 text-[14px] text-body">
+              To change anything here, speak to your academic counsellor.
+            </p>
+          )}
           <ProfileSectionCards
             responses={responses}
             locked
-            hrefFor={() => `/learner/application/${app.id}`}
+            hrefFor={() =>
+              learnerCanSeeApplication(app.status)
+                ? `/learner/application/${app.id}`
+                : "/learner/application"
+            }
             action={updateLearnerDetails.bind(null, app.id)}
           />
         </>

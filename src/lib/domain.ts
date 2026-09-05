@@ -72,6 +72,23 @@ export function learnerStage(status: AppStatus): number {
   return 0;
 }
 
+/**
+ * Whether the learner can see their application at all.
+ *
+ * Nothing of it reaches them until the counsellor sends the first shortlist.
+ * Before that the form is being filled on a call and vetted by Ops, and an
+ * application the learner can watch but not act on is only an invitation to
+ * ask why it still looks like that. Their side of the product starts when
+ * there is something for them to do.
+ *
+ * Once shown it stays shown: the status never rewinds below `shortlisted`, so
+ * a re-check that takes the programme back off (see `clearRecheck`) leaves the
+ * application visible and says so in words, rather than making it vanish.
+ */
+export function learnerCanSeeApplication(status: AppStatus): boolean {
+  return stageIndex(status) >= stageIndex("shortlisted");
+}
+
 /** The status badge as the learner should read it. */
 export function learnerStatus(
   status: AppStatus,

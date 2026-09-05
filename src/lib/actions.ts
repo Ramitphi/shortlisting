@@ -33,6 +33,7 @@ import {
   affectsEligibility,
   canEditDetails,
   canTransition,
+  learnerCanSeeApplication,
   roleHome,
   type Role,
 } from "./domain";
@@ -903,11 +904,26 @@ export async function verifyLearnerDoc(
     reason ?? undefined
   );
   if (verdict === "rejected") {
-    notify(
-      app.learner_id,
-      `Please re-upload your ${def.type}${reason ? ` — ${reason}` : ""}`,
-      `/learner/application/${applicationId}?tab=docs`
-    );
+    // Before the first shortlist the learner has no application to open, so
+    // telling them a document was rejected is a dead end. The counsellor
+    // collected these on the call and owns the relationship at that point —
+    // it is theirs to chase. Once the application is visible the learner is
+    // told directly, as before.
+    if (learnerCanSeeApplication(app.status)) {
+      notify(
+        app.learner_id,
+        `Please re-upload your ${def.type}${reason ? ` — ${reason}` : ""}`,
+        `/learner/application/${applicationId}?tab=docs`
+      );
+    } else if (app.ac_id) {
+      notify(
+        app.ac_id,
+        `${def.type} rejected on ${app.learner_name}'s application${
+          reason ? ` — ${reason}` : ""
+        } — please collect a replacement`,
+        `/ac/application/${applicationId}`
+      );
+    }
   }
   dirty();
 }

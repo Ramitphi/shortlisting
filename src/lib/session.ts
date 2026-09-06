@@ -55,6 +55,16 @@ export function setActivityView(v: "inline" | "drawer"): void {
   write(ACTIVITY_KEY, v);
 }
 
+const PROFILE_KEY = "shortlisting_profile_variant";
+
+export function profileVariantRaw(): string | null {
+  return read(PROFILE_KEY);
+}
+
+export function setProfileVariant(v: string): void {
+  write(PROFILE_KEY, v);
+}
+
 const UNDERTAKING_KEY = "shortlisting_undertaking_variant";
 
 export function undertakingVariantRaw(): string | null {

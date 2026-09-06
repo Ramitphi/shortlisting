@@ -271,6 +271,12 @@ function docDialog(
   triggerClassName?: string
 ) {
   const unsigned = signable && !it.doc.signed_at;
+  // The answers this document rests on travel INTO the sign panel by
+  // default. Signing is the moment the learner vouches for them, and the
+  // card they read it on is behind the dialog by then — so every variant
+  // shows the triggering field and its value at that moment, not just the
+  // one variant that was built around the idea.
+  const rests = certifying ?? it.fields;
   return (
     <DocumentDialog
       docType={DOC_TYPE_LABELS[it.doc.type]}
@@ -279,7 +285,7 @@ function docDialog(
       signees={it.signees}
       canSign={unsigned}
       otpPhone={phone}
-      certifying={certifying}
+      certifying={rests}
       action={signDoc(it.doc.id)}
       triggerLabel={unsigned ? "Review & sign" : "View document"}
       triggerClassName={

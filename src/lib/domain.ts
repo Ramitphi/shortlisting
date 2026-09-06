@@ -930,6 +930,24 @@ export const UNDERTAKING_VARIANT_META = [
 
 export type UndertakingVariant = (typeof UNDERTAKING_VARIANT_META)[number]["id"];
 
+/**
+ * How the profile summary reads on the staff boards. v1 is what shipped;
+ * the rest answer the same complaint from different angles — that a card
+ * you have to open block by block is not a summary. Switched from the FAB.
+ */
+export const PROFILE_VARIANT_META = [
+  { id: "v1", name: "Sections", hint: "Collapsible blocks, first one open (live)" },
+  { id: "v2", name: "One-tap reveal", hint: "All blocks open, one button folds them" },
+  { id: "v3", name: "Overview + show more", hint: "Prose summary, sheet behind a CTA" },
+  { id: "v4", name: "Open sheet", hint: "Everything visible, nothing to click" },
+  { id: "v5", name: "Key facts first", hint: "The deciding numbers as tiles" },
+  { id: "v6", name: "Two-column ledger", hint: "Dense rows, whole sheet on a screen" },
+  { id: "v7", name: "Journey", hint: "Class 10 to work, as a timeline" },
+  { id: "v8", name: "Compact chips", hint: "Densest scan, panels of inline pairs" },
+] as const;
+
+export type ProfileVariant = (typeof PROFILE_VARIANT_META)[number]["id"];
+
 /** One learner edit during a re-check: what the answer was, what it is now. */
 export interface RecheckChange {
   from: string;

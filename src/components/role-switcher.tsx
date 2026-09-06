@@ -6,13 +6,20 @@ import { IconCheck, IconUsers } from "./ui";
 import {
   resetDemoData,
   toggleDesignMode,
+  setProfileVariantAction,
   setUndertakingVariantAction,
   toggleActivityView,
   toggleLearnerView,
 } from "@/lib/actions";
-import { LEARNER_V2_ENABLED, designMode, undertakingVariant } from "@/lib/auth";
+import {
+  LEARNER_V2_ENABLED,
+  designMode,
+  profileVariant,
+  undertakingVariant,
+} from "@/lib/auth";
 import { dbReady, getDb } from "@/lib/db";
 import {
+  PROFILE_VARIANT_META,
   STATUS_LABELS,
   UNDERTAKING_VARIANT_META,
   type AppStatus,
@@ -264,6 +271,57 @@ export function RoleSwitcher({
                   <form
                     key={m.id}
                     action={setUndertakingVariantAction.bind(null, m.id)}
+                  >
+                    <button
+                      className={`flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors ${
+                        active ? "bg-cream/70" : "hover:bg-muted"
+                      }`}
+                    >
+                      <span
+                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold ${
+                          active ? "bg-ink text-paper" : "bg-cream text-caption"
+                        }`}
+                      >
+                        {i + 1}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[12.5px] font-medium text-ink">
+                          {m.name}
+                        </span>
+                        <span className="block truncate text-[11px] text-caption">
+                          {m.hint}
+                        </span>
+                      </span>
+                      {active && (
+                        <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-[#3f6c45]">
+                          live
+                        </span>
+                      )}
+                    </button>
+                  </form>
+                );
+              })}
+            </div>
+
+            {/* How much of the profile summary is readable without
+                opening anything — the same answers, eight readings. v1 is
+                what shipped; the rest answer the complaint that a summary
+                you have to unfold is not a summary. */}
+            <div className="border-t border-line px-4 py-2.5">
+              <div className="text-[12.5px] font-semibold text-ink">
+                Profile summary
+              </div>
+              <div className="text-[11.5px] text-caption">
+                Staff boards — how much shows at a glance
+              </div>
+            </div>
+            <div>
+              {PROFILE_VARIANT_META.map((m, i) => {
+                const active = profileVariant() === m.id;
+                return (
+                  <form
+                    key={m.id}
+                    action={setProfileVariantAction.bind(null, m.id)}
                   >
                     <button
                       className={`flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors ${

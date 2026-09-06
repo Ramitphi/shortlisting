@@ -9,6 +9,7 @@ import {
   setActivityView,
   designModeRaw,
   setDesignMode,
+  setProfileVariant,
   setUndertakingVariant,
   setLearnerView,
   setSessionUid,
@@ -1914,6 +1915,11 @@ export async function returnRecheckToOps(
 }
 
 // ---------- Stage 4: Learner signs UT & Ack; offer letter issued ----------
+
+/** Demo FAB: which profile-summary view the staff boards render. */
+export async function setProfileVariantAction(v: string) {
+  setProfileVariant(v);
+}
 
 /** Demo FAB: the designer's playground switch — WIP treatments on or off. */
 export async function toggleDesignMode() {

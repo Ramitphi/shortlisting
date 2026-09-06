@@ -1,6 +1,8 @@
 import {
   UNDERTAKING_VARIANT_META,
+  PROFILE_VARIANT_META,
   type UndertakingVariant,
+  type ProfileVariant,
 } from "./domain";
 import { getDb, dbReady } from "./db";
 import {
@@ -9,6 +11,7 @@ import {
   learnerViewRaw,
   designModeRaw,
   undertakingVariantRaw,
+  profileVariantRaw,
 } from "./session";
 import type { Role } from "./domain";
 
@@ -83,6 +86,14 @@ export function undertakingVariant(): UndertakingVariant {
  * treatment; on, the work-in-progress designs render instead — currently
  * the blue-rule learner-change display.
  */
+/** Which profile-summary view is live — see PROFILE_VARIANT_META. */
+export function profileVariant(): ProfileVariant {
+  const raw = profileVariantRaw();
+  return (PROFILE_VARIANT_META.some((m) => m.id === raw)
+    ? raw
+    : "v1") as ProfileVariant;
+}
+
 export function designMode(): boolean {
   return designModeRaw() === "on";
 }

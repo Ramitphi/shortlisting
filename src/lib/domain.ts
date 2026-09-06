@@ -94,13 +94,26 @@ export function learnerStatus(
   status: AppStatus,
   certified = false,
   /** Their own edit is being re-checked — nothing is waiting on them. */
-  recheck: RecheckState | null | boolean = null
+  recheck: RecheckState | null | boolean = null,
+  /**
+   * Whether a programme is still shortlisted. Ops ruling the shortlisted one
+   * out during a re-check takes it off while the status stays `shortlisted`,
+   * and once that re-check closes there is no re-check left to explain the
+   * wait — so without this the card told a learner "Action needed" while the
+   * counsellor was the one choosing their next programme.
+   */
+  hasShortlist = true
 ): { label: string; className: string } {
   if (status === "completed")
     return { label: "Completed", className: STATUS_COLORS.completed };
   // Never "Action needed" while we are the ones holding it up.
   if (recheck)
     return { label: "Being checked", className: STATUS_COLORS.reviewed };
+  // Their programme came off and a new one is being settled. A different wait
+  // from "Being checked" — nothing of theirs is under review — so it gets its
+  // own word, matching what the application itself says inside.
+  if (status === "shortlisted" && !hasShortlist)
+    return { label: "Being confirmed", className: STATUS_COLORS.reviewed };
   if (status === "shortlisted")
     return certified
       ? { label: "With upGrad", className: STATUS_COLORS.reviewed }

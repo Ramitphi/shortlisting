@@ -149,6 +149,19 @@ export default function AcApplicationPage({
   // shortlist. Ops corrects what Ops finds; nothing comes back for another
   // round of edits. See `editorOf` in domain.ts.
   const editable = canEditDetails(app.status, "ac");
+  // The locker is not the form, so it has its own window — see `docUploader`,
+  // which these two mirror exactly so no control is offered that the action
+  // would refuse. While Ops is reading, the counsellor may fill an empty slot
+  // and nothing else; once Ops hands it back they can replace a rejected scan
+  // too. `fillDocsOnly` wins where both are true (a re-check on Ops' desk
+  // while the status still reads `reviewed`).
+  const opsReadingDocs =
+    app.status === "under_review" || app.recheck_state === "ops";
+  const fillDocsOnly = opsReadingDocs;
+  const acDocsWindow =
+    app.status === "draft" ||
+    app.status === "reviewed" ||
+    app.recheck_state === "ac";
   // Ops re-ruled the learner's programme not eligible after they changed a
   // detail, so the shortlist came off and there is a choice to make again.
   const recheck = recheckOf(app);
@@ -454,15 +467,18 @@ export default function AcApplicationPage({
                 rows={locker}
                 categories={DOC_CATEGORIES}
                 insightFor={(key) => docInsight(key, responses, app.learner_name ?? "")}
-                canUpload={editable}
+                canUpload={fillDocsOnly || acDocsWindow}
+                fillOnly={fillDocsOnly}
                 canVerify={false}
                 upload={uploadLearnerDoc.bind(null, app.id)}
                 remove={removeLearnerDoc.bind(null, app.id)}
                 verify={verifyLearnerDoc.bind(null, app.id)}
                 note={
-                  editable
-                    ? undefined
-                    : "Read-only — Ops holds the application from here."
+                  fillDocsOnly
+                    ? "Ops is reading these — you can still upload a document that is missing, but not change one already in."
+                    : acDocsWindow
+                      ? undefined
+                      : "Read-only — the learner's documents are theirs to change from here."
                 }
               />
             </SideSheet>

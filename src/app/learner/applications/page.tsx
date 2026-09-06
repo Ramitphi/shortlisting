@@ -86,7 +86,7 @@ export default function V2ApplicationsPage() {
   // Appeals are internal — the learner's card must not react to one.
   const recheck = rawRecheck?.kind === "appeal" ? null : rawRecheck;
   const status = app
-    ? learnerStatus(app.status, certified, Boolean(recheck))
+    ? learnerStatus(app.status, certified, Boolean(recheck), Boolean(programme))
     : null;
   const statusGood = app?.status === "completed" || certified;
   const docStatus = !app

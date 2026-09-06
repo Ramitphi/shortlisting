@@ -80,7 +80,12 @@ export default function LearnerApplicationsList() {
           // Appeals are internal — the card must not react to one.
           const recheck =
             rawRecheck?.kind === "appeal" ? null : rawRecheck;
-          const status = learnerStatus(app.status, certified, Boolean(recheck));
+          const status = learnerStatus(
+            app.status,
+            certified,
+            Boolean(recheck),
+            Boolean(programme)
+          );
 
           const toSign = docs.filter((d) => !d.signed_at).length;
           const signed = docs.length - toSign;

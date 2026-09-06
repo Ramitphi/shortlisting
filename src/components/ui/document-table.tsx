@@ -55,6 +55,7 @@ export function DocumentTable({
   rows,
   categories,
   canUpload,
+  fillOnly = false,
   canVerify,
   upload,
   remove,
@@ -65,6 +66,14 @@ export function DocumentTable({
   rows: DocRow[];
   categories: readonly string[];
   canUpload: boolean;
+  /**
+   * Fill the gaps, touch nothing else. The counsellor gets this while Ops is
+   * vetting: an empty slot is theirs to fill, but a slot that already has a
+   * file is under review — no replacing it, no removing it. Mirrors exactly
+   * what `docUploader` will actually allow, so no control is shown that the
+   * action would then refuse.
+   */
+  fillOnly?: boolean;
   canVerify: boolean;
   /** Bound to the application; the row binds its own key on top. */
   upload: (docKey: string, formData: FormData) => void | Promise<void>;
@@ -159,6 +168,7 @@ export function DocumentTable({
                         : null
                     }
                     canUpload={canUpload}
+                    fillOnly={fillOnly}
                     canVerify={canVerify}
                     onUpload={(filename) => {
                       const fd = new FormData();
@@ -240,6 +250,7 @@ function Row({
   row,
   insight,
   canUpload,
+  fillOnly = false,
   canVerify,
   onUpload,
   onRemove,
@@ -249,6 +260,8 @@ function Row({
   row: DocRow;
   insight?: DocInsight | null;
   canUpload: boolean;
+  /** Empty slots only — see DocumentTable. */
+  fillOnly?: boolean;
   canVerify: boolean;
   onUpload: (filename: string) => void;
   onRemove: () => void;
@@ -367,7 +380,7 @@ function Row({
                   in place and the rejection reason stays on screen until it
                   does. Removing it first would delete the very instruction the
                   learner was told to act on. */}
-              {canUpload && row.verification === "rejected" && (
+              {canUpload && !fillOnly && row.verification === "rejected" && (
                 <PickFile
                   onPick={onUpload}
                   title="Upload a replacement"
@@ -383,7 +396,7 @@ function Row({
               {/* Remove and then Upload is the same journey with one fewer
                   control — but a verified document is only the reviewing
                   team's to pull, so the learner does not get a dead button. */}
-              {canUpload && (canVerify || row.verification !== "verified") && (
+              {canUpload && !fillOnly && (canVerify || row.verification !== "verified") && (
                 <button
                   type="button"
                   onClick={onRemove}

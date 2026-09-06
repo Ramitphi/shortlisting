@@ -810,14 +810,42 @@ export async function updateFieldValue(
  * application. Ops never loses the ability to check a document — a file that
  * arrives on Tuesday still has to be verified on Tuesday.
  */
-function docUploader(applicationId: number) {
+function docUploader(applicationId: number, docKey?: string) {
   const user = requireUser();
   const app = getApplication(applicationId);
   if (!app || app.status === "completed") return null;
   if (user.role === "learner")
     return app.learner_id === user.id ? { user, app } : null;
-  if (user.role === "ac")
-    return app.ac_id === user.id && app.status === "draft" ? { user, app } : null;
+  if (user.role === "ac") {
+    if (app.ac_id !== user.id) return null;
+    // One line decides this: can the counsellor change a document Ops is
+    // reading right now? No. Anything else, yes.
+    //
+    // WHILE OPS READS — vetting, or a re-check still on Ops' desk — the
+    // counsellor may FILL A GAP and nothing else. Vetting cannot finish
+    // without the required documents, and nobody else can supply one at that
+    // point: the learner cannot see the application before the first
+    // shortlist. So an empty slot is open to them; a slot with a file in it
+    // is the thing under review, rejected ones included, and swapping it
+    // underneath Ops would change what they are ruling on.
+    const opsReading =
+      app.status === "under_review" || app.recheck_state === "ops";
+    if (opsReading) {
+      if (!docKey) return null;
+      return getLearnerDocs(applicationId)[docKey] ? null : { user, app };
+    }
+    // OPS HAS HANDED IT BACK — draft, reviewed, or a re-check passed to the
+    // counsellor. Ops has said their piece and notified them; acting on it,
+    // replacing a rejected scan included, is the whole point of the handback.
+    // (A verified document is still Ops' alone to pull — see removeLearnerDoc.)
+    if (
+      app.status === "draft" ||
+      app.status === "reviewed" ||
+      app.recheck_state === "ac"
+    )
+      return { user, app };
+    return null;
+  }
   if (user.role === "ops") return { user, app };
   return null;
 }
@@ -827,7 +855,7 @@ export async function uploadLearnerDoc(
   docKey: string,
   formData: FormData
 ) {
-  const ctx = docUploader(applicationId);
+  const ctx = docUploader(applicationId, docKey);
   const def = LEARNER_DOC_BY_KEY[docKey];
   if (!ctx || !def) return;
   const filename = String(formData.get("filename") ?? "").trim();
@@ -854,7 +882,9 @@ export async function uploadLearnerDoc(
 }
 
 export async function removeLearnerDoc(applicationId: number, docKey: string) {
-  const ctx = docUploader(applicationId);
+  // Passing the key also settles the counsellor's under_review case: removal
+  // needs a filled slot, and a filled slot is exactly what they may not touch.
+  const ctx = docUploader(applicationId, docKey);
   const def = LEARNER_DOC_BY_KEY[docKey];
   if (!ctx || !def) return;
   // A verified document is a record, not a draft — only Ops can pull it.

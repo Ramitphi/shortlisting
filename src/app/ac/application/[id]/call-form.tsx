@@ -848,7 +848,7 @@ export function CallForm({
                   {v.status_12 === "Pursuing" && (
                     <Row
                       label="Expected completion" k="completion_12"
-                      hint="A completion undertaking will be added."
+                      hint="A completion undertaking will be added. Ask for the expected percentage too."
                     >
                       <input
                         type="month"
@@ -928,7 +928,10 @@ export function CallForm({
                         />
                       </Row>
                       {v.bachelor_status?.startsWith("Pursuing") && (
-                        <Row label="Expected completion" k="bachelor_completion">
+                        <Row
+                          label="Expected completion" k="bachelor_completion"
+                          hint="A completion undertaking will be added. Ask for the expected percentage too."
+                        >
                           <input
                             type="month"
                             className={inputCls}

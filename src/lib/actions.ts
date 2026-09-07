@@ -11,7 +11,6 @@ import {
   setDesignMode,
   setErrorStateVariant,
   setProfileVariant,
-  setUndertakingVariant,
   setLearnerView,
   setSessionUid,
   activityViewRaw,
@@ -20,7 +19,6 @@ import {
 import { requireUser } from "./auth";
 import { attachMissingForms, attachRequiredForms, claimApplication } from "./vetting";
 import {
-  UNDERTAKING_VARIANT_META,
   parseRecheckChanges,
   CLAUSES,
   FORM_FIELDS,
@@ -1931,14 +1929,6 @@ export async function setProfileVariantAction(v: string) {
 export async function toggleDesignMode() {
   requireUser();
   setDesignMode(designModeRaw() !== "on");
-  dirty();
-}
-
-/** Demo FAB: pick which learner undertaking UI variant is live. */
-export async function setUndertakingVariantAction(v: string) {
-  requireUser();
-  if (!UNDERTAKING_VARIANT_META.some((m) => m.id === v)) return;
-  setUndertakingVariant(v);
   dirty();
 }
 

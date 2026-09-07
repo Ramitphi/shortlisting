@@ -1,8 +1,6 @@
 import {
-  UNDERTAKING_VARIANT_META,
   PROFILE_VARIANT_META,
   ERROR_STATE_VARIANT_META,
-  type UndertakingVariant,
   type ProfileVariant,
   type ErrorStateVariant,
 } from "./domain";
@@ -12,7 +10,6 @@ import {
   activityViewRaw,
   learnerViewRaw,
   designModeRaw,
-  undertakingVariantRaw,
   profileVariantRaw,
   errorStateVariantRaw,
 } from "./session";
@@ -76,14 +73,6 @@ export function activityInline(): boolean {
  * hides the FAB switch, and bounces the /learner/applications routes home.
  * Flip it to true to bring v2 back for a comparison.
  */
-/** Which learner undertaking UI is live — see UNDERTAKING_VARIANT_META. */
-export function undertakingVariant(): UndertakingVariant {
-  const raw = undertakingVariantRaw();
-  return (UNDERTAKING_VARIANT_META.some((m) => m.id === raw)
-    ? raw
-    : "v1") as UndertakingVariant;
-}
-
 /**
  * The designer's playground switch. Off, every surface wears the shipped
  * treatment; on, the work-in-progress designs render instead — currently

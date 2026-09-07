@@ -75,16 +75,6 @@ export function setProfileVariant(v: string): void {
   write(PROFILE_KEY, v);
 }
 
-const UNDERTAKING_KEY = "shortlisting_undertaking_variant";
-
-export function undertakingVariantRaw(): string | null {
-  return read(UNDERTAKING_KEY);
-}
-
-export function setUndertakingVariant(v: string): void {
-  write(UNDERTAKING_KEY, v);
-}
-
 const DESIGN_MODE_KEY = "shortlisting_design_mode";
 
 export function designModeRaw(): string | null {

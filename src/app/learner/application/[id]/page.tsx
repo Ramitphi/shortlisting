@@ -5,7 +5,6 @@ import { useDbVersion } from "@/components/db-provider";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { requireRole } from "@/components/shell";
-import { undertakingVariant } from "@/lib/auth";
 import { UpgradShell, type UgSection } from "@/components/upgrad-shell";
 import {
   CardChip,
@@ -49,7 +48,7 @@ import { CertifyDialog } from "../../certify-block";
 import { DetailRows } from "../../detail-rows";
 import {
   AllSignedCelebration,
-  UndertakingVariantView,
+  UndertakingSigning,
   type UndertakingItem,
 } from "../../undertaking-variants";
 import { ProfileSectionCards } from "../../profile-cards";
@@ -152,20 +151,17 @@ export default function LearnerApplicationPage({
 
   // Six candidate treatments of this list, switched from the demo FAB —
   // see undertaking-variants.tsx for the ranking and the reasoning.
-  const variant = undertakingVariant();
   const undertakingItems: UndertakingItem[] = docs.map((d) => ({
     doc: d,
     signees: signeesFor(app, responses, d),
     fields: undertakingFieldsFor(d.clause_id, responses),
   }));
   const undertakingGrid = (signable: boolean) => (
-    <UndertakingVariantView
-      variant={variant}
+    <UndertakingSigning
       items={undertakingItems}
       signable={signable}
       learnerName={responses.full_name || app.learner_name || "the learner"}
       phone={responses.mobile}
-      signDoc={(docId) => signDocument.bind(null, docId)}
       signAll={signAllDocuments.bind(null, app.id)}
     />
   );

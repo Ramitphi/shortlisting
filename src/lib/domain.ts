@@ -914,23 +914,6 @@ export function undertakingFieldsFor(
 }
 
 /**
- * The learner-side undertaking UI, in the order the team prefers them —
- * v1 first. Switched live from the demo FAB so the variants can be walked
- * in one sitting. v6 is the inline-at-the-field reference the PM floated,
- * kept at the back of the queue on purpose.
- */
-export const UNDERTAKING_VARIANT_META = [
-  { id: "v1", name: "Signature cards", hint: "Answers on the card, sign with OTP" },
-  { id: "v2", name: "Context at signing", hint: "Answers inside the sign panel" },
-  { id: "v3", name: "Guided, one at a time", hint: "Walks document by document" },
-  { id: "v4", name: "Read & tick, one OTP", hint: "Tick each, one OTP signs all" },
-  { id: "v5", name: "Field-first agreements", hint: "Grouped under the answer" },
-  { id: "v6", name: "Inline at the field", hint: "Checkbox + OTP at the field (PM ref)" },
-] as const;
-
-export type UndertakingVariant = (typeof UNDERTAKING_VARIANT_META)[number]["id"];
-
-/**
  * How the profile summary reads on the staff boards. v1 is what shipped;
  * the rest answer the same complaint from different angles — that a card
  * you have to open block by block is not a summary. Switched from the FAB.

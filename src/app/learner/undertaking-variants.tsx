@@ -44,6 +44,10 @@ export interface UndertakingItem {
  * — otherwise the learner is agreeing to a paragraph of legal text with no
  * idea which of their own words called it up. Shown at rest, not on a hover
  * or a tap: this is the part they are most likely to want to check.
+ *
+ * Deliberately grey. This is context, not a warning and not a success, and
+ * the learner's side is upGrad red on white — a tinted amber block borrowed
+ * from the staff palette read as an alert for something that is merely true.
  */
 function TriggerAnswers({ fields }: { fields: UndertakingField[] }) {
   if (fields.length === 0) {
@@ -54,8 +58,8 @@ function TriggerAnswers({ fields }: { fields: UndertakingField[] }) {
     );
   }
   return (
-    <div className="rounded-lg border border-[#ecdfc0] bg-[#f6efdd]/60 px-3 py-2.5">
-      <div className="text-[10.5px] font-semibold uppercase tracking-[0.07em] text-[#8a6d2f]">
+    <div className="rounded-lg border border-line bg-muted px-3 py-2.5">
+      <div className="text-[10.5px] font-semibold uppercase tracking-[0.07em] text-caption">
         Because you answered
       </div>
       <dl className="mt-1.5 space-y-1">

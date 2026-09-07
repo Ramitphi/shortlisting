@@ -18,6 +18,10 @@ import {
 } from "@/lib/browser-db";
 import { initSchema, setDb } from "@/lib/db";
 import { AuthRedirect } from "@/lib/auth";
+import { clearSnapshot } from "@/lib/browser-db";
+import { OfflineNotice } from "./offline-notice";
+import { StateScreen } from "./ui/state-screen";
+import { STATE_COPY } from "./ui/state-copy";
 
 /**
  * Owns the browser database: loads the sql.js WASM engine, restores the
@@ -91,10 +95,50 @@ function Redirector({ to, done }: { to: string; done: () => void }) {
   return <LoadingShell />;
 }
 
+/**
+ * The database would not open, or took so long that "still loading" stopped
+ * being believable. Rendered ABOVE the ready gate, so the person is never
+ * left with a spinner and no door. Forces nothing about the reading: the
+ * variant getter is guarded, so a broken localStorage falls to typographic.
+ */
+function DbFailed({ error }: { error: Error }) {
+  const c = STATE_COPY["db-failed"];
+  return (
+    <div className="min-h-dvh bg-paper">
+      <StateScreen
+        kind="db-failed"
+        title={c.title}
+        bigTitle={c.bigTitle}
+        body={
+          <>
+            {c.body}
+            {error.message && (
+              <span className="mt-3 block font-mono text-[12px] text-caption">
+                {error.message.slice(0, 160)}
+              </span>
+            )}
+          </>
+        }
+        actions={[
+          { label: "Try again", onClick: () => window.location.reload(), primary: true },
+          {
+            label: "Start fresh",
+            onClick: () => {
+              clearSnapshot().finally(() => window.location.reload());
+            },
+          },
+        ]}
+      />
+    </div>
+  );
+}
+
 export function DbProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
+  const [failure, setFailure] = useState<Error | null>(null);
   const [version, setVersion] = useState(0);
   const started = useRef(false);
+  const settled = useRef(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -123,15 +167,28 @@ export function DbProvider({ children }: { children: ReactNode }) {
         const { seedDemo } = require("@/lib/demo-seed.js");
         seedDemo(db);
       }
+      settled.current = true;
       setReady(true);
     })().catch((e) => {
+      settled.current = true;
       // eslint-disable-next-line no-console
       console.error("Failed to initialise the browser database", e);
+      setFailure(e instanceof Error ? e : new Error(String(e)));
     });
+    // A hang is not a rejection: an IndexedDB open that never fires, a WASM
+    // fetch that stalls. Past this, "loading" is no longer the truth.
+    const timer = window.setTimeout(() => {
+      if (!settled.current) {
+        settled.current = true;
+        setFailure(new Error("Timed out waiting for the browser database to open."));
+      }
+    }, 20000);
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => onDbChange(() => setVersion((v) => v + 1)), []);
 
+  if (failure) return <DbFailed error={failure} />;
   if (!ready) return <LoadingShell />;
 
   // No key on the boundary: a keyed remount would wipe client state (the
@@ -139,6 +196,7 @@ export function DbProvider({ children }: { children: ReactNode }) {
   // the version context; the boundary resets itself after a redirect.
   return (
     <VersionContext.Provider value={version}>
+      <OfflineNotice />
       <AuthBoundary>{children}</AuthBoundary>
     </VersionContext.Provider>
   );

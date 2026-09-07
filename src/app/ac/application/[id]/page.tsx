@@ -2,7 +2,7 @@
 
 import { useDbVersion } from "@/components/db-provider";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Shell, requireRole } from "@/components/shell";
 import {
   activityInline, designMode } from "@/lib/auth";
@@ -133,7 +133,10 @@ export default function AcApplicationPage({
   useDbVersion();
   const user = requireRole("ac");
   const app = getApplication(Number(params.id));
-  if (!app || app.ac_id !== user.id) notFound();
+  if (!app) notFound();
+  // Exists, but is another counsellor's. A 404 here would be a lie and a
+  // dead end; the no-access screen names who to ask instead.
+  if (app.ac_id !== user.id) redirect(`/states?kind=no-access&app=${app.id}`);
 
   const responses = getFormResponses(app.id);
   const remarks = getRemarks(app.id);
@@ -968,12 +971,18 @@ export default function AcApplicationPage({
                 </div>
                 )}
 
-                {offer && (
+                {offer ? (
                   <div className="mt-4 rounded-xl border border-[#cde1d2] bg-[#e2eee5] p-3.5 text-sm text-[#1f3d26]">
                     🎉 Offer letter sent for <b>{offer.program_name}</b> (
                     {offer.institute}) on {offer.created_at} UTC.
                   </div>
-                )}
+                ) : app.status === "shortlisted" ? (
+                  <div className="mt-4 rounded-xl border border-line bg-paper p-3.5 text-[13px] text-body">
+                    {app.certified_at
+                      ? "The learner has signed and certified — the offer letter is with Ops to release."
+                      : "No offer letter yet. Ops releases it once the learner has signed every document and certified their details."}
+                  </div>
+                ) : null}
               </SectionCard>
             )}
           {/* ── Requested Programs: pick and send the shortlist ── */}

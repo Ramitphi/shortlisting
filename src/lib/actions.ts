@@ -9,6 +9,7 @@ import {
   setActivityView,
   designModeRaw,
   setDesignMode,
+  setErrorStateVariant,
   setProfileVariant,
   setUndertakingVariant,
   setLearnerView,
@@ -1915,6 +1916,11 @@ export async function returnRecheckToOps(
 }
 
 // ---------- Stage 4: Learner signs UT & Ack; offer letter issued ----------
+
+/** Demo FAB: how the app talks when something has gone wrong. */
+export async function setErrorStateVariantAction(v: string) {
+  setErrorStateVariant(v);
+}
 
 /** Demo FAB: which profile-summary view the staff boards render. */
 export async function setProfileVariantAction(v: string) {

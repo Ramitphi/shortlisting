@@ -298,17 +298,20 @@ export function summaryNarrative(
         }${backlogs === "0" ? " with no backlogs" : backlogs ? ` with ${backlogs} backlog(s)` : ""}.`
       );
     }
-    if (work) {
+    // Only once there is a degree to have worked "since" — and never assert a
+    // career gap nobody has entered.
+    const hasDegree = Boolean(bDegree || bUni || bScore);
+    if (work && hasDegree) {
       const months = Number(work);
       const spell =
         Number.isFinite(months) && months >= 12
           ? `${Math.floor(months / 12)} year${Math.floor(months / 12) === 1 ? "" : "s"}`
           : `${work} months`;
-      bits.push(
-        `${spell} of work experience since${
-          gap && gap !== "0" ? `, and a ${gap}-month career gap` : ", with no career gap"
-        }.`
-      );
+      const gapPart =
+        gap === "" ? "" : gap === "0" ? ", with no career gap" : `, and a ${gap}-month career gap`;
+      bits.push(`${spell} of work experience since${gapPart}.`);
+    } else if (work && !hasDegree) {
+      bits.push(`${work} months of work experience on file.`);
     }
   }
 

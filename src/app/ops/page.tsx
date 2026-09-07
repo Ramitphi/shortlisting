@@ -227,7 +227,11 @@ export default function OpsDashboard({
             text={
               q
                 ? `No applications matching "${q}"`
-                : "No submissions yet — waiting for ACs"
+                : recheckFilter
+                  ? "No re-checks open right now"
+                  : statusFilter
+                    ? `No applications in "${STATUS_LABELS[statusFilter]}" right now`
+                    : "No submissions yet — waiting for ACs"
             }
           />
         ) : (

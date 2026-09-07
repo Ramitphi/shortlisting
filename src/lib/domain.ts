@@ -948,6 +948,26 @@ export const PROFILE_VARIANT_META = [
 
 export type ProfileVariant = (typeof PROFILE_VARIANT_META)[number]["id"];
 
+/**
+ * How the app talks when something has gone wrong. v1 draws it, v2 says it
+ * in large type (the Qatalog treatment). Switched from the demo FAB.
+ */
+export const ERROR_STATE_VARIANT_META = [
+  { id: "v2", name: "Typographic", hint: "Big bold type, no artwork (live)" },
+  { id: "v1", name: "Illustrated", hint: "Placeholder line art — real art pending" },
+] as const;
+
+export type ErrorStateVariant = (typeof ERROR_STATE_VARIANT_META)[number]["id"];
+
+/** The five screens nobody is meant to see — used by the FAB previewer. */
+export const STATE_PREVIEWS = [
+  { kind: "not-found", name: "Page not found", hint: "A URL that does not exist" },
+  { kind: "no-access", name: "No access", hint: "Exists, but not yours" },
+  { kind: "crashed", name: "Something broke", hint: "A crash mid-render" },
+  { kind: "offline", name: "Offline", hint: "The connection dropped" },
+  { kind: "db-failed", name: "Database failed", hint: "The demo could not start" },
+] as const;
+
 /** One learner edit during a re-check: what the answer was, what it is now. */
 export interface RecheckChange {
   from: string;

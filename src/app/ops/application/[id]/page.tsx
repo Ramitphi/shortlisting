@@ -2,7 +2,7 @@
 
 import { useDbVersion } from "@/components/db-provider";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Shell, requireRole } from "@/components/shell";
 import {
   activityInline, designMode } from "@/lib/auth";
@@ -116,7 +116,10 @@ export default function OpsApplicationPage({
   useDbVersion();
   const user = requireRole("ops");
   const app = getApplication(Number(params.id));
-  if (!app || app.status === "draft") notFound();
+  if (!app) notFound();
+  // Still on the counsellor's call — not yet Ops' to open. Say so rather
+  // than pretending it does not exist.
+  if (app.status === "draft") redirect(`/states?kind=no-access&app=${app.id}&why=draft`);
 
   const responses = getFormResponses(app.id);
   const remarks = getRemarks(app.id);

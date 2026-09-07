@@ -55,6 +55,16 @@ export function setActivityView(v: "inline" | "drawer"): void {
   write(ACTIVITY_KEY, v);
 }
 
+const ERROR_STATE_KEY = "shortlisting_error_state_variant";
+
+export function errorStateVariantRaw(): string | null {
+  return read(ERROR_STATE_KEY);
+}
+
+export function setErrorStateVariant(v: string): void {
+  write(ERROR_STATE_KEY, v);
+}
+
 const PROFILE_KEY = "shortlisting_profile_variant";
 
 export function profileVariantRaw(): string | null {

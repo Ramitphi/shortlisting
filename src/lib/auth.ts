@@ -1,8 +1,10 @@
 import {
   UNDERTAKING_VARIANT_META,
   PROFILE_VARIANT_META,
+  ERROR_STATE_VARIANT_META,
   type UndertakingVariant,
   type ProfileVariant,
+  type ErrorStateVariant,
 } from "./domain";
 import { getDb, dbReady } from "./db";
 import {
@@ -12,6 +14,7 @@ import {
   designModeRaw,
   undertakingVariantRaw,
   profileVariantRaw,
+  errorStateVariantRaw,
 } from "./session";
 import type { Role } from "./domain";
 
@@ -86,6 +89,22 @@ export function undertakingVariant(): UndertakingVariant {
  * treatment; on, the work-in-progress designs render instead — currently
  * the blue-rule learner-change display.
  */
+/**
+ * Which error-state reading is live. Guarded so it can be called from a
+ * crash screen: if localStorage itself is the thing that broke, the
+ * typographic reading needs no artwork and no session, so it wins.
+ */
+export function errorStateVariant(): ErrorStateVariant {
+  try {
+    const raw = errorStateVariantRaw();
+    return (ERROR_STATE_VARIANT_META.some((m) => m.id === raw)
+      ? raw
+      : "v2") as ErrorStateVariant;
+  } catch {
+    return "v2";
+  }
+}
+
 /** Which profile-summary view is live — see PROFILE_VARIANT_META. */
 export function profileVariant(): ProfileVariant {
   const raw = profileVariantRaw();

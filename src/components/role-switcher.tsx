@@ -1,11 +1,14 @@
 "use client";
 
+import Link from "next/link";
+
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { IconCheck, IconUsers } from "./ui";
 import {
   resetDemoData,
   toggleDesignMode,
+  setErrorStateVariantAction,
   setProfileVariantAction,
   setUndertakingVariantAction,
   toggleActivityView,
@@ -14,12 +17,15 @@ import {
 import {
   LEARNER_V2_ENABLED,
   designMode,
+  errorStateVariant,
   profileVariant,
   undertakingVariant,
 } from "@/lib/auth";
 import { dbReady, getDb } from "@/lib/db";
 import {
+  ERROR_STATE_VARIANT_META,
   PROFILE_VARIANT_META,
+  STATE_PREVIEWS,
   STATUS_LABELS,
   UNDERTAKING_VARIANT_META,
   type AppStatus,
@@ -352,6 +358,78 @@ export function RoleSwitcher({
                   </form>
                 );
               })}
+            </div>
+
+            {/* How the app talks when something has gone wrong, and a way to
+                look at each of those screens without having to break
+                anything to get there. */}
+            <div className="border-t border-line px-4 py-2.5">
+              <div className="text-[12.5px] font-semibold text-ink">
+                Error &amp; empty states
+              </div>
+              <div className="text-[11.5px] text-caption">
+                Reading style, then preview any state
+              </div>
+            </div>
+            <div>
+              {ERROR_STATE_VARIANT_META.map((m, i) => {
+                const active = errorStateVariant() === m.id;
+                return (
+                  <form
+                    key={m.id}
+                    action={setErrorStateVariantAction.bind(null, m.id)}
+                  >
+                    <button
+                      className={`flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors ${
+                        active ? "bg-cream/70" : "hover:bg-muted"
+                      }`}
+                    >
+                      <span
+                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold ${
+                          active ? "bg-ink text-paper" : "bg-cream text-caption"
+                        }`}
+                      >
+                        {i + 1}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[12.5px] font-medium text-ink">
+                          {m.name}
+                        </span>
+                        <span className="block truncate text-[11px] text-caption">
+                          {m.hint}
+                        </span>
+                      </span>
+                      {active && (
+                        <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-[#3f6c45]">
+                          live
+                        </span>
+                      )}
+                    </button>
+                  </form>
+                );
+              })}
+            </div>
+            <div className="border-t border-line/60">
+              {STATE_PREVIEWS.map((st) => (
+                <Link
+                  key={st.kind}
+                  href={`/states?kind=${st.kind}`}
+                  className="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-muted"
+                >
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-caption/60" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[12.5px] font-medium text-ink">
+                      {st.name}
+                    </span>
+                    <span className="block truncate text-[11px] text-caption">
+                      {st.hint}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-caption">
+                    preview
+                  </span>
+                </Link>
+              ))}
             </div>
 
             {/* The designer's playground. Off, every surface is the shipped

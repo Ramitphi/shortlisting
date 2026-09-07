@@ -313,7 +313,7 @@ function seedCatalogues(db: BrowserDb) {
   db.exec(
     "CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT)"
   );
-  const CATALOGUE_VERSION = "2026-09-07-brd-clause-3.0";
+  const CATALOGUE_VERSION = "2026-09-07-brd-clause-3.0-acks";
   const storedVersion = (
     db
       .prepare("SELECT value FROM app_meta WHERE key = 'doc_templates'")
@@ -346,6 +346,9 @@ function seedCatalogues(db: BrowserDb) {
       ["undertaking", "Backlog Declaration", "I acknowledge that I have currently scored <BACHELOR_SCORE>% with <BACKLOGS> backlogs including ATKTs / re-appear / fail / absent, and that I am currently pursuing my degree. I undertake that I shall not exceed the total number of backlogs permitted by the programme.\n\nIn the event of exceeding the permitted backlog count, I agree to be admitted into alternative universities according to their respective requirements and eligibility criteria.", "UT-Backlog-02", 0],
       ["undertaking", "Education Loan Undertaking", "I declare that the details of my co-applicant, as submitted by me, if any, are true and correct to the best of my knowledge, and that my co-applicant, if any, fulfils the applicable eligibility requirements as put forth by the concerned authorities, over which upGrad has no control whatsoever. I undertake to comply with the applicable loan obligations and understand that any loan availed by me is solely between myself and the concerned third-party loan provider and upGrad holds no responsibility for the same.\n\nI acknowledge that if the loan is in my name, I undertake the responsibility to foreclose the loan before applying for the on-campus tuition fees.", "UT/ACK-Loan-01", 0],
       ["acknowledgement", "Self-Funding Acknowledgement", "I hereby confirm that I will independently fund all expenses related to my on-campus studies without availing any loan. I undertake to arrange and maintain the necessary financial resources at my end.", "ACK-Self Funding-01", 0],
+      ["acknowledgement", "Profile-Building Programme Acknowledgement", "I acknowledge that the profile-building programme is a profile enhancement program and is neither a degree program nor a proof of admission into any university — public or private. I further acknowledge that any program fee paid towards it is solely for the content of the program, and no part of the program fee is applicable towards the tuition fee of any public or private university.", "ACK-YLP-01", 0],
+      ["acknowledgement", "APS & dMAT Acknowledgement", "I acknowledge that I have understood the APS requirements, including dMAT requirements, where applicable.", "ACK-Others/Exams-01", 0],
+      ["acknowledgement", "APS & TestAS Acknowledgement", "I acknowledge that I have understood the APS requirements, including TestAS requirements, where applicable.", "ACK-Others/Exams-02", 0],
     ];
     const tx = db.transaction(() => { for (const r of rows) ins.run(...r); });
     tx();

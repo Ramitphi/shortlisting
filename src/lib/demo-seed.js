@@ -6,6 +6,7 @@
  * and a drifted seed writes states the UI no longer understands.
  */
 const { fillPlaceholders } = require("./clause-text.js");
+const { triggeredClausesFor } = require("./clause-triggers.js");
 
 function seedDemo(db) {
   db.pragma("foreign_keys = ON");
@@ -197,9 +198,12 @@ function seedDemo(db) {
       cv_file: "resume.pdf",
       career_gap_months: "0",
       finance_plan: "Education Loan (Partial/Full)",
-      triggered_clauses: "UT/Dec-PII Data-01|UT/ACK-Loan-01",
       ...overrides,
     };
+    // Derived, never hand-written: a seeded learner carries exactly the
+    // undertakings their own answers ask for, by the same rule the product
+    // uses. Hand-kept lists drifted the moment a country or a clause moved.
+    values.triggered_clauses = triggeredClausesFor(values).join("|");
     for (const [key, value] of Object.entries(values)) insertField.run(appId, key, value);
   }
 
@@ -244,9 +248,11 @@ function seedDemo(db) {
     return Object.fromEntries(rows.map((r) => [r.field_key, r.value]));
   }
 
-  function addClauseDocs(appId, learnerName, clauses, signature = null) {
+  function addClauseDocs(appId, learnerName, signature = null) {
     const signedAt = signature ? "2026-08-03 09:10:00" : null;
-    for (const id of String(clauses || "").split("|").filter(Boolean)) {
+    const responses = responsesFor(appId);
+    const clauses = responses.triggered_clauses || "";
+    for (const id of String(clauses).split("|").filter(Boolean)) {
       const t = templatesByClause[id];
       if (!t) continue;
       insertDoc.run(
@@ -304,7 +310,7 @@ function seedDemo(db) {
       work_exp_months: "60",
     });
     addDefaultDocs(submittedId, submitted.name);
-    addClauseDocs(submittedId, submitted.name, "UT/Dec-PII Data-01|UT/ACK-Loan-01");
+    addClauseDocs(submittedId, submitted.name);
     // Nothing verified: nobody has opened it yet.
     addLockerDocs(submittedId, ARJUN, { count: 6 });
     // The counsellor's call-time recommendations, awaiting Ops' verdicts.
@@ -324,10 +330,9 @@ function seedDemo(db) {
       bachelor_score: "78",
       work_exp_months: "42",
       bachelor_university: "VIT Vellore",
-      triggered_clauses: "UT/Dec-PII Data-01|UT/ACK-Loan-01",
     });
     addDefaultDocs(vettingId, vetting.name);
-    addClauseDocs(vettingId, vetting.name, "UT/Dec-PII Data-01|UT/ACK-Loan-01");
+    addClauseDocs(vettingId, vetting.name);
     // Omar is part-way through the pile — the state you land in mid-vetting.
     addLockerDocs(vettingId, ARJUN, { count: 8, verifiedUpto: 4 });
     // Mid-vetting: Omar has ruled on one recommendation, two still pending.
@@ -376,14 +381,9 @@ function seedDemo(db) {
       bachelor_university: "Anna University",
       bachelor_docs: "Yes - Partial Documents",
       backlogs: "2",
-      triggered_clauses: "UT/Dec-PII Data-01|UT-PG Doc/Result-04|UT-Backlog-01|UT/ACK-Loan-01",
     });
     addDefaultDocs(flaggedId, flagged.name);
-    addClauseDocs(
-      flaggedId,
-      flagged.name,
-      "UT/Dec-PII Data-01|UT-PG Doc/Result-04|UT-Backlog-01|UT/ACK-Loan-01"
-    );
+    addClauseDocs(flaggedId, flagged.name);
     // One came back — the rejected row and its reason are what the learner
     // sees on their own documents tab.
     addLockerDocs(flaggedId, ARJUN, {
@@ -423,7 +423,7 @@ function seedDemo(db) {
       work_exp_months: "30",
     });
     addDefaultDocs(reviewedId, reviewed.name);
-    addClauseDocs(reviewedId, reviewed.name, "UT/Dec-PII Data-01|UT/ACK-Loan-01");
+    addClauseDocs(reviewedId, reviewed.name);
     // The clean path: everything uploaded, everything verified.
     addLockerDocs(reviewedId, ARJUN, { count: 8, verifiedUpto: 8 });
     // Ops found both, fixed both, and closed their own notes.
@@ -458,14 +458,9 @@ function seedDemo(db) {
       bachelor_university: "Delhi University",
       work_exp_months: "36",
       finance_plan: "Self-funded",
-      triggered_clauses: "UT/Dec-PII Data-01|ACK-Self Funding-01",
     });
     addDefaultDocs(shortlistedId, shortlisted.name);
-    addClauseDocs(
-      shortlistedId,
-      shortlisted.name,
-      "UT/Dec-PII Data-01|ACK-Self Funding-01"
-    );
+    addClauseDocs(shortlistedId, shortlisted.name);
     // Core set verified; the visa documents are the ones still to come, which
     // is exactly what the learner sees pending on their own tab.
     addLockerDocs(shortlistedId, ARJUN, { count: 8, verifiedUpto: 8 });
@@ -486,7 +481,7 @@ function seedDemo(db) {
     const completedId = insertApp.run(completed.id, ARJUN, OMAR, "completed").lastInsertRowid;
     fillForm(completedId, completed);
     addDefaultDocs(completedId, completed.name, completed.name);
-    addClauseDocs(completedId, completed.name, "UT/Dec-PII Data-01|UT/ACK-Loan-01", completed.name);
+    addClauseDocs(completedId, completed.name, completed.name);
     addLockerDocs(completedId, ARJUN, { count: 8, verifiedUpto: 8 });
     const programId = insertProgram.run(completedId, "PG Diploma in Data Science", "IIIT Bangalore", "12 months", "₹3.5L", "Strong CS background + 4 yrs experience", ARJUN, 1, "eligible").lastInsertRowid;
     insertProgram.run(completedId, "MS in Machine Learning & AI", "LJMU (online)", "18 months", "₹4.8L", null, ARJUN, 0, "eligible");

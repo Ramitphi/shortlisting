@@ -305,14 +305,19 @@ export const CLAUSES: Record<string, ClauseDef> = {
     id: "ACK-Self Funding-01",
     title: "Self-funding acknowledgement",
   },
+  "ACK-YLP-01": {
+    id: "ACK-YLP-01",
+    title: "Profile-building programme is not a degree",
+  },
+  "ACK-Others/Exams-01": {
+    id: "ACK-Others/Exams-01",
+    title: "APS & dMAT requirements understood",
+  },
+  "ACK-Others/Exams-02": {
+    id: "ACK-Others/Exams-02",
+    title: "APS & TestAS requirements understood",
+  },
 };
-
-// Generic undertakings appended by degree tag (Section D of the spec).
-export const GENERIC_CLAUSES: { title: string; appliesTo: string[] }[] = [
-  { title: "YLP programme clause", appliesTo: ["Profile Building"] },
-  { title: "Loan & financing terms", appliesTo: ["Masters", "Bachelors", "Profile Building"] },
-  { title: "Visa, exams & others", appliesTo: ["Masters", "Bachelors"] },
-];
 
 export const FORM_FIELDS: FieldDef[] = [
   // ── Section A — Profile Data ─────────────────────────────────────────────
@@ -798,17 +803,15 @@ export type GroupState = "checked" | "verified" | "not_verified";
 /** A remark is either something to act on, or something to know. */
 export type RemarkKind = "action" | "info";
 
-/** Age from a yyyy-mm-dd date of birth; null when it isn't a real date. */
-export function ageFrom(dob: string): number | null {
-  if (!dob) return null;
-  const d = new Date(dob);
-  if (Number.isNaN(d.getTime())) return null;
-  const now = new Date();
-  let age = now.getFullYear() - d.getFullYear();
-  const m = now.getMonth() - d.getMonth();
-  if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
-  return age;
-}
+/**
+ * Age and the trigger table live in clause-triggers.js — plain JS so the
+ * demo seed (also plain JS, so `npm run seed` runs outside the bundler) can
+ * decide undertakings by exactly the rule the product uses.
+ */
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const clauseTriggers = require("./clause-triggers.js");
+
+export const ageFrom: (dob: string) => number | null = clauseTriggers.ageFrom;
 
 /**
  * What is still missing before an application can go to Ops — the one list
@@ -846,54 +849,15 @@ export function missingForSubmit(
 /**
  * Which declarations the answers trigger — the trigger column of the spec.
  *
- * Shared because it has to run twice: the counsellor's wizard computes it live
- * on the call, and the learner's own later edit has to recompute it, or a
- * change that newly requires an undertaking would never produce one.
+ * Shared because it runs three times over: the counsellor's wizard computes
+ * it live on the call, the learner's own later edit recomputes it (or a
+ * change that newly requires an undertaking would never produce one), and
+ * the demo seed uses it so its learners carry the undertakings their own
+ * answers ask for.
  */
-export function triggeredClausesFor(responses: Record<string, string>): string[] {
-  const v = (k: string) => (responses[k] ?? "").trim();
-  const age = ageFrom(v("dob"));
-  const degree = v("degree_level");
-  const isMasters = degree === "Masters";
-  const isBachelors = degree === "Bachelors";
-  const isMinor = age !== null && age < 18;
-
-  const ids: string[] = [];
-  // Every application carries the base declaration.
-  ids.push("UT/Dec-PII Data-01");
-  if (isMinor) ids.push("CON-Parents-01");
-  if (age !== null && ((isBachelors && age > 30) || (isMasters && age > 45)))
-    ids.push("ACK-Age/Visa-01");
-  if (v("status_12") === "Pursuing") ids.push("UT-uG Doc-01");
-  if (v("has_marksheet_12") === "Not yet available")
-    ids.push("UT-uG Doc/Result-03");
-  if (isMasters) {
-    if (v("bachelor_status").startsWith("Pursuing")) ids.push("UT-PG Doc-02");
-    const bDocs = v("bachelor_docs");
-    if (bDocs === "Yes - Partial Documents" || bDocs === "No")
-      ids.push("UT-PG Doc/Result-04");
-    // The sheet has two backlog declarations: one for a degree already
-    // finished (a closed count) and one for a degree still running (a count
-    // that can still grow, so it caps rather than states).
-    if (Number(v("backlogs") || 0) > 0)
-      ids.push(
-        v("bachelor_status") === "Completed" ? "UT-Backlog-01" : "UT-Backlog-02"
-      );
-    const pgDocs = v("pg_docs");
-    const pgStatus = v("pg_status");
-    if (
-      pgDocs === "Yes - Partial Documents" ||
-      (pgDocs === "No" && pgStatus && pgStatus !== "No")
-    )
-      ids.push("UT-PG Doc-02");
-  }
-  // Loan and self-funding are different promises, so they are different
-  // clauses — one is about the lender, the other about having the money.
-  const finance = v("finance_plan");
-  if (finance === "Self-funded") ids.push("ACK-Self Funding-01");
-  else if (finance) ids.push("UT/ACK-Loan-01");
-  return Array.from(new Set(ids));
-}
+export const triggeredClausesFor: (
+  responses: Record<string, string>
+) => string[] = clauseTriggers.triggeredClausesFor;
 
 /**
  * Which answers each clause rests on — the other half of the trigger table
@@ -914,6 +878,9 @@ export const CLAUSE_FIELDS: Record<string, string[]> = {
   "UT-Backlog-02": ["backlogs", "bachelor_status", "bachelor_score"],
   "UT/ACK-Loan-01": ["finance_plan"],
   "ACK-Self Funding-01": ["finance_plan"],
+  "ACK-YLP-01": ["degree_level"],
+  "ACK-Others/Exams-01": ["countries"],
+  "ACK-Others/Exams-02": ["countries"],
 };
 
 /** One answer behind an undertaking, ready to render. */

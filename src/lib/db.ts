@@ -304,24 +304,48 @@ function seedCatalogues(db: BrowserDb) {
     tx();
   }
 
+  // The clause wording is the legal team's and changes without the schema
+  // changing, so "seed once if empty" quietly served last month's text
+  // forever. A version stamp re-seeds the catalogue whenever the wording
+  // moves. `documents.template_id` carries no foreign key, so replacing the
+  // rows cannot orphan a signed document — and a signed document keeps the
+  // text it was signed under, which is the point of signing it.
+  db.exec(
+    "CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT)"
+  );
+  const CATALOGUE_VERSION = "2026-09-07-brd-clause-3.0";
+  const storedVersion = (
+    db
+      .prepare("SELECT value FROM app_meta WHERE key = 'doc_templates'")
+      .get() as { value: string } | undefined
+  )?.value;
+  if (storedVersion !== CATALOGUE_VERSION) {
+    db.prepare("DELETE FROM document_templates").run();
+    db.prepare(
+      "INSERT OR REPLACE INTO app_meta (key, value) VALUES ('doc_templates', ?)"
+    ).run(CATALOGUE_VERSION);
+  }
   const docCount = db.prepare("SELECT COUNT(*) AS c FROM document_templates").get() as { c: number };
   if (docCount.c === 0) {
     const ins = db.prepare(
       "INSERT INTO document_templates (type, title, content, clause_id, always_required) VALUES (?, ?, ?, ?, ?)"
     );
+    // Wording is the legal team's, lifted from the BRD's clause sheet
+    // (Clause 3.0). Angle-bracket placeholders are filled per learner when
+    // the document is attached — see fillPlaceholders in vetting.ts.
     const rows: [string, string, string, string | null, number][] = [
-      ["undertaking", "Program Eligibility Undertaking", "I hereby undertake that all details provided in my eligibility form are true and correct to the best of my knowledge. I understand that any misrepresentation may lead to cancellation of my application or admission.", null, 1],
+      ["undertaking", "Declaration of Information", "I undertake that all information and documents submitted by me are true, accurate and authentic to the best of my knowledge, and I shall promptly notify any material changes, where applicable.\n\nI acknowledge that any false, inaccurate, misleading or concealed information may result in rejection or cancellation of admission, withholding of academic credentials, loss of scholarship benefits, or any other action under applicable policies.", "UT/Dec-PII Data-01", 0],
       ["acknowledgement", "Process Acknowledgement", "I acknowledge that I have been informed about the program structure, fee details, and admission process. I understand the shortlisting decision is based on the eligibility details submitted on my behalf by my academic counsellor.", null, 1],
-      ["acknowledgement", "Parent / Legal Guardian Consent", "As the parent or legal guardian of the applicant, I consent to this application being submitted and accept responsibility for all declarations made within it.", "CON-Parents-01", 0],
-      ["acknowledgement", "Visa Age Acknowledgement", "I acknowledge that my age may affect the student visa assessment for my chosen destination, and that the decision rests solely with the visa authority.", "ACK-Age/Visa-01", 0],
-      ["undertaking", "Class 12 Completion Undertaking", "I undertake to submit my Class 12 final marksheet immediately upon publication of results, and understand my application remains provisional until then.", "UT-uG Doc-01", 0],
-      ["undertaking", "Class 12 Marksheet Submission Undertaking", "I undertake to submit my Class 12 marksheet within the timeline communicated to me, and understand that failure to do so may void my application.", "UT-uG Doc/Result-03", 0],
-      ["undertaking", "Academic Documents Pending Undertaking", "I undertake to submit all remaining academic documents, including consolidated marksheets and transcripts, before the university deadline.", "UT-PG Doc-02", 0],
-      ["undertaking", "Bachelor's Marksheet Submission Undertaking", "I undertake to submit my complete set of bachelor's semester marksheets and grading scale before the offer is confirmed.", "UT-PG Doc/Result-04", 0],
-      ["undertaking", "Backlog Declaration", "I declare that the number of backlogs / ATKTs stated in my application is accurate and complete, and I will disclose any change immediately.", "UT-Backlog-01", 0],
-      ["undertaking", "Financing Undertaking", "I confirm the financing route stated in my application and understand that the final lending decision rests with the lender and depends on my profile.", "UT/ACK-Loan-01", 0],
-      ["undertaking", "Medium of Instruction Undertaking", "I undertake to provide a medium-of-instruction certificate from my previous institution where required by the university.", null, 0],
-      ["acknowledgement", "Accommodation & Living Costs Acknowledgement", "I acknowledge that accommodation and living costs are additional to tuition and are my own responsibility.", null, 0],
+      ["acknowledgement", "Parent / Legal Guardian Consent", "I confirm that my parent/legal guardian has read and understood the contents of this undertaking and provides full acknowledgment and consent to the terms stated herein.", "CON-Parents-01", 0],
+      ["acknowledgement", "Age & Visa Acknowledgement", "I acknowledge that my age may affect my visa application or other eligibility requirements as prescribed by the applicable institution or authorities, and in such case, upGrad or the partner institution(s) will not be held responsible.", "ACK-Age/Visa-01", 0],
+      ["undertaking", "Class 12 Completion Undertaking", "I undertake that I will submit my Class XIIth completion certificate (including XI & XII marksheet) within <COMPLETION> and all the above details are correct. In the failure to submit the docs within the mentioned duration then I agree to be considered for the next available batch.\n\nI further agree and confirm that if the eligibility criteria are not met or if there are discrepancies between the application and uploaded documents, including incorrect grade details or any other inaccurate information provided in the application, my admission may be cancelled at any time.\n\nIn such cases, the certificate/diploma/degree related to the program will not be issued or granted. Additionally, any amount paid towards the Total Program Fee will be non-refundable regardless of the circumstances mentioned above.", "UT-uG Doc-01", 0],
+      ["undertaking", "Class 12 Result Undertaking", "I undertake that I will score a minimum of <EXPECTED_12>% in my Class 12th Board Examinations with no backlogs or re-appear in any subject, and that I will submit my final result/certificate on or before <COMPLETION>. In the event that I fail to secure that score, I agree to be considered for admission into alternative universities, subject to their respective requirements and eligibility criteria.\n\nI further agree and confirm that if I fail to meet the eligibility criteria or if any discrepancies are found between my application and the documents I upload — including incorrect grade details or any inaccurate information — my admission may be cancelled at any stage. In such situations, the related certificate/diploma/degree will not be issued, and any amount paid towards the Total Program Fee will be non-refundable, irrespective of the circumstances mentioned above.", "UT-uG Doc/Result-03", 0],
+      ["undertaking", "Academic Documents Undertaking", "I undertake that I will submit all my documents (including semester-wise marksheets, CMM, provisional certificate, CV etc.) within <BACHELOR_COMPLETION> and all the above details are correct. In the failure to submit the docs within the mentioned duration then I agree to be considered for the next available batch.\n\nI further agree and confirm that if the eligibility criteria are not met or if there are discrepancies between the application and uploaded documents, including incorrect grade details or any other inaccurate information provided in the application, my admission may be cancelled at any time.\n\nIn such cases, the certificate/diploma/degree related to the program will not be issued or granted. Additionally, any amount paid towards the Total Program Fee will be non-refundable regardless of the circumstances mentioned above.", "UT-PG Doc-02", 0],
+      ["undertaking", "Bachelor's Result & Backlog Undertaking", "I undertake that I will meet the score required by the university, and stay within the permitted number of backlogs including all reattempts, in my undergraduate degree, and that I will clear all pending backlogs before my intake.\n\nI further undertake that I will provide my final degree certificate and all semester mark sheets before the intake in <COUNTRIES>. In the failure of achieving the requisite score, I agree to be admitted into alternative universities according to their respective requirements and eligibility criteria.", "UT-PG Doc/Result-04", 0],
+      ["undertaking", "Backlog Declaration", "I acknowledge that I have completed my degree at <UNIVERSITY>. I have completed all semesters successfully with <BACKLOGS> backlogs including backlogs / re-appear / fail / absent.", "UT-Backlog-01", 0],
+      ["undertaking", "Backlog Declaration", "I acknowledge that I have currently scored <BACHELOR_SCORE>% with <BACKLOGS> backlogs including ATKTs / re-appear / fail / absent, and that I am currently pursuing my degree. I undertake that I shall not exceed the total number of backlogs permitted by the programme.\n\nIn the event of exceeding the permitted backlog count, I agree to be admitted into alternative universities according to their respective requirements and eligibility criteria.", "UT-Backlog-02", 0],
+      ["undertaking", "Education Loan Undertaking", "I declare that the details of my co-applicant, as submitted by me, if any, are true and correct to the best of my knowledge, and that my co-applicant, if any, fulfils the applicable eligibility requirements as put forth by the concerned authorities, over which upGrad has no control whatsoever. I undertake to comply with the applicable loan obligations and understand that any loan availed by me is solely between myself and the concerned third-party loan provider and upGrad holds no responsibility for the same.\n\nI acknowledge that if the loan is in my name, I undertake the responsibility to foreclose the loan before applying for the on-campus tuition fees.", "UT/ACK-Loan-01", 0],
+      ["acknowledgement", "Self-Funding Acknowledgement", "I hereby confirm that I will independently fund all expenses related to my on-campus studies without availing any loan. I undertake to arrange and maintain the necessary financial resources at my end.", "ACK-Self Funding-01", 0],
     ];
     const tx = db.transaction(() => { for (const r of rows) ins.run(...r); });
     tx();

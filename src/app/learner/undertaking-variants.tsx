@@ -37,29 +37,41 @@ export interface UndertakingItem {
 
 /* ---------- shared bits ---------- */
 
-/** The answers behind a document, as quiet chips. */
-function FieldChips({ fields }: { fields: UndertakingField[] }) {
+/**
+ * The answers that put this document in front of them.
+ *
+ * An undertaking is triggered BY an answer, so the answer belongs next to it
+ * — otherwise the learner is agreeing to a paragraph of legal text with no
+ * idea which of their own words called it up. Shown at rest, not on a hover
+ * or a tap: this is the part they are most likely to want to check.
+ */
+function TriggerAnswers({ fields }: { fields: UndertakingField[] }) {
   if (fields.length === 0) {
     return (
-      <span className="inline-flex items-center rounded-md border border-line bg-cream px-2 py-0.5 text-[11.5px] text-caption">
-        Covers your whole application
-      </span>
+      <p className="text-[12px] text-caption">
+        This one covers your whole application.
+      </p>
     );
   }
   return (
-    <span className="flex flex-wrap gap-1.5">
-      {fields.map((f) => (
-        <span
-          key={f.key}
-          className="inline-flex max-w-full items-center gap-1 rounded-md border border-line bg-cream px-2 py-0.5 text-[11.5px]"
-        >
-          <span className="text-caption">{f.label}</span>
-          <span className="min-w-0 truncate font-medium text-ink">
-            {f.value}
-          </span>
-        </span>
-      ))}
-    </span>
+    <div className="rounded-lg border border-[#ecdfc0] bg-[#f6efdd]/60 px-3 py-2.5">
+      <div className="text-[10.5px] font-semibold uppercase tracking-[0.07em] text-[#8a6d2f]">
+        Because you answered
+      </div>
+      <dl className="mt-1.5 space-y-1">
+        {fields.map((f) => (
+          <div
+            key={f.key}
+            className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5"
+          >
+            <dt className="text-[12px] text-body">{f.label}</dt>
+            <dd className="min-w-0 break-words text-[12.5px] font-medium text-ink">
+              {f.value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }
 
@@ -225,7 +237,6 @@ export function UndertakingSigning({
   phone?: string;
   signAll: (formData: FormData) => void;
 }) {
-  const [openId, setOpenId] = useState<number | null>(null);
   const [ticked, setTicked] = useState<Set<number>>(new Set());
   const [name, setName] = useState("");
   const [otpOpen, setOtpOpen] = useState(false);
@@ -243,27 +254,20 @@ export function UndertakingSigning({
       <div className="divide-y divide-line rounded-xl border border-line bg-white">
         {items.map((it) => {
           const signed = Boolean(it.doc.signed_at);
-          const open = openId === it.doc.id;
           return (
             <div key={it.doc.id} className="p-4">
               <div className="flex items-start gap-3">
                 <FeatherTile signed={signed} />
-                <button
-                  type="button"
-                  onClick={() => setOpenId(open ? null : it.doc.id)}
-                  className="min-w-0 flex-1 text-left"
-                >
+                <div className="min-w-0 flex-1">
                   <div className="text-[14px] font-medium text-ink">
                     {it.doc.title}
                   </div>
                   <div className="mt-0.5 text-[12px] text-caption">
                     {signed
                       ? `Signed on ${it.doc.signed_at?.slice(0, 10)}`
-                      : open
-                        ? "Reading — tick below once it is right"
-                        : "Tap to read"}
+                      : "Read it, then tick below"}
                   </div>
-                </button>
+                </div>
                 {!signed && signable && (
                   <label className="flex shrink-0 cursor-pointer items-center gap-2 text-[13px] text-body">
                     <input
@@ -281,14 +285,14 @@ export function UndertakingSigning({
                   </label>
                 )}
               </div>
-              {open && (
-                <div className="mt-3 space-y-3 pl-[52px]">
-                  <div className="max-h-36 overflow-y-auto rounded-lg border border-line bg-paper p-3 text-[12.5px] leading-relaxed text-body">
-                    {it.doc.content}
-                  </div>
-                  <FieldChips fields={it.fields} />
+              {/* Open at rest. Asking someone to tap before they can read what
+                  they are signing puts the reading behind a door. */}
+              <div className="mt-3 space-y-2.5 sm:pl-[52px]">
+                <div className="max-h-44 overflow-y-auto whitespace-pre-line rounded-lg border border-line bg-paper p-3 text-[12.5px] leading-relaxed text-body">
+                  {it.doc.content}
                 </div>
-              )}
+                <TriggerAnswers fields={it.fields} />
+              </div>
             </div>
           );
         })}

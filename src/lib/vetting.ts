@@ -1,4 +1,6 @@
 import { getDb } from "./db";
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { fillPlaceholders } = require("./clause-text.js");
 import { getApplication, getDocuments, getFormResponses, logEvent, notify } from "./queries";
 
 /**
@@ -53,7 +55,7 @@ export function attachRequiredForms(applicationId: number, actorId: number) {
       applicationId,
       t.type,
       t.title,
-      `I, ${declarant}, ${t.content.replace(/^I /, "")}`,
+      `I, ${declarant}, ${fillPlaceholders(t.content, responses).replace(/^I /, "")}`,
       t.id
     );
   }
@@ -169,7 +171,7 @@ export function attachMissingForms(applicationId: number, actorId: number) {
       applicationId,
       t.type,
       t.title,
-      `I, ${declarant}, ${t.content.replace(/^I /, "")}`,
+      `I, ${declarant}, ${fillPlaceholders(t.content, responses).replace(/^I /, "")}`,
       t.id
     );
   }

@@ -258,37 +258,52 @@ export interface ClauseDef {
 }
 
 export const CLAUSES: Record<string, ClauseDef> = {
+  // Always. The base declaration every application carries.
+  "UT/Dec-PII Data-01": {
+    id: "UT/Dec-PII Data-01",
+    title: "Declaration — information and documents are true",
+  },
   "CON-Parents-01": {
     id: "CON-Parents-01",
     title: "Parent / legal-guardian consent — learner is under 18",
   },
   "ACK-Age/Visa-01": {
     id: "ACK-Age/Visa-01",
-    title: "Visa-age acknowledgement (>30 Bachelors / >45 Masters)",
+    title: "Age may affect visa or eligibility",
   },
   "UT-uG Doc-01": {
     id: "UT-uG Doc-01",
-    title: "Class 12 pursuing — completion undertaking",
+    title: "Class 12 pursuing — completion certificate undertaking",
   },
   "UT-uG Doc/Result-03": {
     id: "UT-uG Doc/Result-03",
-    title: "Class 12 marksheet to be submitted later",
+    title: "Class 12 result pending — minimum score undertaking",
   },
   "UT-PG Doc-02": {
     id: "UT-PG Doc-02",
-    title: "Bachelor's / postgraduate documents pending undertaking",
+    title: "Bachelor's / master's documents pending undertaking",
   },
   "UT-PG Doc/Result-04": {
     id: "UT-PG Doc/Result-04",
-    title: "Bachelor's marksheets incomplete — submission undertaking",
+    title: "Bachelor's result and backlogs undertaking",
   },
+  // The sheet splits these by whether the degree is finished.
   "UT-Backlog-01": {
     id: "UT-Backlog-01",
-    title: "Backlog / ATKT declaration",
+    title: "Backlog declaration — degree completed",
   },
+  "UT-Backlog-02": {
+    id: "UT-Backlog-02",
+    title: "Backlog declaration — degree in progress",
+  },
+  // And these two by how the learner is paying.
   "UT/ACK-Loan-01": {
     id: "UT/ACK-Loan-01",
-    title: "Financing undertaking (loan / self-funded)",
+    title: "Education loan undertaking",
+  },
+  "ACK-Self Funding-01": {
+    id: "ACK-Self Funding-01",
+    title: "Self-funding acknowledgement",
   },
 };
 
@@ -844,6 +859,8 @@ export function triggeredClausesFor(responses: Record<string, string>): string[]
   const isMinor = age !== null && age < 18;
 
   const ids: string[] = [];
+  // Every application carries the base declaration.
+  ids.push("UT/Dec-PII Data-01");
   if (isMinor) ids.push("CON-Parents-01");
   if (age !== null && ((isBachelors && age > 30) || (isMasters && age > 45)))
     ids.push("ACK-Age/Visa-01");
@@ -855,7 +872,13 @@ export function triggeredClausesFor(responses: Record<string, string>): string[]
     const bDocs = v("bachelor_docs");
     if (bDocs === "Yes - Partial Documents" || bDocs === "No")
       ids.push("UT-PG Doc/Result-04");
-    if (Number(v("backlogs") || 0) > 0) ids.push("UT-Backlog-01");
+    // The sheet has two backlog declarations: one for a degree already
+    // finished (a closed count) and one for a degree still running (a count
+    // that can still grow, so it caps rather than states).
+    if (Number(v("backlogs") || 0) > 0)
+      ids.push(
+        v("bachelor_status") === "Completed" ? "UT-Backlog-01" : "UT-Backlog-02"
+      );
     const pgDocs = v("pg_docs");
     const pgStatus = v("pg_status");
     if (
@@ -864,7 +887,11 @@ export function triggeredClausesFor(responses: Record<string, string>): string[]
     )
       ids.push("UT-PG Doc-02");
   }
-  if (v("finance_plan")) ids.push("UT/ACK-Loan-01");
+  // Loan and self-funding are different promises, so they are different
+  // clauses — one is about the lender, the other about having the money.
+  const finance = v("finance_plan");
+  if (finance === "Self-funded") ids.push("ACK-Self Funding-01");
+  else if (finance) ids.push("UT/ACK-Loan-01");
   return Array.from(new Set(ids));
 }
 
@@ -875,14 +902,18 @@ export function triggeredClausesFor(responses: Record<string, string>): string[]
  * WHAT they are certifying, not just a legal title.
  */
 export const CLAUSE_FIELDS: Record<string, string[]> = {
+  // The base declaration rests on the whole application, not one answer.
+  "UT/Dec-PII Data-01": [],
   "CON-Parents-01": ["dob", "guardian_name", "guardian_email"],
   "ACK-Age/Visa-01": ["dob", "degree_level"],
   "UT-uG Doc-01": ["status_12", "completion_12"],
   "UT-uG Doc/Result-03": ["has_marksheet_12"],
   "UT-PG Doc-02": ["bachelor_status", "pg_status", "pg_docs"],
   "UT-PG Doc/Result-04": ["bachelor_docs"],
-  "UT-Backlog-01": ["backlogs"],
+  "UT-Backlog-01": ["backlogs", "bachelor_status", "bachelor_university"],
+  "UT-Backlog-02": ["backlogs", "bachelor_status", "bachelor_score"],
   "UT/ACK-Loan-01": ["finance_plan"],
+  "ACK-Self Funding-01": ["finance_plan"],
 };
 
 /** One answer behind an undertaking, ready to render. */

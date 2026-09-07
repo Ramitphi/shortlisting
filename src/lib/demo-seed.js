@@ -5,6 +5,8 @@
  * action and `npm run seed` run the same code. Two copies of a seed drift,
  * and a drifted seed writes states the UI no longer understands.
  */
+const { fillPlaceholders } = require("./clause-text.js");
+
 function seedDemo(db) {
   db.pragma("foreign_keys = ON");
   const ARJUN = 2; // Academic Counsellor
@@ -195,7 +197,7 @@ function seedDemo(db) {
       cv_file: "resume.pdf",
       career_gap_months: "0",
       finance_plan: "Education Loan (Partial/Full)",
-      triggered_clauses: "UT/ACK-Loan-01",
+      triggered_clauses: "UT/Dec-PII Data-01|UT/ACK-Loan-01",
       ...overrides,
     };
     for (const [key, value] of Object.entries(values)) insertField.run(appId, key, value);
@@ -234,6 +236,14 @@ function seedDemo(db) {
    * never given anything to sign. The live app does this through
    * attachRequiredForms; the seed has to match it.
    */
+  /** The answers already written for this application, for clause blanks. */
+  function responsesFor(appId) {
+    const rows = db
+      .prepare("SELECT field_key, value FROM form_responses WHERE application_id = ?")
+      .all(appId);
+    return Object.fromEntries(rows.map((r) => [r.field_key, r.value]));
+  }
+
   function addClauseDocs(appId, learnerName, clauses, signature = null) {
     const signedAt = signature ? "2026-08-03 09:10:00" : null;
     for (const id of String(clauses || "").split("|").filter(Boolean)) {
@@ -243,7 +253,7 @@ function seedDemo(db) {
         appId,
         t.type,
         t.title,
-        `I, ${learnerName}, ${t.content.replace(/^I /, "")}`,
+        `I, ${learnerName}, ${fillPlaceholders(t.content, responsesFor(appId)).replace(/^I /, "")}`,
         1,
         signedAt,
         signature,
@@ -252,28 +262,28 @@ function seedDemo(db) {
     }
   }
 
+  /**
+   * The documents every application carries, whatever the answers. Pulled
+   * from the template table rather than restated here — the clause wording
+   * is the legal team's and must have exactly one home (see db.ts).
+   */
   function addDefaultDocs(appId, learnerName, signature = null) {
     const signedAt = signature ? "2026-08-03 09:10:00" : null;
-    insertDoc.run(
-      appId,
-      "undertaking",
-      "Program Eligibility Undertaking",
-      `I, ${learnerName}, hereby undertake that all details provided in my eligibility form are true and correct to the best of my knowledge. I understand that any misrepresentation may lead to cancellation of my application or admission.`,
-      1,
-      signedAt,
-      signature,
-      templateIdByTitle["Program Eligibility Undertaking"] ?? null
-    );
-    insertDoc.run(
-      appId,
-      "acknowledgement",
-      "Process Acknowledgement",
-      `I, ${learnerName}, acknowledge that I have been informed about the program structure, fee details, and admission process. I understand the shortlisting decision is based on the eligibility details submitted on my behalf by my academic counsellor.`,
-      1,
-      signedAt,
-      signature,
-      templateIdByTitle["Process Acknowledgement"] ?? null
-    );
+    const always = db
+      .prepare("SELECT * FROM document_templates WHERE always_required = 1")
+      .all();
+    for (const t of always) {
+      insertDoc.run(
+        appId,
+        t.type,
+        t.title,
+        `I, ${learnerName}, ${fillPlaceholders(t.content, responsesFor(appId)).replace(/^I /, "")}`,
+        1,
+        signedAt,
+        signature,
+        t.id
+      );
+    }
   }
 
   const seed = db.transaction(() => {
@@ -294,7 +304,7 @@ function seedDemo(db) {
       work_exp_months: "60",
     });
     addDefaultDocs(submittedId, submitted.name);
-    addClauseDocs(submittedId, submitted.name, "UT/ACK-Loan-01");
+    addClauseDocs(submittedId, submitted.name, "UT/Dec-PII Data-01|UT/ACK-Loan-01");
     // Nothing verified: nobody has opened it yet.
     addLockerDocs(submittedId, ARJUN, { count: 6 });
     // The counsellor's call-time recommendations, awaiting Ops' verdicts.
@@ -314,10 +324,10 @@ function seedDemo(db) {
       bachelor_score: "78",
       work_exp_months: "42",
       bachelor_university: "VIT Vellore",
-      triggered_clauses: "UT/ACK-Loan-01",
+      triggered_clauses: "UT/Dec-PII Data-01|UT/ACK-Loan-01",
     });
     addDefaultDocs(vettingId, vetting.name);
-    addClauseDocs(vettingId, vetting.name, "UT/ACK-Loan-01");
+    addClauseDocs(vettingId, vetting.name, "UT/Dec-PII Data-01|UT/ACK-Loan-01");
     // Omar is part-way through the pile — the state you land in mid-vetting.
     addLockerDocs(vettingId, ARJUN, { count: 8, verifiedUpto: 4 });
     // Mid-vetting: Omar has ruled on one recommendation, two still pending.
@@ -366,13 +376,13 @@ function seedDemo(db) {
       bachelor_university: "Anna University",
       bachelor_docs: "Yes - Partial Documents",
       backlogs: "2",
-      triggered_clauses: "UT-PG Doc/Result-04|UT-Backlog-01|UT/ACK-Loan-01",
+      triggered_clauses: "UT/Dec-PII Data-01|UT-PG Doc/Result-04|UT-Backlog-01|UT/ACK-Loan-01",
     });
     addDefaultDocs(flaggedId, flagged.name);
     addClauseDocs(
       flaggedId,
       flagged.name,
-      "UT-PG Doc/Result-04|UT-Backlog-01|UT/ACK-Loan-01"
+      "UT/Dec-PII Data-01|UT-PG Doc/Result-04|UT-Backlog-01|UT/ACK-Loan-01"
     );
     // One came back — the rejected row and its reason are what the learner
     // sees on their own documents tab.
@@ -413,7 +423,7 @@ function seedDemo(db) {
       work_exp_months: "30",
     });
     addDefaultDocs(reviewedId, reviewed.name);
-    addClauseDocs(reviewedId, reviewed.name, "UT/ACK-Loan-01");
+    addClauseDocs(reviewedId, reviewed.name, "UT/Dec-PII Data-01|UT/ACK-Loan-01");
     // The clean path: everything uploaded, everything verified.
     addLockerDocs(reviewedId, ARJUN, { count: 8, verifiedUpto: 8 });
     // Ops found both, fixed both, and closed their own notes.
@@ -448,9 +458,14 @@ function seedDemo(db) {
       bachelor_university: "Delhi University",
       work_exp_months: "36",
       finance_plan: "Self-funded",
+      triggered_clauses: "UT/Dec-PII Data-01|ACK-Self Funding-01",
     });
     addDefaultDocs(shortlistedId, shortlisted.name);
-    addClauseDocs(shortlistedId, shortlisted.name, "UT/ACK-Loan-01");
+    addClauseDocs(
+      shortlistedId,
+      shortlisted.name,
+      "UT/Dec-PII Data-01|ACK-Self Funding-01"
+    );
     // Core set verified; the visa documents are the ones still to come, which
     // is exactly what the learner sees pending on their own tab.
     addLockerDocs(shortlistedId, ARJUN, { count: 8, verifiedUpto: 8 });
@@ -471,7 +486,7 @@ function seedDemo(db) {
     const completedId = insertApp.run(completed.id, ARJUN, OMAR, "completed").lastInsertRowid;
     fillForm(completedId, completed);
     addDefaultDocs(completedId, completed.name, completed.name);
-    addClauseDocs(completedId, completed.name, "UT/ACK-Loan-01", completed.name);
+    addClauseDocs(completedId, completed.name, "UT/Dec-PII Data-01|UT/ACK-Loan-01", completed.name);
     addLockerDocs(completedId, ARJUN, { count: 8, verifiedUpto: 8 });
     const programId = insertProgram.run(completedId, "PG Diploma in Data Science", "IIIT Bangalore", "12 months", "₹3.5L", "Strong CS background + 4 yrs experience", ARJUN, 1, "eligible").lastInsertRowid;
     insertProgram.run(completedId, "MS in Machine Learning & AI", "LJMU (online)", "18 months", "₹4.8L", null, ARJUN, 0, "eligible");

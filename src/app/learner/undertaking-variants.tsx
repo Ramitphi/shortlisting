@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   IconCheck,
   IconFeather,
+  IconInfo,
   IconSignature,
   useToast,
   type Signee,
@@ -59,7 +60,8 @@ function TriggerAnswers({ fields }: { fields: UndertakingField[] }) {
   }
   return (
     <div className="rounded-lg border border-line bg-muted px-3 py-2.5">
-      <div className="text-[10.5px] font-semibold uppercase tracking-[0.07em] text-caption">
+      <div className="flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-[0.07em] text-caption">
+        <IconInfo className="h-3.5 w-3.5 shrink-0" />
         Because you answered
       </div>
       <dl className="mt-1.5 space-y-1">

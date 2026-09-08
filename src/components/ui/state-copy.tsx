@@ -19,7 +19,7 @@ export const STATE_COPY: Record<StateKind, StateCopy> = {
     body: (
       <>
         The link may be out of date, or the address has a typo in it. Nothing
-        has been lost — the application you were after is still where it was.
+        has been lost. The application you were after is still where it was.
       </>
     ),
   },
@@ -39,8 +39,8 @@ export const STATE_COPY: Record<StateKind, StateCopy> = {
     body: (
       <>
         This screen hit an error it couldn&apos;t recover from. Your data is
-        safe — nothing you did was lost. Try the page again, or head back and
-        come at it fresh.
+        safe and nothing you did was lost. Try the page again, or head back
+        and come at it fresh.
       </>
     ),
   },
@@ -50,7 +50,7 @@ export const STATE_COPY: Record<StateKind, StateCopy> = {
     body: (
       <>
         Everything you&apos;ve done is saved on this device, so nothing is
-        lost. The page you asked for needs a connection to load — try again
+        lost. The page you asked for needs a connection to load. Try again
         once you&apos;re back on.
       </>
     ),
@@ -61,7 +61,7 @@ export const STATE_COPY: Record<StateKind, StateCopy> = {
     body: (
       <>
         The browser database that holds the demo didn&apos;t open. A reload
-        usually clears it. If it keeps happening, start fresh — that wipes
+        usually clears it. If it keeps happening, start fresh. That wipes
         this browser&apos;s copy of the demo and seeds it again.
       </>
     ),

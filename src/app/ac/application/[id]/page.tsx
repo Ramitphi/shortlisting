@@ -1056,7 +1056,7 @@ export default function AcApplicationPage({
                     <div className="space-y-3">
                       {/* Ops said no — visible but not selectable. */}
                       {eligiblePrograms.length === 0 && (
-                        <EmptyState text="Ops marked none of your requested programmes eligible — speak to the Ops team." />
+                        <EmptyState text="Ops marked none of your requested programmes eligible. Speak to the Ops team." />
                       )}
                       {eligiblePrograms.map((p) => (
                         <label

@@ -181,7 +181,7 @@ export default function V2ApplicationInsidePage({
           {programme ? (
             <ProgrammeCard programme={programme} />
           ) : (
-            <EmptyState text="We're preparing your options — your programme appears here." />
+            <EmptyState text="We're preparing your options. Your programme appears here." />
           )}
         </div>
       )}

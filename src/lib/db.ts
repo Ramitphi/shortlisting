@@ -283,6 +283,16 @@ function migrateColumns(db: BrowserDb) {
   // learner signed against what the old one said, so it stays a record.
   addColumn(db, "offer_letters", "superseded_at", "TEXT");
   addColumn(db, "offer_letters", "reason", "TEXT");
+
+  // A programme change raised after the offer went out. It rides on top of
+  // `completed` rather than rewinding the status, the way a re-check does:
+  // the learner still holds a valid offer for the old programme right up
+  // until the new one is issued, and a rewind would make it vanish from
+  // under them mid-move. Which desk it is on is derived, not stored — the
+  // new programme's own eligibility and shortlist flags already say.
+  addColumn(db, "applications", "change_at", "TEXT");
+  addColumn(db, "applications", "change_note", "TEXT");
+  addColumn(db, "applications", "change_program_id", "INTEGER");
 }
 
 function seedCatalogues(db: BrowserDb) {

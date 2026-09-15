@@ -60,6 +60,7 @@ import {
   getRemarkReplies,
   getLearnerDocs,
   recheckOf,
+  changeOf,
   listDocTemplates,
   listProgramCatalogue,
 } from "@/lib/queries";
@@ -171,6 +172,7 @@ export default function OpsApplicationPage({
   // The learner changed something after vetting — this outranks everything
   // else on the page, so it is read before the readiness checklist is built.
   const recheck = recheckOf(app);
+  const change = changeOf(app);
   // Commenting is not only a vetting-time thing: a re-check is Ops reading
   // changed fields and saying what's wrong with them, which is the same act
   // on a later day. Ops-owned fields are editable whenever Ops holds the pen — vetting, and an ops-side re-check.
@@ -178,6 +180,11 @@ export default function OpsApplicationPage({
   // Verdicts made against answers the learner has since changed. Ops rules
   // again — on the shortlisted programme too — before the re-check can close.
   const reRuling = Boolean(recheck?.state === "ops");
+  // A post-offer programme change puts one fresh candidate in front of Ops on
+  // an otherwise finished application. They rule on it the same way they rule
+  // during vetting, so the verdict controls open the same way — but only for
+  // the candidate, never for the programme the learner currently holds.
+  const rulingOnChange = change?.state === "ops";
   const staleVerdicts = programs.filter((p) => p.eligibility_stale).length;
   // Comments raised since the learner's change — the only ones that are about
   // it. `openRemarks` is every open comment on the application, which during
@@ -217,8 +224,13 @@ export default function OpsApplicationPage({
   const shortlistedPrograms = programs.filter((p) => p.shortlisted);
   const allSigned = docs.length > 0 && docs.every((d) => d.signed_at);
   const signedCount = docs.filter((d) => d.signed_at).length;
+  // Normally: an application that has got this far and has no letter yet.
+  // During a programme change there IS a letter — it names the programme the
+  // learner is leaving — and the last step is replacing it, so that counts
+  // as awaiting one too.
   const awaitingOffer =
-    (app.status === "shortlisted" || app.status === "completed") && !offer;
+    (app.status === "shortlisted" || app.status === "completed") &&
+    (!offer || change?.state === "learner");
 
   // Programmes now arrive recommended by the counsellor; Ops rules on each.
   // The matching score and its reasons come from the same engine the
@@ -430,6 +442,20 @@ export default function OpsApplicationPage({
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+          {/* Moving the batch is the one thing still open once the offer is
+              out, so it sits in the header beside the locker rather than
+              buried under the letter. */}
+          {offer && shortlistedPrograms[0] && (
+            <DeferBatchDialog
+              learnerName={responses.full_name || app.learner_name || "the learner"}
+              programme={{
+                name: shortlistedPrograms[0].name,
+                institute: shortlistedPrograms[0].institute,
+              }}
+              currentIntake={offer.intake}
+              action={deferBatch.bind(null, app.id)}
+            />
+          )}
           {/* The locker is reference material Ops keeps coming back to, not a
               stage of the review — one click from the header, anywhere. */}
           <SideSheet
@@ -504,6 +530,25 @@ export default function OpsApplicationPage({
           staleVerdicts={staleVerdicts}
           verdictHref="?tab=eligibility"
         />
+      )}
+
+      {/* A completed application with a fresh candidate on it makes no sense
+          on its own. This is the sentence that explains it. */}
+      {change && (
+        <div className="mt-4 rounded-2xl border border-[#d3e0f0] bg-[#e7eef8] px-4 py-3.5">
+          <p className="text-[13.5px] font-medium text-[#2b4a72]">
+            Programme change — {app.learner_name} asked to move to a different
+            programme.
+          </p>
+          <p className="mt-1 text-[12.5px] leading-relaxed text-[#2b4a72]/85">
+            {change.state === "ops"
+              ? "Rule on the new one under Requested Programs. Their current offer stands until the counsellor sends the replacement."
+              : change.state === "ac"
+                ? "Ruled eligible — with the counsellor to send."
+                : "Sent to the learner. The offer letter is reissued once they have signed."}
+            {change.note ? ` · ${change.note}` : ""}
+          </p>
+        </div>
       )}
 
       <div className="-mb-12 flex min-h-[calc(100dvh-13.5rem)] flex-col">
@@ -878,41 +923,24 @@ export default function OpsApplicationPage({
 
               {offer && (
                 <div className="mt-4 rounded-2xl border border-[#cde1d2] bg-[#e2eee5] p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
-                    <p className="min-w-0 text-sm font-medium text-[#1f3d26]">
-                      🎉 Offer letter sent for {offer.program_name} (
-                      {offer.institute}) on {offer.created_at} UTC.
-                      {offer.intake && (
-                        <span className="block font-normal text-[#1f3d26]/80">
-                          Batch starts {offer.intake}.
-                        </span>
-                      )}
-                    </p>
-                    {/* The batch is the one thing Ops still moves after the
-                        offer is out. It belongs with the offer, not in a
-                        section of its own. */}
-                    {shortlistedPrograms[0] && (
-                      <DeferBatchDialog
-                        learnerName={
-                          responses.full_name || app.learner_name || "the learner"
-                        }
-                        programme={{
-                          name: shortlistedPrograms[0].name,
-                          institute: shortlistedPrograms[0].institute,
-                        }}
-                        currentIntake={offer.intake}
-                        action={deferBatch.bind(null, app.id)}
-                      />
+                  <p className="min-w-0 text-sm font-medium text-[#1f3d26]">
+                    🎉 Offer letter sent for {offer.program_name} (
+                    {offer.institute}) on {offer.created_at} UTC.
+                    {offer.intake && (
+                      <span className="block font-normal text-[#1f3d26]/80">
+                        Batch starts {offer.intake}.
+                      </span>
                     )}
-                  </div>
+                  </p>
                   <p className="mt-3 whitespace-pre-wrap text-[12.5px] leading-relaxed text-[#1f3d26]/85">
                     {offer.content}
                   </p>
                   {offer.reason && (
                     <p className="mt-3 text-[12px] text-[#1f3d26]/70">
-                      Reissued after the batch moved · {offer.reason}
+                      Reissued · {offer.reason}
                     </p>
                   )}
+
                 </div>
               )}
 
@@ -1050,7 +1078,9 @@ export default function OpsApplicationPage({
                           Shortlisted by AC
                         </CardChip>
                       )}
-                      {p.shortlisted && !reRuling ? null : vetting || reRuling ? (
+                      {p.shortlisted && !reRuling ? null : vetting ||
+                        reRuling ||
+                        (rulingOnChange && p.eligibility === "pending") ? (
                         /* Ops' verdict — the pick from the counsellor's list. */
                         /* Ops' verdict — the pick from the counsellor's
                            list, with the reason beside it. ONE form: both

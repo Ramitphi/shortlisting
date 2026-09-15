@@ -1320,8 +1320,12 @@ export async function setProgramEligibility(
   // SHORTLISTED programme is in scope too — that is the whole risk, that they
   // have edited their way out of the programme they were sent.
   const reRuling = Boolean(app.recheck_at) && app.recheck_state !== "ac";
-  if (app.status !== "under_review" && !reRuling) return;
-  if (p.shortlisted && !reRuling) return;
+  // A post-offer programme change puts a fresh candidate in front of Ops on
+  // an application that is already complete — the third time ruling is the
+  // right move, alongside vetting and a re-check.
+  const changing = Boolean(app.change_at);
+  if (app.status !== "under_review" && !reRuling && !changing) return;
+  if (p.shortlisted && !reRuling && !changing) return;
 
   const verdict = String(formData.get("verdict"));
   if (verdict !== "eligible" && verdict !== "not_eligible") return;
@@ -1433,7 +1437,10 @@ export async function shortlistProgram(applicationId: number, formData: FormData
   // Ops is mid-verdict — the list they would be picking from is the thing
   // under review. Matches the page, which hides the picker in this state.
   if (app.recheck_at) return;
-  if (!canTransition(app.status, "shortlisted", "ac") && !reChoosing) return;
+  // Sending the replacement during a post-offer programme change.
+  const changing = Boolean(app.change_at);
+  if (!canTransition(app.status, "shortlisted", "ac") && !reChoosing && !changing)
+    return;
   const id = Number(formData.get("programId"));
   if (!id) return;
 
@@ -1452,7 +1459,12 @@ export async function shortlistProgram(applicationId: number, formData: FormData
     ).run(id, applicationId);
   });
   tx();
-  setStatus(applicationId, "shortlisted");
+  // A completed application stays completed: the learner is holding an offer
+  // and only the programme underneath it is moving.
+  if (!changing) setStatus(applicationId, "shortlisted");
+  // The new programme may newly trigger a declaration the old one did not —
+  // a different country brings the APS acknowledgements with it.
+  if (changing) attachMissingForms(applicationId, user.id);
   logEvent(
     applicationId,
     user.id,
@@ -1960,7 +1972,11 @@ export async function signDocument(docId: number, formData: FormData) {
     .get(docId) as { application_id: number; signed_at: string | null; title: string } | undefined;
   if (!doc || doc.signed_at) return;
   const app = getApplication(doc.application_id);
-  if (!app || app.learner_id !== user.id || app.status !== "shortlisted") return;
+  if (!app || app.learner_id !== user.id) return;
+  // Normally only while shortlisted. A post-offer programme change is the
+  // exception: the application is complete, but the new programme brought
+  // new declarations with it and they are the learner's to sign.
+  if (app.status !== "shortlisted" && !app.change_at) return;
 
   getDb()
     .prepare("UPDATE documents SET signed_at = datetime('now'), signature_name = ? WHERE id = ?")
@@ -1986,6 +2002,84 @@ export async function signDocument(docId: number, formData: FormData) {
     if (app.ac_id) notify(app.ac_id, `${app.learner_name} signed all documents — they still have to certify their details`, `/ac/application/${doc.application_id}`);
   }
   dirty();
+}
+
+/**
+ * The counsellor moves a learner onto a different programme after the offer
+ * has already gone out.
+ *
+ * The learner asked for this on a call — nothing about them changed, so
+ * there is no form to refill. What restarts is the programme loop, exactly
+ * as it ran the first time: Ops rules the new programme eligible, the
+ * counsellor sends it, the learner signs whatever the new programme newly
+ * triggers, and Ops reissues the letter.
+ *
+ * The status stays `completed` throughout. The learner holds a valid offer
+ * for the old programme until the new one replaces it, and rewinding the
+ * status would take that away from them mid-move for no one's benefit.
+ */
+export async function requestProgrammeChange(
+  applicationId: number,
+  formData: FormData
+) {
+  const user = requireUser("ac");
+  const app = getApplication(applicationId);
+  if (!app || app.ac_id !== user.id) return;
+  // Only once there is an offer to replace, and never twice at once.
+  if (!getOfferLetter(applicationId) || app.change_at) return;
+
+  const note = String(formData.get("note") ?? "").trim();
+  if (!note) return;
+  const catalogueId = Number(formData.get("catalogueId"));
+  if (!catalogueId) return;
+
+  const db = getDb();
+  const item = db
+    .prepare("SELECT * FROM program_catalogue WHERE id = ?")
+    .get(catalogueId) as
+    | { id: number; name: string; institute: string; duration: string | null; fee: string | null; notes: string | null }
+    | undefined;
+  if (!item) return;
+  if (getPrograms(applicationId).some((p) => p.catalogue_id === item.id)) return;
+
+  const tx = db.transaction(() => {
+    const created = db
+      .prepare(
+        `INSERT INTO programs
+         (application_id, name, institute, duration, fee, notes, added_by,
+          shortlisted, catalogue_id, source, eligibility)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 'ac', 'pending')`
+      )
+      .run(
+        applicationId,
+        item.name,
+        item.institute,
+        item.duration,
+        item.fee,
+        item.notes,
+        user.id,
+        item.id
+      );
+    db.prepare(
+      `UPDATE applications
+       SET change_at = datetime('now'), change_note = ?, change_program_id = ?
+       WHERE id = ?`
+    ).run(note, Number(created.lastInsertRowid), applicationId);
+  });
+  tx();
+
+  logEvent(
+    applicationId,
+    user.id,
+    `Programme change requested: ${item.name}`,
+    note
+  );
+  const msg = `${app.learner_name} wants to move to ${item.name} — rule on it so the shortlist can be re-sent`;
+  const link = `/ops/application/${applicationId}`;
+  if (app.ops_id) notify(app.ops_id, msg, link);
+  else notifyRole("ops", msg, link);
+  dirty();
+  goto(`/ac/application/${applicationId}?tab=eligibility&toast=change`);
 }
 
 /**
@@ -2017,7 +2111,13 @@ function offerLetterBody(
  * being considered for the next available batch.
  */
 export async function deferBatch(applicationId: number, formData: FormData) {
-  const user = requireUser("ops");
+  // Both desks move a batch, for different reasons. Ops moves it because BCT
+  // or DCT could not finish; the counsellor moves it because the learner
+  // asked on a call. Same action either way — the outcome is one date and
+  // one reissued letter, and splitting it in two would mean two ways for
+  // those to disagree.
+  const user = requireUser();
+  if (user.role !== "ops" && user.role !== "ac") return;
   const app = getApplication(applicationId);
   if (!app) return;
   // There has to be an offer to move.
@@ -2070,21 +2170,37 @@ export async function deferBatch(applicationId: number, formData: FormData) {
     `Your batch has moved to ${intake}. Your updated offer letter is ready.`,
     "/learner"
   );
-  if (app.ac_id)
+  if (user.role === "ac") {
+    notifyRole(
+      "ops",
+      `${app.learner_name}'s batch moved to ${intake} (${reasonLabel.toLowerCase()})`,
+      `/ops/application/${applicationId}`
+    );
+  } else if (app.ac_id) {
     notify(
       app.ac_id,
       `${app.learner_name}'s batch moved to ${intake} (${reasonLabel.toLowerCase()})`,
       `/ac/application/${applicationId}`
     );
+  }
   dirty();
-  goto(`/ops/application/${applicationId}?tab=eligibility&toast=deferred`);
+  goto(
+    user.role === "ac"
+      ? `/ac/application/${applicationId}?tab=eligibility&toast=deferred`
+      : `/ops/application/${applicationId}?tab=eligibility&toast=deferred`
+  );
 }
 
 export async function sendOfferLetter(applicationId: number, formData: FormData) {
   const user = requireUser("ops");
   const app = getApplication(applicationId);
-  if (!app || !canTransition(app.status, "completed", "ops")) return;
-  if (getOfferLetter(applicationId)) return;
+  // The usual case is the first offer. The other is the last step of a
+  // programme change: the application is already complete and the letter
+  // that exists names the programme the learner is leaving.
+  const changing = Boolean(app?.change_at);
+  if (!app) return;
+  if (!changing && !canTransition(app.status, "completed", "ops")) return;
+  if (!changing && getOfferLetter(applicationId)) return;
 
   // Only after the learner has signed every document AND certified that the
   // details behind them are correct.
@@ -2108,14 +2224,34 @@ export async function sendOfferLetter(applicationId: number, formData: FormData)
   const db = getDb();
   if (intake && intake !== chosen.intake)
     db.prepare("UPDATE programs SET intake = ? WHERE id = ?").run(intake, chosen.id);
-  db.prepare("INSERT INTO offer_letters (application_id, program_id, content) VALUES (?, ?, ?)")
-    .run(
-      applicationId,
-      chosen.id,
-      offerLetterBody(learnerName, { ...chosen, intake })
-    );
-  setStatus(applicationId, "completed");
-  logEvent(applicationId, user.id, "Offer letter sent to learner", `${chosen.name} — ${chosen.institute}`);
+  if (changing) {
+    // The old letter is kept, superseded: it is what the learner was told,
+    // and it named a programme they were genuinely offered.
+    db.prepare(
+      "UPDATE offer_letters SET superseded_at = datetime('now') WHERE application_id = ? AND superseded_at IS NULL"
+    ).run(applicationId);
+  }
+  db.prepare(
+    "INSERT INTO offer_letters (application_id, program_id, content, reason) VALUES (?, ?, ?, ?)"
+  ).run(
+    applicationId,
+    chosen.id,
+    offerLetterBody(learnerName, { ...chosen, intake }),
+    changing ? "Programme changed" : null
+  );
+  if (changing)
+    db.prepare(
+      "UPDATE applications SET change_at = NULL, change_note = NULL, change_program_id = NULL WHERE id = ?"
+    ).run(applicationId);
+  if (!changing) setStatus(applicationId, "completed");
+  logEvent(
+    applicationId,
+    user.id,
+    changing
+      ? "Offer letter reissued for the new programme"
+      : "Offer letter sent to learner",
+    `${chosen.name} — ${chosen.institute}`
+  );
   notify(app.learner_id, `Your offer letter for ${chosen.name} (${chosen.institute}) is here!`, "/learner");
   if (app.ac_id) notify(app.ac_id, `Offer letter sent to ${app.learner_name} for ${chosen.name}`, `/ac/application/${applicationId}`);
   dirty();

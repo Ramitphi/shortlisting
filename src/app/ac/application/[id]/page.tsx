@@ -61,6 +61,7 @@ import {
   getRemarkReplies,
   listProgramCatalogue,
   recheckOf,
+  changeOf,
 } from "@/lib/queries";
 import {
   acknowledgeRemark,
@@ -79,6 +80,8 @@ import {
   updateFieldValue,
   uploadLearnerDoc,
   verifyLearnerDoc,
+  deferBatch,
+  requestProgrammeChange,
 } from "@/lib/actions";
 import {
   parseRecheckChanges,
@@ -105,6 +108,8 @@ import {
 import { OpsField } from "@/app/ops/application/[id]/ops-field";
 import { AiAdd, PickRemove } from "./ai-add";
 import { CallForm, type StepRemark } from "./call-form";
+import { DeferBatchDialog } from "@/app/ops/application/[id]/defer-batch-dialog";
+import { ChangeProgrammeDialog } from "./change-programme-dialog";
 import { AppealDialog } from "./appeal-dialog";
 import { AcFlowBar } from "./shortlist-button";
 
@@ -142,6 +147,8 @@ export default function AcApplicationPage({
   const remarks = getRemarks(app.id);
   const remarkReplies = getRemarkReplies(app.id);
   const programs = getPrograms(app.id);
+  /** The one that went to the learner, when one has. */
+  const sentProgramme = programs.find((p) => p.shortlisted);
   const docs = getDocuments(app.id);
   const offer = getOfferLetter(app.id);
   const events = getEvents(app.id);
@@ -174,8 +181,15 @@ export default function AcApplicationPage({
   // waits with them for a verdict, and sending the shortlist mid-appeal would
   // have made that a lie — the learner gets "congratulations" for a programme
   // while Ops is still ruling on a different one.
+  // A post-offer programme change is the third way in: the application is
+  // complete, but Ops has ruled a replacement eligible and it is the
+  // counsellor's to send. Declared below `change` is computed, so it is read
+  // through a function rather than the value.
   const canShortlist =
-    (app.status === "reviewed" || shortlistWithdrawn) && !recheck;
+    (app.status === "reviewed" ||
+      shortlistWithdrawn ||
+      Boolean(app.change_at)) &&
+    !recheck;
   // "Open" means someone is waiting on the counsellor. Info remarks are Ops
   // thinking out loud — they stay visible on the field but never gate a CTA
   // or inflate a badge, otherwise "3 comments" would mean nothing.
@@ -349,6 +363,21 @@ export default function AcApplicationPage({
   // sorted best-first. The counsellor recommends from here on the call; the
   // same scores follow the recommendations onto Ops' screen.
   const catalogue = listProgramCatalogue();
+  // A post-offer programme change: whose move it is now, and what the
+  // counsellor can offer. Same scored catalogue as the first shortlist —
+  // the learner has not changed, so neither has the matching.
+  const change = changeOf(app);
+  const changeOpen = Boolean(change);
+  const changeCandidates = catalogue
+    .filter((c) => !programs.some((p) => p.catalogue_id === c.id))
+    .map((c) => ({
+      id: c.id,
+      name: c.name,
+      institute: c.institute,
+      country: c.country,
+      score: matchScore(c, responses).score,
+    }))
+    .sort((a, b) => b.score - a.score);
   const scoredPicks = programs.map((p) => {
     const cat = catalogue.find((c) => c.id === p.catalogue_id);
     return { ...p, match: cat ? matchScore(cat, responses) : null };
@@ -443,6 +472,31 @@ export default function AcApplicationPage({
             <p className="mt-1 text-[14.5px] text-body">{app.learner_email}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {/* Same programme, later batch: the learner asks on a call, so
+                the counsellor moves it. Nothing is re-checked and nothing is
+                re-signed — so it lives in the header, not in the flow. */}
+            {/* Both post-offer moves live here: same programme later, or a
+                different programme entirely. One is a date, the other
+                restarts the programme loop. */}
+            {offer && sentProgramme && !changeOpen && (
+              <ChangeProgrammeDialog
+                learnerName={responses.full_name || app.learner_name || "the learner"}
+                currentProgramme={`${sentProgramme.name} · ${sentProgramme.institute}`}
+                candidates={changeCandidates}
+                action={requestProgrammeChange.bind(null, app.id)}
+              />
+            )}
+            {offer && sentProgramme && (
+              <DeferBatchDialog
+                learnerName={responses.full_name || app.learner_name || "the learner"}
+                programme={{
+                  name: sentProgramme.name,
+                  institute: sentProgramme.institute,
+                }}
+                currentIntake={offer.intake}
+                action={deferBatch.bind(null, app.id)}
+              />
+            )}
             {/* The locker is reference material, not a stage of the journey —
                 so it is one click from the header rather than a tab of its
                 own, next to the other header actions. */}
@@ -971,10 +1025,32 @@ export default function AcApplicationPage({
                 </div>
                 )}
 
-                {offer ? (
+                {change && (
+              <div className="mb-4 rounded-xl border border-[#d3e0f0] bg-[#e7eef8] px-3.5 py-3">
+                <p className="text-[13px] font-medium text-[#2b4a72]">
+                  {change.state === "ops"
+                    ? "Programme change with Ops — waiting on their verdict."
+                    : change.state === "ac"
+                      ? "Ruled eligible. Send it below and the learner signs whatever it newly needs."
+                      : "Sent. Ops reissues the offer letter once the learner has signed."}
+                </p>
+                {change.note && (
+                  <p className="mt-1 text-[12px] leading-snug text-[#2b4a72]/85">
+                    {change.note}
+                  </p>
+                )}
+              </div>
+            )}
+                        {offer ? (
                   <div className="mt-4 rounded-xl border border-[#cde1d2] bg-[#e2eee5] p-3.5 text-sm text-[#1f3d26]">
                     🎉 Offer letter sent for <b>{offer.program_name}</b> (
                     {offer.institute}) on {offer.created_at} UTC.
+                    {offer.intake && (
+                      <span className="mt-0.5 block text-[13px] text-[#1f3d26]/80">
+                        Batch starts {offer.intake}.
+                      </span>
+                    )}
+
                   </div>
                 ) : app.status === "shortlisted" ? (
                   <div className="mt-4 rounded-xl border border-line bg-paper p-3.5 text-[13px] text-body">

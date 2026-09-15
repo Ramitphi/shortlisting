@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { IconCalendar, IconCheck } from "@/components/ui";
+import { IconArrowRight, IconCalendar, IconCheck } from "@/components/ui";
 import { DEFER_REASONS } from "@/lib/domain";
 
 /**
@@ -28,6 +28,10 @@ export function DeferBatchDialog({
   action: (formData: FormData) => void | Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
+  // Two steps on purpose. Moving a batch reissues the offer letter and tells
+  // the learner immediately, so the last click states the change in words
+  // rather than leaving it implied by three fields.
+  const [step, setStep] = useState<"form" | "confirm">("form");
   const [reason, setReason] = useState<string>("");
   const [intake, setIntake] = useState("");
   const [note, setNote] = useState("");
@@ -67,6 +71,7 @@ export function DeferBatchDialog({
       fd.set("note", note.trim());
       await action(fd);
       setOpen(false);
+      setStep("form");
       router.refresh();
     });
 
@@ -78,11 +83,12 @@ export function DeferBatchDialog({
           setReason("");
           setIntake("");
           setNote("");
+          setStep("form");
           setOpen(true);
         }}
-        className="btn-secondary shrink-0"
+        className="btn-secondary shrink-0 !h-8 !px-3 !text-[12.5px]"
       >
-        <IconCalendar className="h-4 w-4" />
+        <IconCalendar className="h-3.5 w-3.5" />
         Defer batch
       </button>
 
@@ -111,6 +117,8 @@ export function DeferBatchDialog({
                 </div>
               </div>
 
+              {step === "form" ? (
+                <>
               <div className="mt-4">
                 <div className="text-[12px] font-medium text-ink">Why</div>
                 <div className="mt-1.5 space-y-1.5">
@@ -177,7 +185,7 @@ export function DeferBatchDialog({
 
               <p className="mt-3 text-[12px] leading-snug text-caption">
                 A new offer letter goes out with the new date. Nothing needs
-                re-signing — the undertakings already cover moving to the next
+                re-signing: the undertakings already cover moving to the next
                 available batch.
               </p>
 
@@ -191,14 +199,88 @@ export function DeferBatchDialog({
                 </button>
                 <button
                   type="button"
-                  disabled={!ready || busy}
-                  onClick={submit}
+                  disabled={!ready}
+                  onClick={() => setStep("confirm")}
                   className="btn-primary flex-1"
                 >
-                  <IconCheck className="h-4 w-4" />
-                  Defer &amp; reissue
+                  Review
                 </button>
               </div>
+                </>
+              ) : (
+                <>
+                  <div className="mt-4 rounded-xl border border-line bg-paper px-4 py-3.5">
+                    {/* The move itself, as a move: two dates with the
+                        direction drawn between them. A struck-through word
+                        beside a plain one left the reader to infer which
+                        way it went. */}
+                    <div className="flex items-stretch gap-2.5">
+                      {currentIntake && (
+                        <>
+                          <div className="min-w-0 flex-1 rounded-lg border border-line bg-white px-3 py-2">
+                            <div className="text-[10px] font-semibold uppercase tracking-[0.07em] text-caption">
+                              From
+                            </div>
+                            <div className="mt-0.5 truncate text-[13.5px] text-caption">
+                              {currentIntake}
+                            </div>
+                          </div>
+                          <div className="flex shrink-0 items-center text-caption">
+                            <IconArrowRight className="h-4 w-4" />
+                          </div>
+                        </>
+                      )}
+                      <div className="min-w-0 flex-1 rounded-lg border border-[#d5e6d8] bg-[#e8f2e9] px-3 py-2">
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.07em] text-[#3f6c45]">
+                          To
+                        </div>
+                        <div className="mt-0.5 truncate text-[13.5px] font-semibold text-[#1f3d26]">
+                          {intakeLabel}
+                        </div>
+                      </div>
+                    </div>
+                    <dl className="mt-3 space-y-1 text-[12.5px]">
+                      <div className="flex gap-2">
+                        <dt className="text-caption">Reason</dt>
+                        <dd className="text-ink">
+                          {DEFER_REASONS.find((r) => r.id === reason)?.label}
+                        </dd>
+                      </div>
+                      {note && (
+                        <div className="flex gap-2">
+                          <dt className="shrink-0 text-caption">Note</dt>
+                          <dd className="min-w-0 text-ink">{note}</dd>
+                        </div>
+                      )}
+                    </dl>
+                  </div>
+
+                  <p className="mt-3.5 text-[12.5px] leading-snug text-body">
+                    <b className="text-ink">{learnerName}</b> is told straight
+                    away and a fresh offer letter replaces the current one. The
+                    old letter is kept as a record.
+                  </p>
+
+                  <div className="mt-5 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setStep("form")}
+                      className="btn-secondary flex-1"
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={submit}
+                      className="btn-primary flex-1"
+                    >
+                      <IconCheck className="h-4 w-4" />
+                      Confirm &amp; reissue
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>,
           document.body

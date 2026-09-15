@@ -28,6 +28,10 @@ export interface Application {
   /** The labels the learner changed, comma-separated — what Ops must re-read. */
   recheck_fields: string | null;
   recheck_changes: string | null;
+  /** A post-offer programme change in flight — see changeOf(). */
+  change_at?: string | null;
+  change_note?: string | null;
+  change_program_id?: number | null;
   /** Whose move it is: 'ops' to re-read, 'ac' to resolve Ops' comments. */
   recheck_state: RecheckState | null;
   recheck_kind?: string | null;
@@ -486,6 +490,38 @@ export function logEvent(applicationId: number, actorId: number, action: string,
  * screen asks through here so "the learner changed something" is one
  * condition, not a null test repeated in eight files.
  */
+/**
+ * A programme change raised after the offer letter went out, and whose move
+ * it is. Derived from the programmes themselves rather than a stored state:
+ * a candidate awaiting a verdict is with Ops, one ruled eligible but not yet
+ * sent is with the counsellor, and one sent but not yet re-offered is with
+ * the learner. One fact, one place.
+ */
+export function changeOf(
+  app: Pick<
+    Application,
+    "id" | "change_at" | "change_note" | "change_program_id" | "status"
+  >
+): { at: string; note: string | null; state: "ops" | "ac" | "learner" } | null {
+  if (!app.change_at) return null;
+  // Derived from the candidate this change is FOR, not from any eligible
+  // programme on the application. An older recommendation that was ruled
+  // eligible and never sent is a normal thing to be carrying, and reading
+  // the state off "something eligible is unsent" left every change stuck
+  // on the counsellor for ever.
+  const candidate = getPrograms(app.id).find(
+    (p) => p.id === app.change_program_id
+  );
+  const state = !candidate
+    ? "ops"
+    : candidate.eligibility === "pending"
+      ? "ops"
+      : !candidate.shortlisted
+        ? "ac"
+        : "learner";
+  return { at: app.change_at, note: app.change_note ?? null, state };
+}
+
 export function recheckOf(
   app: Pick<
     Application,

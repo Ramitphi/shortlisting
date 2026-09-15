@@ -817,6 +817,11 @@ export const DEFER_REASONS = [
     label: "Documents not received",
     hint: "DCT is still waiting on paperwork",
   },
+  {
+    id: "learner",
+    label: "Learner asked to move",
+    hint: "Agreed on a call — same programme, later batch",
+  },
 ] as const;
 
 export type DeferReason = (typeof DEFER_REASONS)[number]["id"];

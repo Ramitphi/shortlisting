@@ -36,13 +36,34 @@ export function DeferBatchDialog({
   const router = useRouter();
   useEffect(() => setMounted(true), []);
 
-  const ready = Boolean(reason) && intake.trim().length > 0;
+  const ready = Boolean(reason) && intake.length > 0;
+
+  /**
+   * The picker speaks "2027-05"; the offer letter and the learner's start
+   * line speak "May 2027". Converting here keeps one readable form in the
+   * data — a batch typed by hand arrived as Jan 2027, January 2027 and
+   * 01/2027 and none of them sorted or compared.
+   */
+  const intakeLabel = (() => {
+    const m = /^(\d{4})-(\d{2})$/.exec(intake);
+    if (!m) return intake;
+    const d = new Date(Number(m[1]), Number(m[2]) - 1, 1);
+    return Number.isNaN(d.getTime())
+      ? intake
+      : d.toLocaleString("en-GB", { month: "long", year: "numeric" });
+  })();
+
+  // Nothing is deferred into the past.
+  const thisMonth = (() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`;
+  })();
 
   const submit = () =>
     startTransition(async () => {
       const fd = new FormData();
       fd.set("reason", reason);
-      fd.set("intake", intake.trim());
+      fd.set("intake", intakeLabel);
       fd.set("note", note.trim());
       await action(fd);
       setOpen(false);
@@ -127,11 +148,17 @@ export function DeferBatchDialog({
                   New batch
                 </span>
                 <input
+                  type="month"
                   value={intake}
+                  min={thisMonth}
                   onChange={(e) => setIntake(e.target.value)}
-                  placeholder="e.g. January 2027"
                   className="input mt-1.5 !h-10 w-full"
                 />
+                {intakeLabel && intakeLabel !== intake && (
+                  <span className="mt-1 block text-[12px] text-caption">
+                    Moves to {intakeLabel}
+                  </span>
+                )}
               </label>
 
               <label className="mt-3 block">

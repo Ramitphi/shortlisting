@@ -13,33 +13,48 @@ function seedDemo(db) {
   const ARJUN = 2; // Academic Counsellor
   const OMAR = 4; // Ops
 
-  // A seventh learner so every demo state has an application of its own.
-  db.prepare(
-    `INSERT OR IGNORE INTO users (name, email, role)
-     VALUES ('Kabir Nair', 'kabir.learner@example.com', 'learner')`
-  ).run();
-  // Two more for what happens AFTER the offer is out: one sitting on a live
-  // offer, ready to be deferred or moved onto another programme, and one
-  // already deferred once so a superseded letter has something to show.
-  db.prepare(
-    `INSERT OR IGNORE INTO users (name, email, role)
-     VALUES ('Ishaan Verma', 'ishaan.learner@example.com', 'learner')`
-  ).run();
-  db.prepare(
-    `INSERT OR IGNORE INTO users (name, email, role)
-     VALUES ('Meera Iyer', 'meera.learner@example.com', 'learner')`
-  ).run();
+  // The learners the demo is written against. Kept as a list because the
+  // seed indexes into them positionally, so "who is learners[7]" has to be
+  // stable rather than whatever the users table happens to hold.
+  const DEMO_LEARNERS = [
+    ["Ravi Kumar", "ravi.learner@example.com"],
+    ["Priya Singh", "priya.learner@example.com"],
+    ["Sneha Patel", "sneha.learner@example.com"],
+    ["Vikram Joshi", "vikram.learner@example.com"],
+    ["Neha Gupta", "neha.learner@example.com"],
+    ["Aman Verma", "aman.learner@example.com"],
+    ["Kabir Nair", "kabir.learner@example.com"],
+    // The two post-offer cases: one sitting on a live offer ready to be
+    // deferred or moved, one already deferred so a superseded letter has
+    // something to show.
+    ["Ishaan Verma", "ishaan.learner@example.com"],
+    ["Meera Iyer", "meera.learner@example.com"],
+  ];
+
+  // Make them exist, and make them learners. Insert-or-ignore alone was not
+  // enough: the admin screen can change anyone's role, and a demoted learner
+  // left the count short — which used to throw AFTER the wipe and brick the
+  // demo with no way back from inside the app. Reset has to be the thing
+  // that always works, so it repairs rather than refuses.
+  const ensureLearner = db.prepare(
+    `INSERT OR IGNORE INTO users (name, email, role) VALUES (?, ?, 'learner')`
+  );
+  const restoreRole = db.prepare(
+    `UPDATE users SET role = 'learner' WHERE email = ? AND role <> 'learner'`
+  );
+  for (const [name, email] of DEMO_LEARNERS) {
+    ensureLearner.run(name, email);
+    restoreRole.run(email);
+  }
 
   const learners = db
     .prepare("SELECT id, name, email FROM users WHERE role = 'learner' ORDER BY id")
     .all();
 
-  // CHECK BEFORE DELETING. This used to throw after the wipe, and the wipe is
-  // persisted to IndexedDB on its own — one demoted learner (the admin screen
-  // lets you change any role) left the demo permanently empty with no way back
-  // from inside the app, because Reset then threw here every time.
-  if (learners.length < 9) {
-    throw new Error(`Need at least 9 learners, found ${learners.length}.`);
+  if (learners.length < DEMO_LEARNERS.length) {
+    throw new Error(
+      `Need ${DEMO_LEARNERS.length} learners, found ${learners.length}.`
+    );
   }
 
   // Clear everything except users, then rebuild applications from scratch.

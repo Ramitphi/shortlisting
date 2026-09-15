@@ -800,6 +800,27 @@ export function commentableFieldOf(group: ReviewGroup): string {
 /** How a group stands, for the chip that says so. */
 export type GroupState = "checked" | "verified" | "not_verified";
 
+/**
+ * Why a batch was deferred. Both are somebody else's finding — BCT chases the
+ * money, DCT chases the paperwork, and neither works in here — so Ops records
+ * the reason at the moment they move the date rather than the product trying
+ * to hold a payment status it cannot verify.
+ */
+export const DEFER_REASONS = [
+  {
+    id: "payment",
+    label: "Payment not received",
+    hint: "BCT has not been able to collect the full amount",
+  },
+  {
+    id: "documents",
+    label: "Documents not received",
+    hint: "DCT is still waiting on paperwork",
+  },
+] as const;
+
+export type DeferReason = (typeof DEFER_REASONS)[number]["id"];
+
 /** A remark is either something to act on, or something to know. */
 export type RemarkKind = "action" | "info";
 

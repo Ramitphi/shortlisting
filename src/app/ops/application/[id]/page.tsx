@@ -83,6 +83,7 @@ import {
   updateFieldValue,
   uploadLearnerDoc,
   verifyLearnerDoc,
+  deferBatch,
 } from "@/lib/actions";
 import { docRows, signeesFor } from "@/lib/documents";
 import { docInsight, fieldInsight } from "@/lib/doc-insights";
@@ -90,6 +91,7 @@ import { OpenApplication } from "@/components/open-application";
 import { CataloguePicker, type PickerItem } from "./catalogue-picker";
 import { OpsField } from "./ops-field";
 import { SendOfferDialog } from "./send-offer-dialog";
+import { DeferBatchDialog } from "./defer-batch-dialog";
 import {
   parseRecheckChanges,
   CLAUSES,
@@ -876,13 +878,41 @@ export default function OpsApplicationPage({
 
               {offer && (
                 <div className="mt-4 rounded-2xl border border-[#cde1d2] bg-[#e2eee5] p-4">
-                  <p className="text-sm font-medium text-[#1f3d26]">
-                    🎉 Offer letter sent for {offer.program_name} (
-                    {offer.institute}) on {offer.created_at} UTC.
-                  </p>
+                  <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+                    <p className="min-w-0 text-sm font-medium text-[#1f3d26]">
+                      🎉 Offer letter sent for {offer.program_name} (
+                      {offer.institute}) on {offer.created_at} UTC.
+                      {offer.intake && (
+                        <span className="block font-normal text-[#1f3d26]/80">
+                          Batch starts {offer.intake}.
+                        </span>
+                      )}
+                    </p>
+                    {/* The batch is the one thing Ops still moves after the
+                        offer is out. It belongs with the offer, not in a
+                        section of its own. */}
+                    {shortlistedPrograms[0] && (
+                      <DeferBatchDialog
+                        learnerName={
+                          responses.full_name || app.learner_name || "the learner"
+                        }
+                        programme={{
+                          name: shortlistedPrograms[0].name,
+                          institute: shortlistedPrograms[0].institute,
+                        }}
+                        currentIntake={offer.intake}
+                        action={deferBatch.bind(null, app.id)}
+                      />
+                    )}
+                  </div>
                   <p className="mt-3 whitespace-pre-wrap text-[12.5px] leading-relaxed text-[#1f3d26]/85">
                     {offer.content}
                   </p>
+                  {offer.reason && (
+                    <p className="mt-3 text-[12px] text-[#1f3d26]/70">
+                      Reissued after the batch moved · {offer.reason}
+                    </p>
+                  )}
                 </div>
               )}
 

@@ -273,6 +273,16 @@ function migrateColumns(db: BrowserDb) {
   addColumn(db, "remarks", "acknowledged_at", "TEXT");
   addColumn(db, "remarks", "reply", "TEXT");
   addColumn(db, "remarks", "replied_at", "TEXT");
+
+  // The batch a shortlisted learner actually starts in. The offer letter used
+  // to have the date typed into its body, which meant nothing could defer
+  // against it — you cannot move a date that is only prose.
+  addColumn(db, "programs", "intake", "TEXT");
+  // An offer letter is reissued rather than replaced: a deferral or a
+  // programme change writes a new one and marks the previous superseded. The
+  // learner signed against what the old one said, so it stays a record.
+  addColumn(db, "offer_letters", "superseded_at", "TEXT");
+  addColumn(db, "offer_letters", "reason", "TEXT");
 }
 
 function seedCatalogues(db: BrowserDb) {

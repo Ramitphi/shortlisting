@@ -25,6 +25,7 @@ import {
   REVIEW_GROUP_BY_KEY,
   commentableFieldOf,
   triggeredClausesFor,
+  DEFER_REASONS,
   groupOfField,
   missingForSubmit,
   LEARNER_DOC_BY_KEY,
@@ -1987,6 +1988,98 @@ export async function signDocument(docId: number, formData: FormData) {
   dirty();
 }
 
+/**
+ * The letter itself. One writer, because a reissued offer that reads
+ * differently from the first one looks like a different kind of document
+ * rather than the same offer with a new date.
+ */
+function offerLetterBody(
+  learnerName: string,
+  programme: { name: string; institute: string; intake?: string | null }
+) {
+  const starts = programme.intake
+    ? `\n\nYour batch starts in ${programme.intake}.`
+    : "";
+  return `Dear ${learnerName},\n\nCongratulations! We are pleased to offer you admission to ${programme.name} at ${programme.institute}. Your eligibility has been verified and all required documents have been signed.${starts}\n\nOur team will reach out with the next steps for enrollment.\n\nWarm regards,\nAdmissions Team`;
+}
+
+/**
+ * Ops moves a learner to a later batch.
+ *
+ * The finding is somebody else's: BCT could not collect, or DCT is still
+ * waiting on paperwork. Neither team works in here, so Ops records which it
+ * was at the moment they move the date — the product never holds a payment
+ * status of its own that could go stale against Phoenix.
+ *
+ * Nothing about the learner changed, so there is no eligibility to re-check
+ * and nothing new to sign. They already agreed to this: the document
+ * undertakings say in as many words that failing to submit in time means
+ * being considered for the next available batch.
+ */
+export async function deferBatch(applicationId: number, formData: FormData) {
+  const user = requireUser("ops");
+  const app = getApplication(applicationId);
+  if (!app) return;
+  // There has to be an offer to move.
+  const current = getOfferLetter(applicationId);
+  if (!current) return;
+
+  const reason = String(formData.get("reason") ?? "");
+  if (!DEFER_REASONS.some((r) => r.id === reason)) return;
+  const intake = String(formData.get("intake") ?? "").trim();
+  if (!intake) return;
+  const note = String(formData.get("note") ?? "").trim();
+
+  const chosen = getPrograms(applicationId).find((p) => p.shortlisted);
+  if (!chosen) return;
+
+  const responses = getFormResponses(applicationId);
+  const learnerName = responses.full_name || app.learner_name || "the learner";
+  const reasonLabel =
+    DEFER_REASONS.find((r) => r.id === reason)?.label ?? reason;
+
+  const db = getDb();
+  const tx = db.transaction(() => {
+    // The old letter stays as a record of what the learner was told.
+    db.prepare(
+      "UPDATE offer_letters SET superseded_at = datetime('now') WHERE application_id = ? AND superseded_at IS NULL"
+    ).run(applicationId);
+    db.prepare("UPDATE programs SET intake = ? WHERE id = ?").run(
+      intake,
+      chosen.id
+    );
+    db.prepare(
+      "INSERT INTO offer_letters (application_id, program_id, content, reason) VALUES (?, ?, ?, ?)"
+    ).run(
+      applicationId,
+      chosen.id,
+      offerLetterBody(learnerName, { ...chosen, intake }),
+      reasonLabel
+    );
+  });
+  tx();
+
+  logEvent(
+    applicationId,
+    user.id,
+    `Batch deferred to ${intake}`,
+    [reasonLabel, note].filter(Boolean).join(" — ")
+  );
+  notify(
+    app.learner_id,
+    `Your batch has moved to ${intake}. Your updated offer letter is ready.`,
+    "/learner"
+  );
+  if (app.ac_id)
+    notify(
+      app.ac_id,
+      `${app.learner_name}'s batch moved to ${intake} (${reasonLabel.toLowerCase()})`,
+      `/ac/application/${applicationId}`
+    );
+  dirty();
+  goto(`/ops/application/${applicationId}?tab=eligibility&toast=deferred`);
+}
+
 export async function sendOfferLetter(applicationId: number, formData: FormData) {
   const user = requireUser("ops");
   const app = getApplication(applicationId);
@@ -2008,13 +2101,18 @@ export async function sendOfferLetter(applicationId: number, formData: FormData)
   if (!chosen) return;
 
   const responses = getFormResponses(applicationId);
-  const learnerName = responses.full_name || app.learner_name;
-  getDb()
-    .prepare("INSERT INTO offer_letters (application_id, program_id, content) VALUES (?, ?, ?)")
+  const learnerName = responses.full_name || app.learner_name || "the learner";
+  // The intake the counsellor sent, or the one already on the programme.
+  const intake =
+    String(formData.get("intake") ?? "").trim() || chosen.intake || null;
+  const db = getDb();
+  if (intake && intake !== chosen.intake)
+    db.prepare("UPDATE programs SET intake = ? WHERE id = ?").run(intake, chosen.id);
+  db.prepare("INSERT INTO offer_letters (application_id, program_id, content) VALUES (?, ?, ?)")
     .run(
       applicationId,
       chosen.id,
-      `Dear ${learnerName},\n\nCongratulations! We are pleased to offer you admission to ${chosen.name} at ${chosen.institute}. Your eligibility has been verified and all required documents have been signed.\n\nOur team will reach out with the next steps for enrollment.\n\nWarm regards,\nAdmissions Team`
+      offerLetterBody(learnerName, { ...chosen, intake })
     );
   setStatus(applicationId, "completed");
   logEvent(applicationId, user.id, "Offer letter sent to learner", `${chosen.name} — ${chosen.institute}`);

@@ -122,6 +122,15 @@ export default function LearnerApplicationsList() {
                     {programme && (
                       <p className="mt-0.5 text-[13.5px] text-body">
                         {programme.institute}
+                        {/* The batch, once there is one. A deferral changes
+                            this line and nothing else on their side — they
+                            are told a date, they never pick one. */}
+                        {programme.intake && (
+                          <span className="text-caption">
+                            {" "}
+                            · Starts {programme.intake}
+                          </span>
+                        )}
                       </p>
                     )}
 

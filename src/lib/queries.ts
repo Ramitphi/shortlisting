@@ -87,6 +87,8 @@ export interface Program {
   eligibility_stale?: number;
   /** Ops' reason for the verdict — shown wherever the verdict is. */
   eligibility_note?: string | null;
+  /** The batch this learner starts in, once shortlisted. */
+  intake?: string | null;
   /** The counsellor's push-back, when they have appealed a verdict. */
   appeal_note?: string | null;
   appeal_at?: string | null;
@@ -334,15 +336,49 @@ export function getLearnerDocs(
 }
 
 export function getOfferLetter(applicationId: number) {
+  // The live one. Superseded letters stay in the table as a record of what
+  // the learner was told at the time; they are read through getOfferHistory.
   return getDb()
     .prepare(
-      `SELECT ol.*, p.name AS program_name, p.institute
+      `SELECT ol.id, ol.content, ol.created_at, ol.reason, p.name AS program_name,
+              p.institute, p.intake
        FROM offer_letters ol JOIN programs p ON p.id = ol.program_id
-       WHERE ol.application_id = ?`
+       WHERE ol.application_id = ? AND ol.superseded_at IS NULL
+       ORDER BY ol.id DESC LIMIT 1`
     )
     .get(applicationId) as
-    | { id: number; content: string; program_name: string; institute: string; created_at: string }
+    | {
+        id: number;
+        content: string;
+        program_name: string;
+        institute: string;
+        intake: string | null;
+        reason: string | null;
+        created_at: string;
+      }
     | undefined;
+}
+
+/** Every letter this application has had, newest first. */
+export function getOfferHistory(applicationId: number) {
+  return getDb()
+    .prepare(
+      `SELECT ol.id, ol.content, ol.created_at, ol.superseded_at, ol.reason,
+              p.name AS program_name, p.institute, p.intake
+       FROM offer_letters ol JOIN programs p ON p.id = ol.program_id
+       WHERE ol.application_id = ?
+       ORDER BY ol.id DESC`
+    )
+    .all(applicationId) as {
+    id: number;
+    content: string;
+    program_name: string;
+    institute: string;
+    intake: string | null;
+    reason: string | null;
+    created_at: string;
+    superseded_at: string | null;
+  }[];
 }
 
 export function getEvents(applicationId: number): AppEvent[] {

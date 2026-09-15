@@ -18,6 +18,17 @@ function seedDemo(db) {
     `INSERT OR IGNORE INTO users (name, email, role)
      VALUES ('Kabir Nair', 'kabir.learner@example.com', 'learner')`
   ).run();
+  // Two more for what happens AFTER the offer is out: one sitting on a live
+  // offer, ready to be deferred or moved onto another programme, and one
+  // already deferred once so a superseded letter has something to show.
+  db.prepare(
+    `INSERT OR IGNORE INTO users (name, email, role)
+     VALUES ('Ishaan Verma', 'ishaan.learner@example.com', 'learner')`
+  ).run();
+  db.prepare(
+    `INSERT OR IGNORE INTO users (name, email, role)
+     VALUES ('Meera Iyer', 'meera.learner@example.com', 'learner')`
+  ).run();
 
   const learners = db
     .prepare("SELECT id, name, email FROM users WHERE role = 'learner' ORDER BY id")
@@ -27,8 +38,8 @@ function seedDemo(db) {
   // persisted to IndexedDB on its own — one demoted learner (the admin screen
   // lets you change any role) left the demo permanently empty with no way back
   // from inside the app, because Reset then threw here every time.
-  if (learners.length < 7) {
-    throw new Error(`Need at least 7 learners, found ${learners.length}.`);
+  if (learners.length < 9) {
+    throw new Error(`Need at least 9 learners, found ${learners.length}.`);
   }
 
   // Clear everything except users, then rebuild applications from scratch.
@@ -499,13 +510,88 @@ function seedDemo(db) {
     db.prepare(
       "UPDATE applications SET certified_at = '2026-08-03 09:20:00' WHERE id = ?"
     ).run(completedId);
+    db.prepare("UPDATE programs SET intake = 'March 2027' WHERE id = ?").run(programId);
     insertOffer.run(
       completedId,
       programId,
       `Dear ${completed.name},\n\nCongratulations! We are pleased to offer you admission to PG Diploma in Data Science at IIIT Bangalore. Your eligibility has been verified and all required documents have been signed.\n\nOur team will reach out with the next steps for enrollment.\n\nWarm regards,\nAdmissions Team`
     );
 
-    return { draft, submitted, vetting, flagged, reviewed, shortlisted, completed };
+
+    // ── 7. Completed, offer live — the starting point for a re-shortlist ────
+    // Nothing is wrong with this one. It exists so both post-offer moves have
+    // somewhere to be tried: defer the batch, or change the programme.
+    const holding = learners[7];
+    const holdingId = insertApp.run(holding.id, ARJUN, OMAR, "completed").lastInsertRowid;
+    fillForm(holdingId, holding, {
+      gender: "Male",
+      countries: "Germany",
+      bachelor_score: "76",
+      bachelor_university: "Symbiosis Pune",
+      work_exp_months: "24",
+    });
+    addDefaultDocs(holdingId, holding.name, holding.name);
+    addClauseDocs(holdingId, holding.name, holding.name);
+    addLockerDocs(holdingId, ARJUN, { count: 8, verifiedUpto: 8 });
+    const holdingProgram = insertProgram.run(holdingId, "MSc in Management", "ESCP Business School", "18 months", "\u20b926L", "Work experience strongly weighted", ARJUN, 1, "eligible").lastInsertRowid;
+    insertProgram.run(holdingId, "MS in Artificial Intelligence", "EURECOM", "24 months", "\u20b919L", null, ARJUN, 0, "eligible");
+    acConfirms(holdingId);
+    opsVerifies(holdingId);
+    db.prepare("UPDATE programs SET intake = 'January 2027' WHERE id = ?").run(holdingProgram);
+    db.prepare("UPDATE applications SET certified_at = '2026-08-28 10:05:00' WHERE id = ?").run(holdingId);
+    insertEvent.run(holdingId, ARJUN, "Eligibility form submitted", `Submitted by Arjun Mehta on behalf of ${holding.name}`);
+    insertEvent.run(holdingId, OMAR, "Marked as reviewed by Ops", null);
+    insertEvent.run(holdingId, ARJUN, "Program shortlisted & sent to learner", "MSc in Management");
+    insertEvent.run(holdingId, holding.id, "All documents signed", "Learner details certified");
+    insertEvent.run(holdingId, OMAR, "Offer letter sent to learner", "MSc in Management \u2014 ESCP Business School");
+    insertOffer.run(
+      holdingId,
+      holdingProgram,
+      `Dear ${holding.name},\n\nCongratulations! We are pleased to offer you admission to MSc in Management at ESCP Business School. Your eligibility has been verified and all required documents have been signed.\n\nYour batch starts in January 2027.\n\nOur team will reach out with the next steps for enrollment.\n\nWarm regards,\nAdmissions Team`
+    );
+
+    // ── 8. Already deferred once — so a superseded letter has something to say ─
+    const deferred = learners[8];
+    const deferredId = insertApp.run(deferred.id, ARJUN, OMAR, "completed").lastInsertRowid;
+    fillForm(deferredId, deferred, {
+      countries: "Australia",
+      bachelor_score: "79",
+      bachelor_university: "Christ University",
+      work_exp_months: "18",
+    });
+    addDefaultDocs(deferredId, deferred.name, deferred.name);
+    addClauseDocs(deferredId, deferred.name, deferred.name);
+    addLockerDocs(deferredId, ARJUN, { count: 8, verifiedUpto: 8 });
+    const deferredProgram = insertProgram.run(deferredId, "Master of Business Analytics", "Monash University", "18 months", "\u20b928L", "Quantitative background preferred", ARJUN, 1, "eligible").lastInsertRowid;
+    acConfirms(deferredId);
+    opsVerifies(deferredId);
+    db.prepare("UPDATE programs SET intake = 'July 2027' WHERE id = ?").run(deferredProgram);
+    db.prepare("UPDATE applications SET certified_at = '2026-08-20 16:40:00' WHERE id = ?").run(deferredId);
+    insertEvent.run(deferredId, ARJUN, "Eligibility form submitted", `Submitted by Arjun Mehta on behalf of ${deferred.name}`);
+    insertEvent.run(deferredId, OMAR, "Marked as reviewed by Ops", null);
+    insertEvent.run(deferredId, ARJUN, "Program shortlisted & sent to learner", "Master of Business Analytics");
+    insertEvent.run(deferredId, deferred.id, "All documents signed", "Learner details certified");
+    insertEvent.run(deferredId, OMAR, "Offer letter sent to learner", "Master of Business Analytics \u2014 Monash University");
+    db.prepare(
+      `INSERT INTO offer_letters (application_id, program_id, content, superseded_at)
+       VALUES (?, ?, ?, '2026-09-02 11:15:00')`
+    ).run(
+      deferredId,
+      deferredProgram,
+      `Dear ${deferred.name},\n\nCongratulations! We are pleased to offer you admission to Master of Business Analytics at Monash University. Your eligibility has been verified and all required documents have been signed.\n\nYour batch starts in February 2027.\n\nOur team will reach out with the next steps for enrollment.\n\nWarm regards,\nAdmissions Team`
+    );
+    insertEvent.run(deferredId, OMAR, "Batch deferred to July 2027", "Payment not received \u2014 BCT chasing since 28 Aug");
+    db.prepare(
+      `INSERT INTO offer_letters (application_id, program_id, content, reason)
+       VALUES (?, ?, ?, 'Payment not received')`
+    ).run(
+      deferredId,
+      deferredProgram,
+      `Dear ${deferred.name},\n\nCongratulations! We are pleased to offer you admission to Master of Business Analytics at Monash University. Your eligibility has been verified and all required documents have been signed.\n\nYour batch starts in July 2027.\n\nOur team will reach out with the next steps for enrollment.\n\nWarm regards,\nAdmissions Team`
+    );
+    insertNotif.run(deferred.id, "Your batch has moved to July 2027. Your updated offer letter is ready.", "/learner", 0);
+
+    return { draft, submitted, vetting, flagged, reviewed, shortlisted, completed, holding, deferred };
   });
 
   const out = seed();

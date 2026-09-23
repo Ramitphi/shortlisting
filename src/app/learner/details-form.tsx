@@ -202,7 +202,11 @@ export function LearnerDetailsForm({
       )}
 
       {FORM_SECTIONS.filter((s) => !only || s === only).map((section) => {
-        const fields = FORM_FIELDS.filter((f) => f.section === section);
+        const fields = FORM_FIELDS.filter(
+          (f) =>
+            f.section === section &&
+            (f.filledBy !== "ops" || Boolean((v[f.key] ?? "").trim()))
+        );
         const uploads = hideFiles ? [] : fields.filter((f) => f.type === "file");
         const plain = fields.filter((f) => f.type !== "file");
         return (

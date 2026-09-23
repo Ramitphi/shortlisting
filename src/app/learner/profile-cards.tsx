@@ -41,9 +41,12 @@ export function ProfileSectionCards({
     <>
       {FORM_SECTIONS.map((section) => {
         // Files live in the Documents locker; Ops-derived fields render as
-        // read-only rows rather than editable ones.
+        // read-only rows once Ops has verified and entered them.
         const fields = FORM_FIELDS.filter(
-          (f) => f.section === section && f.type !== "file"
+          (f) =>
+            f.section === section &&
+            f.type !== "file" &&
+            (f.filledBy !== "ops" || Boolean((responses[f.key] ?? "").trim()))
         );
         // Only what is actually REQUIRED counts as missing. Counting the
         // optional rows told a learner three things were wrong when nothing

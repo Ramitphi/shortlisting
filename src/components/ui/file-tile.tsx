@@ -94,20 +94,47 @@ export function FileValue({
   value?: string;
 }) {
   if (!value) return <span className="text-caption">—</span>;
-  return (
-    <span className="mt-1 inline-flex max-w-full items-center gap-2 rounded-lg border border-line bg-white py-1 pl-1 pr-1.5">
-      <FileGlyph filename={value} small />
-      <span className="min-w-0 flex-1 truncate text-[12.5px] text-body">
-        {value}
+  const files = value.split(" | ").map((s) => s.trim()).filter(Boolean);
+  if (files.length <= 1) {
+    const single = files[0] ?? value;
+    return (
+      <span className="mt-1 inline-flex max-w-full items-center gap-2 rounded-lg border border-line bg-white py-1 pl-1 pr-1.5">
+        <FileGlyph filename={single} small />
+        <span className="min-w-0 flex-1 truncate text-[12.5px] text-body">
+          {single}
+        </span>
+        <DocumentDialog
+          docType="Uploaded document"
+          title={label}
+          content={`${single}\n\nUploads are filenames in this prototype, so there is no file to render — this is where the document itself would appear.`}
+          triggerLabel={<IconEye className="h-3.5 w-3.5" />}
+          triggerClassName="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-caption transition-colors hover:bg-muted hover:text-ink"
+        />
       </span>
-      <DocumentDialog
-        docType="Uploaded document"
-        title={label}
-        content={`${value}\n\nUploads are filenames in this prototype, so there is no file to render — this is where the document itself would appear.`}
-        triggerLabel={<IconEye className="h-3.5 w-3.5" />}
-        triggerClassName="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-caption transition-colors hover:bg-muted hover:text-ink"
-      />
-    </span>
+    );
+  }
+
+  return (
+    <div className="mt-1 flex flex-wrap gap-1.5">
+      {files.map((f, i) => (
+        <span
+          key={i}
+          className="inline-flex max-w-full items-center gap-2 rounded-lg border border-line bg-white py-1 pl-1 pr-1.5"
+        >
+          <FileGlyph filename={f} small />
+          <span className="min-w-0 flex-1 truncate text-[12.5px] text-body">
+            {f}
+          </span>
+          <DocumentDialog
+            docType="Uploaded document"
+            title={`${label} (${i === 0 ? "Part 1" : i === 1 ? "Part 2" : "Part " + (i + 1)})`}
+            content={`${f}\n\nUploads are filenames in this prototype, so there is no file to render — this is where the document itself would appear.`}
+            triggerLabel={<IconEye className="h-3.5 w-3.5" />}
+            triggerClassName="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-caption transition-colors hover:bg-muted hover:text-ink"
+          />
+        </span>
+      ))}
+    </div>
   );
 }
 

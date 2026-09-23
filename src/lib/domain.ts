@@ -341,8 +341,12 @@ export const FORM_FIELDS: FieldDef[] = [
   { key: "marksheet_12", label: "Class 12 Marksheet Upload", type: "file", section: "Academic Data" },
   { key: "school_name", label: "School Name", type: "text", section: "Academic Data", filledBy: "ops" },
   { key: "score_12", label: "Class 12 Score", type: "number", section: "Academic Data", filledBy: "ops", min: 0, max: 100 },
+  { key: "stream_12", label: "Class 12 Stream", type: "select", section: "Academic Data", options: ["Science", "Commerce", "Arts", "Others"], filledBy: "ops" },
+  { key: "completion_year_12", label: "Class 12 Completion Year", type: "number", section: "Academic Data", filledBy: "ops" },
+  { key: "required_score_12", label: "Required Score in 12th (%)", type: "number", section: "Academic Data", filledBy: "ops", min: 0, max: 100 },
   { key: "mbbs_intent", label: "Applying for MBBS", type: "select", section: "Academic Data", options: ["Yes", "No"] },
   { key: "neet_status", label: "NEET Exam Status", type: "select", section: "Academic Data", options: ["Yes", "Applied"] },
+  { key: "neet_marksheet", label: "NEET Marksheet Upload", type: "file", section: "Academic Data" },
   { key: "bachelor_status", label: "Bachelor's Degree Status", type: "select", section: "Academic Data", options: ["Completed", "Pursuing - Final Year", "Pursuing - Others"] },
   { key: "bachelor_completion", label: "Bachelor's Completion (Month & Year)", type: "month", section: "Academic Data" },
   { key: "bachelor_docs", label: "Bachelor's Marksheets (CMM / Transcript)", type: "select", section: "Academic Data", options: ["Yes - All Documents Available", "Yes - Partial Documents", "No"] },
@@ -351,13 +355,24 @@ export const FORM_FIELDS: FieldDef[] = [
   { key: "bachelor_score", label: "Bachelor's Score", type: "number", section: "Academic Data", filledBy: "ops", min: 0, max: 100 },
   { key: "bachelor_university", label: "Bachelor's University", type: "text", section: "Academic Data", filledBy: "ops" },
   { key: "bachelor_mode", label: "Bachelor's Degree Mode", type: "select", section: "Academic Data", options: ["Regular", "Distance Learning", "Online"], filledBy: "ops" },
+  { key: "bachelor_degree_name", label: "Bachelor's Degree Name", type: "select", section: "Academic Data", options: ["B.Tech", "B.E.", "B.Sc.", "B.Com.", "BBA", "BA", "BCA", "Others"], filledBy: "ops" },
+  { key: "bachelor_moi", label: "Bachelor's Medium of Instruction (MOI)", type: "select", section: "Academic Data", options: ["English", "Others"], filledBy: "ops" },
+  { key: "bachelor_naac", label: "Bachelor's University NAAC Status", type: "select", section: "Academic Data", options: ["A++", "A+", "A", "B++", "B+", "B", "C", "D", "Not Applicable / None"], filledBy: "ops" },
+  { key: "bachelor_anabin", label: "Bachelor's University Anabin Status", type: "select", section: "Academic Data", options: ["H+", "H-", "H+-", "Not Listed"], filledBy: "ops" },
+  { key: "required_score_bachelor", label: "Required Score in Bachelor's (%)", type: "number", section: "Academic Data", filledBy: "ops", min: 0, max: 100 },
   { key: "pg_status", label: "Degree After Bachelor's", type: "select", section: "Academic Data", options: ["No", "Currently Pursuing", "Completed"] },
   { key: "pg_docs", label: "Master's Marksheets (CMM / Transcript)", type: "select", section: "Academic Data", options: ["Yes - All Documents Available", "Yes - Partial Documents", "No"] },
+  { key: "pg_degree_name", label: "Postgraduate Degree Name", type: "select", section: "Academic Data", options: ["M.Tech", "M.Sc.", "MBA", "MCA", "M.Com.", "MA", "PG Diploma", "PhD", "Others"], filledBy: "ops" },
+  { key: "pg_university_name", label: "Postgraduate University Name", type: "text", section: "Academic Data", filledBy: "ops" },
+  { key: "pg_naac_anabin", label: "Postgraduate University NAAC / Anabin", type: "text", section: "Academic Data", filledBy: "ops" },
+  { key: "pg_score", label: "Postgraduate Degree Score", type: "number", section: "Academic Data", filledBy: "ops", min: 0, max: 100 },
+  { key: "pg_completion_year", label: "Postgraduate Completion Year", type: "number", section: "Academic Data", filledBy: "ops" },
   { key: "work_exp_months", label: "Work Experience After Bachelor's (months)", type: "number", section: "Academic Data" },
   { key: "cv_file", label: "Updated CV / Resume", type: "file", section: "Academic Data" },
   { key: "career_gap_months", label: "Career Gap (months)", type: "number", section: "Academic Data", filledBy: "ops" },
   // ── Section C — Financing ────────────────────────────────────────────────
   { key: "finance_plan", label: "On-campus Financing Plan", type: "select", section: "Financing", options: ["Education Loan (Partial/Full)", "Self-funded"], required: true },
+  { key: "intake", label: "Target Intake", type: "select", section: "Financing", options: ["Fall 2026", "Spring 2027", "Summer 2027", "Fall 2027", "Later"], filledBy: "ops" },
 ];
 
 /**
@@ -700,6 +715,7 @@ export const REVIEW_GROUPS: ReviewGroup[] = [
       "countries",
       "mbbs_intent",
       "neet_status",
+      "neet_marksheet",
     ],
     docs: ["doc_passport", "doc_aadhaar"],
     clauses: ["CON-Parents-01", "ACK-Age/Visa-01"],
@@ -724,6 +740,9 @@ export const REVIEW_GROUPS: ReviewGroup[] = [
       "marksheet_12",
       "school_name",
       "score_12",
+      "stream_12",
+      "completion_year_12",
+      "required_score_12",
     ],
     docs: ["doc_12_marksheet"],
     clauses: ["UT-uG Doc-01", "UT-uG Doc/Result-03"],
@@ -741,6 +760,11 @@ export const REVIEW_GROUPS: ReviewGroup[] = [
       "bachelor_score",
       "bachelor_university",
       "bachelor_mode",
+      "bachelor_degree_name",
+      "bachelor_moi",
+      "bachelor_naac",
+      "bachelor_anabin",
+      "required_score_bachelor",
     ],
     docs: ["doc_ug_degree", "doc_ug_marksheet"],
     clauses: ["UT-PG Doc-02", "UT-PG Doc/Result-04", "UT-Backlog-01"],
@@ -752,6 +776,11 @@ export const REVIEW_GROUPS: ReviewGroup[] = [
     fields: [
       "pg_status",
       "pg_docs",
+      "pg_degree_name",
+      "pg_university_name",
+      "pg_naac_anabin",
+      "pg_score",
+      "pg_completion_year",
       "work_exp_months",
       "cv_file",
       "career_gap_months",
@@ -765,7 +794,7 @@ export const REVIEW_GROUPS: ReviewGroup[] = [
   {
     key: "financing",
     label: "Financing",
-    fields: ["finance_plan"],
+    fields: ["finance_plan", "intake"],
     docs: ["doc_bank_statement"],
     clauses: ["UT/ACK-Loan-01"],
     opsReview: false,
@@ -859,14 +888,28 @@ export function missingForSubmit(
   if (!v("mobile")) need.push("Mobile number");
   if (!v("gender")) need.push("Gender");
   if (!v("dob")) need.push("Date of birth");
-  if (isMinor && !v("guardian_email")) need.push("Guardian email");
+  if (isMinor) {
+    if (!v("guardian_email")) {
+      need.push("Guardian email");
+    } else if (
+      v("email") &&
+      v("guardian_email").toLowerCase() === v("email").toLowerCase()
+    ) {
+      need.push("Guardian email must differ from learner email");
+    }
+  }
   if (!degree) need.push("Degree level");
   if (!v("countries")) need.push("Country");
-  if (!v("marksheet_10")) need.push("Class 10 marksheet");
-  if (!v("board_12")) need.push("Class 12 board");
-  if (!v("status_12")) need.push("Class 12 status");
-  if (degree === "Masters" && !v("bachelor_status"))
-    need.push("Bachelor's status");
+
+  // Profile Building learners do not require formal Class 10/12/UG vetting gates per spec
+  if (degree !== "Profile Building") {
+    if (!v("marksheet_10")) need.push("Class 10 marksheet");
+    if (!v("board_12")) need.push("Class 12 board");
+    if (!v("status_12")) need.push("Class 12 status");
+    if (degree === "Masters" && !v("bachelor_status"))
+      need.push("Bachelor's status");
+  }
+
   if (!v("finance_plan")) need.push("Financing plan");
   if (programmesCount === 0) need.push("Requested programmes");
   return need;

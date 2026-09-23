@@ -486,10 +486,14 @@ export function CallForm({
     const profile =
       Boolean(v.full_name && v.mobile && v.gender && v.dob && degree) &&
       countries.length > 0 &&
-      (!isMinor || Boolean(v.guardian_email));
+      (!isMinor ||
+        (Boolean(v.guardian_email) &&
+          v.guardian_email.toLowerCase() !== (v.email ?? "").toLowerCase()));
     const academics =
-      Boolean(v.marksheet_10 && v.board_12 && v.status_12) &&
-      (!isMasters || Boolean(v.bachelor_status));
+      degree === "Profile Building"
+        ? true
+        : Boolean(v.marksheet_10 && v.board_12 && v.status_12) &&
+          (!isMasters || Boolean(v.bachelor_status));
     const financing = Boolean(v.finance_plan);
     return [profile, academics, financing, programmesCount > 0];
   }, [v, degree, countries, isMinor, isMasters, programmesCount]);
@@ -739,14 +743,39 @@ export function CallForm({
                       placeholder="Jack Doe"
                     />
                   </Row>
-                  <Row label="Guardian email" required k="guardian_email">
+                  <Row
+                    label="Guardian email"
+                    required
+                    k="guardian_email"
+                    hint={
+                      v.email &&
+                      v.guardian_email &&
+                      v.guardian_email.toLowerCase() === v.email.toLowerCase()
+                        ? "Must differ from learner email."
+                        : undefined
+                    }
+                  >
                     <input
                       type="email"
-                      className={inputCls}
+                      className={`${inputCls}${
+                        v.email &&
+                        v.guardian_email &&
+                        v.guardian_email.toLowerCase() === v.email.toLowerCase()
+                          ? " !border-accent"
+                          : ""
+                      }`}
                       value={v.guardian_email ?? ""}
                       onChange={(e) => set("guardian_email", e.target.value)}
                       placeholder="guardian@example.com"
                     />
+                    {v.email &&
+                      v.guardian_email &&
+                      v.guardian_email.toLowerCase() ===
+                        v.email.toLowerCase() && (
+                        <p className="mt-1 text-[12px] font-medium text-accent">
+                          Guardian email cannot be the same as learner&apos;s email.
+                        </p>
+                      )}
                   </Row>
                   <Row label="Guardian phone" required k="guardian_phone">
                     <input
@@ -802,19 +831,55 @@ export function CallForm({
             title="Academics"
             subtitle="Ops will read scores off the documents — you only capture status and uploads."
           >
+            {degree === "Profile Building" ? (
+              <div className="rounded-2xl border border-line bg-cream/40 p-6 text-center">
+                <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                  <IconSparkle className="h-5 w-5" />
+                </div>
+                <div className="mt-3 text-[15px] font-semibold text-ink">
+                  Profile Building Pathway
+                </div>
+                <p className="mx-auto mt-1 max-w-md text-[13px] text-caption">
+                  Standard undergraduate and postgraduate academic vetting is waived for Profile Building. You may proceed directly to Financing.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => goToStep(2)}
+                  className="btn-primary mt-4 !h-9 text-[13px]"
+                >
+                  Continue to Financing
+                </button>
+              </div>
+            ) : (
             <div className="space-y-6">
               {group("class10", "Class 10", (
                 <>
-                <FileTile
-                  name="_marksheet_10"
-                  label="Class 10 marksheet (front & back)"
-                  value={v.marksheet_10 ?? ""}
-                  onChange={(val) => set("marksheet_10", val)}
-                />
-                {/* File tiles carry remarks too. Every Class 10 field is
-                    either an upload or ops-filled, so without this an Ops
-                    comment on that section had nowhere to land. */}
-                <FieldRemarks fieldKey="marksheet_10" />
+                <div className="space-y-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <FileTile
+                      name="_marksheet_10_front"
+                      label="Class 10 marksheet (front side)"
+                      value={v.marksheet_10 ? v.marksheet_10.split(" | ")[0] ?? "" : ""}
+                      onChange={(val) => {
+                        const back = v.marksheet_10?.split(" | ")[1] ?? "";
+                        set("marksheet_10", back ? `${val} | ${back}` : val);
+                      }}
+                    />
+                    <FileTile
+                      name="_marksheet_10_back"
+                      label="Class 10 marksheet (back side / optional)"
+                      value={v.marksheet_10?.split(" | ")[1] ?? ""}
+                      onChange={(val) => {
+                        const front = v.marksheet_10 ? v.marksheet_10.split(" | ")[0] ?? "" : "";
+                        set("marksheet_10", front ? `${front} | ${val}` : val);
+                      }}
+                    />
+                  </div>
+                  {/* File tiles carry remarks too. Every Class 10 field is
+                      either an upload or ops-filled, so without this an Ops
+                      comment on that section had nowhere to land. */}
+                  <FieldRemarks fieldKey="marksheet_10" />
+                </div>
                 </>
               ))}
 
@@ -846,17 +911,28 @@ export function CallForm({
                     />
                   </Row>
                   {v.status_12 === "Pursuing" && (
-                    <Row
-                      label="Expected completion" k="completion_12"
-                      hint="A completion undertaking will be added. Ask for the expected percentage too."
-                    >
-                      <input
-                        type="month"
-                        className={inputCls}
-                        value={v.completion_12 ?? ""}
-                        onChange={(e) => set("completion_12", e.target.value)}
-                      />
-                    </Row>
+                    <>
+                      <Row
+                        label="Expected completion" k="completion_12"
+                        hint="A completion undertaking will be added. Ask for the expected percentage too."
+                      >
+                        <input
+                          type="month"
+                          className={inputCls}
+                          value={v.completion_12 ?? ""}
+                          onChange={(e) => set("completion_12", e.target.value)}
+                        />
+                      </Row>
+                      <div className="rounded-xl border border-line bg-cream/50 p-3.5 text-[12.5px] text-body">
+                        <div className="flex items-center gap-1.5 font-medium text-ink">
+                          <IconShield className="h-4 w-4 text-accent" />
+                          12th Pursuing Commitment Undertaking (UT-uG Doc-01)
+                        </div>
+                        <div className="mt-1 text-caption">
+                          Marksheet upload is deferred until graduation. The learner commits to producing final passing marksheets and meeting target admission criteria upon completion.
+                        </div>
+                      </div>
+                    </>
                   )}
                   {v.status_12 === "Completed" && (
                     <>
@@ -869,15 +945,40 @@ export function CallForm({
                         />
                       </Row>
                       {v.has_marksheet_12 === "Yes" && (
-                        <>
-                        <FileTile
-                          name="_marksheet_12"
-                          label="Class 12 marksheet (front & back)"
-                          value={v.marksheet_12 ?? ""}
-                          onChange={(val) => set("marksheet_12", val)}
-                        />
-                        <FieldRemarks fieldKey="marksheet_12" />
-                        </>
+                        <div className="space-y-3">
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <FileTile
+                              name="_marksheet_12_front"
+                              label="Class 12 marksheet (front side)"
+                              value={v.marksheet_12 ? v.marksheet_12.split(" | ")[0] ?? "" : ""}
+                              onChange={(val) => {
+                                const back = v.marksheet_12?.split(" | ")[1] ?? "";
+                                set("marksheet_12", back ? `${val} | ${back}` : val);
+                              }}
+                            />
+                            <FileTile
+                              name="_marksheet_12_back"
+                              label="Class 12 marksheet (back side / optional)"
+                              value={v.marksheet_12?.split(" | ")[1] ?? ""}
+                              onChange={(val) => {
+                                const front = v.marksheet_12 ? v.marksheet_12.split(" | ")[0] ?? "" : "";
+                                set("marksheet_12", front ? `${front} | ${val}` : val);
+                              }}
+                            />
+                          </div>
+                          <FieldRemarks fieldKey="marksheet_12" />
+                        </div>
+                      )}
+                      {v.has_marksheet_12 === "Not yet available" && (
+                        <div className="rounded-xl border border-line bg-cream/50 p-3.5 text-[12.5px] text-body">
+                          <div className="flex items-center gap-1.5 font-medium text-ink">
+                            <IconShield className="h-4 w-4 text-accent" />
+                            Class 12 Document Submission Undertaking (UT-uG Doc/Result-03)
+                          </div>
+                          <div className="mt-1 text-caption">
+                            A commitment undertaking is generated requiring the learner to submit their final Class 12 marksheet as soon as results are announced.
+                          </div>
+                        </div>
                       )}
                     </>
                   )}
@@ -894,17 +995,30 @@ export function CallForm({
                     />
                   </Row>
                   {wantsMbbs && (
-                    <Row
-                      label="NEET exam status" k="neet_status"
-                      hint="NEET is mandatory for MBBS — this year or within the past 2 years."
-                    >
-                      <Choice
-                        name="_neet"
-                        value={v.neet_status ?? ""}
-                        options={["Yes", "Applied"]}
-                        onChange={(val) => set("neet_status", val)}
-                      />
-                    </Row>
+                    <>
+                      <Row
+                        label="NEET exam status" k="neet_status"
+                        hint="NEET is mandatory for MBBS — this year or within the past 2 years."
+                      >
+                        <Choice
+                          name="_neet"
+                          value={v.neet_status ?? ""}
+                          options={["Yes", "Applied"]}
+                          onChange={(val) => set("neet_status", val)}
+                        />
+                      </Row>
+                      {v.neet_status === "Yes" && (
+                        <>
+                          <FileTile
+                            name="_neet_marksheet"
+                            label="NEET scorecard / marksheet"
+                            value={v.neet_marksheet ?? ""}
+                            onChange={(val) => set("neet_marksheet", val)}
+                          />
+                          <FieldRemarks fieldKey="neet_marksheet" />
+                        </>
+                      )}
+                    </>
                   )}
                 </div>
                 </>
@@ -928,19 +1042,30 @@ export function CallForm({
                         />
                       </Row>
                       {v.bachelor_status?.startsWith("Pursuing") && (
-                        <Row
-                          label="Expected completion" k="bachelor_completion"
-                          hint="A completion undertaking will be added. Ask for the expected percentage too."
-                        >
-                          <input
-                            type="month"
-                            className={inputCls}
-                            value={v.bachelor_completion ?? ""}
-                            onChange={(e) =>
-                              set("bachelor_completion", e.target.value)
-                            }
-                          />
-                        </Row>
+                        <>
+                          <Row
+                            label="Expected completion" k="bachelor_completion"
+                            hint="A completion undertaking will be added. Ask for the expected percentage too."
+                          >
+                            <input
+                              type="month"
+                              className={inputCls}
+                              value={v.bachelor_completion ?? ""}
+                              onChange={(e) =>
+                                set("bachelor_completion", e.target.value)
+                              }
+                            />
+                          </Row>
+                          <div className="rounded-xl border border-line bg-cream/50 p-3.5 text-[12.5px] text-body">
+                            <div className="flex items-center gap-1.5 font-medium text-ink">
+                              <IconShield className="h-4 w-4 text-accent" />
+                              Bachelor&apos;s Pursuing Undertaking (UT-PG Doc-02)
+                            </div>
+                            <div className="mt-1 text-caption">
+                              As the learner is currently pursuing Bachelor&apos;s, post-graduation details and work experience are waived. An undertaking to submit final degree documents upon graduation will be issued.
+                            </div>
+                          </div>
+                        </>
                       )}
                       {v.bachelor_status === "Completed" && (
                         <>
@@ -960,15 +1085,43 @@ export function CallForm({
                             />
                           </Row>
                           {v.bachelor_docs?.startsWith("Yes") && (
-                            <>
-                            <FileTile
-                              name="_bachelor_files"
-                              label="CMM / transcript & grading scale"
-                              value={v.bachelor_files ?? ""}
-                              onChange={(val) => set("bachelor_files", val)}
-                            />
-                            <FieldRemarks fieldKey="bachelor_files" />
-                            </>
+                            <div className="space-y-3">
+                              <div className="grid gap-3 sm:grid-cols-3">
+                                <FileTile
+                                  name="_bachelor_cmm"
+                                  label="CMM / Transcript"
+                                  value={v.bachelor_files ? v.bachelor_files.split(" | ")[0] ?? "" : ""}
+                                  onChange={(val) => {
+                                    const parts = (v.bachelor_files ?? "").split(" | ");
+                                    parts[0] = val;
+                                    set("bachelor_files", parts.filter(Boolean).join(" | "));
+                                  }}
+                                />
+                                <FileTile
+                                  name="_bachelor_semesters"
+                                  label="Individual Semesters"
+                                  value={v.bachelor_files?.split(" | ")[1] ?? ""}
+                                  onChange={(val) => {
+                                    const parts = (v.bachelor_files ?? "").split(" | ");
+                                    while (parts.length < 1) parts.push("");
+                                    parts[1] = val;
+                                    set("bachelor_files", parts.filter(Boolean).join(" | "));
+                                  }}
+                                />
+                                <FileTile
+                                  name="_bachelor_grading"
+                                  label="Grading Scale"
+                                  value={v.bachelor_files?.split(" | ")[2] ?? ""}
+                                  onChange={(val) => {
+                                    const parts = (v.bachelor_files ?? "").split(" | ");
+                                    while (parts.length < 2) parts.push("");
+                                    parts[2] = val;
+                                    set("bachelor_files", parts.filter(Boolean).join(" | "));
+                                  }}
+                                />
+                              </div>
+                              <FieldRemarks fieldKey="bachelor_files" />
+                            </div>
                           )}
                         </>
                       )}
@@ -989,64 +1142,69 @@ export function CallForm({
                     </>
                   ))}
 
-                  {group("after_bachelor", "After bachelor's", (
+                  {!v.bachelor_status?.startsWith("Pursuing") && (
                     <>
-                    <div className="space-y-5">
-                      <Row
-                        label="Any degree after bachelor's?" k="pg_status"
-                        hint="Master's, PG diploma or PhD. Some universities restrict equivalent or higher qualifications."
-                      >
-                        <Choice
-                          name="_pg_status"
-                          value={v.pg_status ?? ""}
-                          options={["No", "Currently Pursuing", "Completed"]}
-                          onChange={(val) => set("pg_status", val)}
-                        />
-                      </Row>
-                      {v.pg_status && v.pg_status !== "No" && (
-                        <Row label="Master's marksheets / transcript" k="pg_docs">
-                          <Choice
-                            name="_pg_docs"
-                            value={v.pg_docs ?? ""}
-                            options={[
-                              "Yes - All Documents Available",
-                              "Yes - Partial Documents",
-                              "No",
-                            ]}
-                            onChange={(val) => set("pg_docs", val)}
-                          />
-                        </Row>
-                      )}
-                      <Row
-                        label="Work experience after bachelor's (months)" k="work_exp_months"
-                        hint="Enter 0 if none."
-                      >
-                        <input
-                          type="number"
-                          min={0}
-                          className={`${inputCls} sm:w-40`}
-                          value={v.work_exp_months ?? ""}
-                          onChange={(e) => set("work_exp_months", e.target.value)}
-                          placeholder="0"
-                        />
-                      </Row>
-                      {Number(v.work_exp_months ?? 0) > 0 && (
+                      {group("after_bachelor", "After bachelor's", (
                         <>
-                        <FileTile
-                          name="_cv"
-                          label="Updated CV / resume"
-                          value={v.cv_file ?? ""}
-                          onChange={(val) => set("cv_file", val)}
-                        />
-                        <FieldRemarks fieldKey="cv_file" />
+                        <div className="space-y-5">
+                          <Row
+                            label="Any degree after bachelor's?" k="pg_status"
+                            hint="Master's, PG diploma or PhD. Some universities restrict equivalent or higher qualifications."
+                          >
+                            <Choice
+                              name="_pg_status"
+                              value={v.pg_status ?? ""}
+                              options={["No", "Currently Pursuing", "Completed"]}
+                              onChange={(val) => set("pg_status", val)}
+                            />
+                          </Row>
+                          {v.pg_status && v.pg_status !== "No" && (
+                            <Row label="Master's marksheets / transcript" k="pg_docs">
+                              <Choice
+                                name="_pg_docs"
+                                value={v.pg_docs ?? ""}
+                                options={[
+                                  "Yes - All Documents Available",
+                                  "Yes - Partial Documents",
+                                  "No",
+                                ]}
+                                onChange={(val) => set("pg_docs", val)}
+                              />
+                            </Row>
+                          )}
+                          <Row
+                            label="Work experience after bachelor's (months)" k="work_exp_months"
+                            hint="Enter 0 if none."
+                          >
+                            <input
+                              type="number"
+                              min={0}
+                              className={`${inputCls} sm:w-40`}
+                              value={v.work_exp_months ?? ""}
+                              onChange={(e) => set("work_exp_months", e.target.value)}
+                              placeholder="0"
+                            />
+                          </Row>
+                          {Number(v.work_exp_months ?? 0) > 0 && (
+                            <>
+                            <FileTile
+                              name="_cv"
+                              label="Updated CV / resume"
+                              value={v.cv_file ?? ""}
+                              onChange={(val) => set("cv_file", val)}
+                            />
+                            <FieldRemarks fieldKey="cv_file" />
+                            </>
+                          )}
+                        </div>
                         </>
-                      )}
-                    </div>
+                      ))}
                     </>
-                  ))}
+                  )}
                 </>
               )}
             </div>
+            )}
           </SectionCard>
         )}
 

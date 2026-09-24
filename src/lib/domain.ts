@@ -102,8 +102,14 @@ export function learnerStatus(
    * wait — so without this the card told a learner "Action needed" while the
    * counsellor was the one choosing their next programme.
    */
-  hasShortlist = true
+  hasShortlist = true,
+  /** A post-offer programme change is under way. */
+  changing = false
 ): { label: string; className: string } {
+  // Moving to another programme reopens a finished application — it is not
+  // "Completed" again until the new offer letter is out.
+  if (changing)
+    return { label: "In progress", className: STATUS_COLORS.reviewed };
   if (status === "completed")
     return { label: "Completed", className: STATUS_COLORS.completed };
   // Never "Action needed" while we are the ones holding it up.
@@ -849,7 +855,7 @@ export const DEFER_REASONS = [
   {
     id: "learner",
     label: "Learner asked to move",
-    hint: "Agreed on a call — same programme, later batch",
+    hint: "The counsellor passed on the learner's ask — same programme, later batch",
   },
 ] as const;
 

@@ -278,7 +278,9 @@ export default function AcDashboard({
                           ? a.recheck_kind === "appeal"
                             ? "Appealed by you"
                             : "Re-check"
-                          : reChoose(a)
+                          : a.change_at
+                            ? "In progress"
+                            : reChoose(a)
                             ? "Programme changed"
                             : null
                       }

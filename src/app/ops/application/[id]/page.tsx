@@ -255,7 +255,12 @@ export default function OpsApplicationPage({
   // counsellor recommended with, so both sides argue from the same number.
   const catalogue = listProgramCatalogue();
   const templates = listDocTemplates();
-  const scored = programs.map((p) => {
+  // During a programme change the card is about the change: the counsellor's
+  // pick and anything Ops has added beside it since. The older programmes
+  // (including the one the learner holds) are history, not options.
+  const scored = programs
+    .filter((p) => !change || p.id >= (app.change_program_id ?? 0))
+    .map((p) => {
     const cat = catalogue.find((c) => c.id === p.catalogue_id);
     return {
       ...p,
@@ -452,7 +457,10 @@ export default function OpsApplicationPage({
                   }
                 />
               </span>
-              <StatusBadge status={app.status} />
+              <StatusBadge
+                status={app.status}
+                recheckLabel={change ? "In progress" : null}
+              />
               <CertifiedChip at={app.certified_at} />
             </div>
             <p className="mt-1 text-[14.5px] text-body">
@@ -1038,6 +1046,15 @@ export default function OpsApplicationPage({
               }
             >
               <div className="space-y-3">
+                {change && (
+                  <div className="flex items-center gap-2.5 rounded-xl border border-line bg-white px-4 py-3 text-[13.5px] text-ink">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-ink text-[11px] font-semibold text-white">
+                      i
+                    </span>
+                    AC has requested for the learner to be reshortlisted to the
+                    following program.
+                  </div>
+                )}
                 {scored.length === 0 && (
                   <EmptyState text="The counsellor hasn't recommended any programmes yet." />
                 )}
@@ -1248,13 +1265,16 @@ export default function OpsApplicationPage({
               {/* The cap is on how many LIVE options a learner is offered. With
                   nothing eligible there are none, and this picker is the only
                   way back — so the cap does not apply in that state. */}
-              {(vetting || reRuling) &&
+              {((vetting || reRuling) &&
                 (programs.length < MAX_RECOMMENDED_PROGRAMS ||
-                  eligibleCount === 0) && (
+                  eligibleCount === 0)) ||
+              (rulingOnChange && scored.length < MAX_RECOMMENDED_PROGRAMS) ? (
                   <div className="mt-4">
                     <CataloguePicker
                       label={
-                        eligibleCount === 0
+                        rulingOnChange
+                          ? "Add another programme from the catalogue"
+                          : eligibleCount === 0
                           ? "Nothing is eligible — add a programme that is"
                           : "Add a programme from the catalogue"
                       }
@@ -1269,7 +1289,7 @@ export default function OpsApplicationPage({
                       addedLabel="Programme"
                     />
                   </div>
-                )}
+                ) : null}
             </SectionCard>
           )}
         </div>

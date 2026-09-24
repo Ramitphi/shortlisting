@@ -84,7 +84,8 @@ export default function LearnerApplicationsList() {
             app.status,
             certified,
             Boolean(recheck),
-            Boolean(programme)
+            Boolean(programme),
+            Boolean(app.change_at)
           );
 
           const toSign = docs.filter((d) => !d.signed_at).length;

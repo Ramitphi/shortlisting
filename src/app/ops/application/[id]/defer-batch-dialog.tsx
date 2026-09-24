@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { IconArrowRight, IconCalendar, IconCheck } from "@/components/ui";
 import { DEFER_REASONS } from "@/lib/domain";
+import { BatchCalendar, batchLabel, parseBatch } from "./batch-calendar";
 
 /**
  * Ops moves a learner to a later batch.
@@ -33,34 +34,28 @@ export function DeferBatchDialog({
   // rather than leaving it implied by three fields.
   const [step, setStep] = useState<"form" | "confirm">("form");
   const [reason, setReason] = useState<string>("");
-  const [intake, setIntake] = useState("");
+  const [date, setDate] = useState<Date | null>(null);
   const [note, setNote] = useState("");
   const [mounted, setMounted] = useState(false);
   const [busy, startTransition] = useTransition();
   const router = useRouter();
   useEffect(() => setMounted(true), []);
 
-  const ready = Boolean(reason) && intake.length > 0;
+  const ready = Boolean(reason) && Boolean(date);
+  const intakeLabel = date ? batchLabel(date) : "";
 
-  /**
-   * The picker speaks "2027-05"; the offer letter and the learner's start
-   * line speak "May 2027". Converting here keeps one readable form in the
-   * data — a batch typed by hand arrived as Jan 2027, January 2027 and
-   * 01/2027 and none of them sorted or compared.
-   */
-  const intakeLabel = (() => {
-    const m = /^(\d{4})-(\d{2})$/.exec(intake);
-    if (!m) return intake;
-    const d = new Date(Number(m[1]), Number(m[2]) - 1, 1);
-    return Number.isNaN(d.getTime())
-      ? intake
-      : d.toLocaleString("en-GB", { month: "long", year: "numeric" });
-  })();
-
-  // Nothing is deferred into the past.
-  const thisMonth = (() => {
+  // A later batch: after the current one, and never in the past.
+  const current = parseBatch(currentIntake);
+  const min = (() => {
     const n = new Date();
-    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`;
+    const tomorrow = new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1);
+    if (!current) return tomorrow;
+    const after = new Date(
+      current.getFullYear(),
+      current.getMonth(),
+      current.getDate() + 1
+    );
+    return after > tomorrow ? after : tomorrow;
   })();
 
   const submit = () =>
@@ -81,7 +76,7 @@ export function DeferBatchDialog({
         type="button"
         onClick={() => {
           setReason("");
-          setIntake("");
+          setDate(null);
           setNote("");
           setStep("form");
           setOpen(true);
@@ -101,7 +96,7 @@ export function DeferBatchDialog({
               onClick={() => setOpen(false)}
               aria-hidden
             />
-            <div className="relative w-full max-w-[460px] rounded-2xl border border-line bg-white p-6 shadow-[0_28px_60px_-18px_rgba(49,48,43,0.45)] toast-in">
+            <div className="relative w-full max-h-[calc(100dvh-2rem)] max-w-[760px] overflow-y-auto rounded-2xl border border-line bg-white p-6 shadow-[0_28px_60px_-18px_rgba(49,48,43,0.45)] toast-in">
               <div className="flex items-start gap-3">
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cream text-ink">
                   <IconCalendar className="h-4 w-4" />
@@ -119,7 +114,9 @@ export function DeferBatchDialog({
 
               {step === "form" ? (
                 <>
-              <div className="mt-4">
+              <div className="mt-5 grid gap-5 md:grid-cols-2">
+              <div>
+              <div>
                 <div className="text-[12px] font-medium text-ink">Why</div>
                 <div className="mt-1.5 space-y-1.5">
                   {DEFER_REASONS.map((r) => (
@@ -151,23 +148,6 @@ export function DeferBatchDialog({
                 </div>
               </div>
 
-              <label className="mt-4 block">
-                <span className="text-[12px] font-medium text-ink">
-                  New batch
-                </span>
-                <input
-                  type="month"
-                  value={intake}
-                  min={thisMonth}
-                  onChange={(e) => setIntake(e.target.value)}
-                  className="input mt-1.5 !h-10 w-full"
-                />
-                {intakeLabel && intakeLabel !== intake && (
-                  <span className="mt-1 block text-[12px] text-caption">
-                    Moves to {intakeLabel}
-                  </span>
-                )}
-              </label>
 
               <label className="mt-3 block">
                 <span className="text-[12px] font-medium text-ink">
@@ -182,6 +162,44 @@ export function DeferBatchDialog({
                   className="input mt-1.5 w-full !py-2"
                 />
               </label>
+
+
+              </div>
+
+              <div>
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-[12px] font-medium text-ink">
+                    New batch starts
+                  </span>
+                  <span className="text-[12px] text-caption">
+                    {current ? `Now ${batchLabel(current)}` : ""}
+                  </span>
+                </div>
+                <div className="mt-1.5">
+                  <BatchCalendar
+                    value={date}
+                    onChange={setDate}
+                    min={min}
+                    current={current}
+                  />
+                </div>
+                <div className="mt-2 text-[12.5px]">
+                  {date ? (
+                    <span className="text-ink">
+                      Moves to{" "}
+                      <b>
+                        {date.toLocaleDateString("en-GB", {
+                          weekday: "long",
+                        })},{" "}
+                        {intakeLabel}
+                      </b>
+                    </span>
+                  ) : (
+                    <span className="text-caption">Pick the day the new batch starts</span>
+                  )}
+                </div>
+              </div>
+              </div>
 
               <p className="mt-3 text-[12px] leading-snug text-caption">
                 A new offer letter goes out with the new date. Nothing needs

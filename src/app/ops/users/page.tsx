@@ -252,7 +252,9 @@ export default function OpsUsersPage({
                           ? a.recheck_kind === "appeal"
                             ? "Appealed by AC"
                             : "Re-check"
-                          : null
+                          : a.change_at
+                            ? "In progress"
+                            : null
                       }
                     />
                   </td>

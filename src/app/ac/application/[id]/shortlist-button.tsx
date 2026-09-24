@@ -18,6 +18,7 @@ export function AcFlowBar({
   tab,
   selected,
   hasPrograms,
+  held = false,
   action,
 }: {
   appId: number;
@@ -27,6 +28,8 @@ export function AcFlowBar({
   /** The pick carried in the URL — seeds the radio, never the submit. */
   selected: number | null;
   hasPrograms: boolean;
+  /** A programme change is with Ops: the send is shown but held. */
+  held?: boolean;
   action: (formData: FormData) => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
@@ -76,8 +79,14 @@ export function AcFlowBar({
       {back}
       <button
         type="button"
-        disabled={!hasPrograms || busy}
-        title={hasPrograms ? "" : "No eligible programme to send"}
+        disabled={held || !hasPrograms || busy}
+        title={
+          held
+            ? "Waiting on Ops to rule on the programme change"
+            : hasPrograms
+              ? ""
+              : "No eligible programme to send"
+        }
         className="btn-primary"
         onClick={async () => {
           const picked = pickedNow();

@@ -40,6 +40,7 @@ import {
   type Role,
 } from "./domain";
 import {
+  changeOf,
   getApplication,
   getDocuments,
   getFormResponses,
@@ -1227,14 +1228,22 @@ export async function opsAddProgram(applicationId: number, formData: FormData) {
   const app = getApplication(applicationId);
   if (!app) return;
   const reRuling = Boolean(app.recheck_at) && app.recheck_state !== "ac";
-  if (app.status !== "under_review" && !reRuling) return;
+  // A programme change on Ops' desk: they may put more options beside the
+  // counsellor's pick, and the cap counts only this change's options.
+  const changing = changeOf(app)?.state === "ops";
+  if (app.status !== "under_review" && !reRuling && !changing) return;
   // The cap counts LIVE options offered to the learner. With nothing eligible
   // there are none, and this picker is the documented way out of that state —
   // the same exception the Ops page makes when it renders it. Without this,
   // the escape hatch was a button that refused and toasted success.
   const existing = getPrograms(applicationId);
-  const nothingEligible = !existing.some((p) => p.eligibility === "eligible");
-  if (!nothingEligible && existing.length >= MAX_RECOMMENDED_PROGRAMS) return;
+  if (changing) {
+    const options = existing.filter((p) => p.id >= (app.change_program_id ?? 0));
+    if (options.length >= MAX_RECOMMENDED_PROGRAMS) return;
+  } else {
+    const nothingEligible = !existing.some((p) => p.eligibility === "eligible");
+    if (!nothingEligible && existing.length >= MAX_RECOMMENDED_PROGRAMS) return;
+  }
 
   const catalogueId = Number(formData.get("catalogueId"));
   if (!catalogueId) return;
@@ -1534,8 +1543,10 @@ export async function shortlistProgram(applicationId: number, formData: FormData
   // Ops is mid-verdict — the list they would be picking from is the thing
   // under review. Matches the page, which hides the picker in this state.
   if (app.recheck_at) return;
-  // Sending the replacement during a post-offer programme change.
-  const changing = Boolean(app.change_at);
+  // Sending the replacement during a post-offer programme change — once Ops
+  // has ruled, and only one of this change's options.
+  const changing = changeOf(app)?.state === "ac";
+  if (app.change_at && !changing) return;
   if (!canTransition(app.status, "shortlisted", "ac") && !reChoosing && !changing)
     return;
   const id = Number(formData.get("programId"));
@@ -1544,6 +1555,7 @@ export async function shortlistProgram(applicationId: number, formData: FormData
   const chosen = getPrograms(applicationId).find((p) => p.id === id);
   // Only programmes Ops ruled eligible can go to the learner.
   if (!chosen || chosen.eligibility !== "eligible") return;
+  if (changing && chosen.id < (app.change_program_id ?? 0)) return;
 
   const db = getDb();
   const tx = db.transaction(() => {
@@ -2176,7 +2188,7 @@ export async function requestProgrammeChange(
   if (app.ops_id) notify(app.ops_id, msg, link);
   else notifyRole("ops", msg, link);
   dirty();
-  goto(`/ac/application/${applicationId}?tab=eligibility&toast=change`);
+  goto(`/ac/application/${applicationId}?toast=change`);
 }
 
 /**
@@ -2189,7 +2201,8 @@ function offerLetterBody(
   programme: { name: string; institute: string; intake?: string | null }
 ) {
   const starts = programme.intake
-    ? `\n\nYour batch starts in ${programme.intake}.`
+    ? // A day reads "on 12 March 2027"; an older month-only batch "in March 2027".
+      `\n\nYour batch starts ${/^\d/.test(programme.intake) ? "on" : "in"} ${programme.intake}.`
     : "";
   return `Dear ${learnerName},\n\nCongratulations! We are pleased to offer you admission to ${programme.name} at ${programme.institute}. Your eligibility has been verified and all required documents have been signed.${starts}\n\nOur team will reach out with the next steps for enrollment.\n\nWarm regards,\nAdmissions Team`;
 }
@@ -2208,13 +2221,9 @@ function offerLetterBody(
  * being considered for the next available batch.
  */
 export async function deferBatch(applicationId: number, formData: FormData) {
-  // Both desks move a batch, for different reasons. Ops moves it because BCT
-  // or DCT could not finish; the counsellor moves it because the learner
-  // asked on a call. Same action either way — the outcome is one date and
-  // one reissued letter, and splitting it in two would mean two ways for
-  // those to disagree.
-  const user = requireUser();
-  if (user.role !== "ops" && user.role !== "ac") return;
+  // Ops only. A learner who asks the counsellor for a later batch is passed
+  // along to Ops, who make the move on Phoenix and record it here.
+  const user = requireUser("ops");
   const app = getApplication(applicationId);
   if (!app) return;
   // There has to be an offer to move.
@@ -2267,13 +2276,7 @@ export async function deferBatch(applicationId: number, formData: FormData) {
     `Your batch has moved to ${intake}. Your updated offer letter is ready.`,
     "/learner"
   );
-  if (user.role === "ac") {
-    notifyRole(
-      "ops",
-      `${app.learner_name}'s batch moved to ${intake} (${reasonLabel.toLowerCase()})`,
-      `/ops/application/${applicationId}`
-    );
-  } else if (app.ac_id) {
+  if (app.ac_id) {
     notify(
       app.ac_id,
       `${app.learner_name}'s batch moved to ${intake} (${reasonLabel.toLowerCase()})`,
@@ -2281,11 +2284,7 @@ export async function deferBatch(applicationId: number, formData: FormData) {
     );
   }
   dirty();
-  goto(
-    user.role === "ac"
-      ? `/ac/application/${applicationId}?tab=eligibility&toast=deferred`
-      : `/ops/application/${applicationId}?tab=eligibility&toast=deferred`
-  );
+  goto(`/ops/application/${applicationId}?tab=eligibility&toast=deferred`);
 }
 
 export async function sendOfferLetter(applicationId: number, formData: FormData) {

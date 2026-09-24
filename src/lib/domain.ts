@@ -108,7 +108,9 @@ export function learnerStatus(
 ): { label: string; className: string } {
   // Moving to another programme reopens a finished application — it is not
   // "Completed" again until the new offer letter is out.
-  if (changing)
+  // Only once it is finished again: while they are signing for the new
+  // programme they need "Action needed" like any other shortlist.
+  if (changing && status === "completed")
     return { label: "Re Shortlisted", className: STATUS_COLORS.reviewed };
   if (status === "completed")
     return { label: "Completed", className: STATUS_COLORS.completed };
@@ -264,6 +266,11 @@ export interface ClauseDef {
 }
 
 export const CLAUSES: Record<string, ClauseDef> = {
+  // A programme change: the learner certifies the move was theirs.
+  "UT-Programme Change-01": {
+    id: "UT-Programme Change-01",
+    title: "Programme change — the learner asked for the move",
+  },
   // Always. The base declaration every application carries.
   "UT/Dec-PII Data-01": {
     id: "UT/Dec-PII Data-01",

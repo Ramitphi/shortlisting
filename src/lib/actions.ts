@@ -18,7 +18,12 @@ import {
   learnerViewRaw,
 } from "./session";
 import { requireUser } from "./auth";
-import { attachMissingForms, attachRequiredForms, claimApplication } from "./vetting";
+import {
+  attachChangeForms,
+  attachMissingForms,
+  attachRequiredForms,
+  claimApplication,
+} from "./vetting";
 import {
   parseRecheckChanges,
   CLAUSES,
@@ -1599,6 +1604,10 @@ export async function shortlistProgram(applicationId: number, formData: FormData
   // Only programmes Ops ruled eligible can go to the learner.
   if (!chosen || chosen.eligibility !== "eligible") return;
   if (changing && chosen.id < (app.change_program_id ?? 0)) return;
+  // The programme the learner is leaving, named in their change declaration.
+  const leaving = changing
+    ? getPrograms(applicationId).find((p) => p.shortlisted) ?? null
+    : null;
 
   const db = getDb();
   const tx = db.transaction(() => {
@@ -1611,23 +1620,47 @@ export async function shortlistProgram(applicationId: number, formData: FormData
     ).run(id, applicationId);
   });
   tx();
-  // A completed application stays completed: the learner is holding an offer
-  // and only the programme underneath it is moving.
-  if (!changing) setStatus(applicationId, "shortlisted");
-  // The new programme may newly trigger a declaration the old one did not —
-  // a different country brings the APS acknowledgements with it.
-  if (changing) attachMissingForms(applicationId, user.id);
+  setStatus(applicationId, "shortlisted");
+  // A programme change runs the ordinary path from here: the old offer
+  // letter is withdrawn (kept as a record), the old undertakings retire, the
+  // new programme's set attaches with the change declaration, and the
+  // learner signs and certifies again before Ops issues a new letter.
+  if (changing) {
+    const cat = chosen.catalogue_id
+      ? (db
+          .prepare("SELECT country, degree_level FROM program_catalogue WHERE id = ?")
+          .get(chosen.catalogue_id) as
+          | { country: string; degree_level: string }
+          | undefined)
+      : undefined;
+    db.prepare(
+      "UPDATE offer_letters SET superseded_at = datetime('now') WHERE application_id = ? AND superseded_at IS NULL"
+    ).run(applicationId);
+    db.prepare("UPDATE applications SET certified_at = NULL WHERE id = ?").run(
+      applicationId
+    );
+    attachChangeForms(
+      applicationId,
+      user.id,
+      leaving && leaving.id !== chosen.id ? leaving : null,
+      { ...chosen, country: cat?.country, degree_level: cat?.degree_level }
+    );
+  }
   logEvent(
     applicationId,
     user.id,
-    reChoosing
+    changing
+      ? "New programme shortlisted & sent to learner"
+      : reChoosing
       ? "Replacement programme shortlisted & sent to learner"
       : "Program shortlisted & sent to learner",
     `${chosen.name} — ${chosen.institute}`
   );
   notify(
     app.learner_id,
-    reChoosing
+    changing
+      ? `Your programme is moving to ${chosen.name} at ${chosen.institute}. Sign the documents for it and certify your details — your new offer letter follows.`
+      : reChoosing
       ? `Your programme has been updated to ${chosen.name} at ${chosen.institute}. Please review and sign your documents.`
       : `Congratulations! You have been shortlisted for ${chosen.name} at ${chosen.institute}. Please review and sign your documents.`,
     "/learner"
@@ -2339,8 +2372,11 @@ export async function sendOfferLetter(applicationId: number, formData: FormData)
   // that exists names the programme the learner is leaving.
   const changing = Boolean(app?.change_at);
   if (!app) return;
-  if (!changing && !canTransition(app.status, "completed", "ops")) return;
-  if (!changing && getOfferLetter(applicationId)) return;
+  // A programme change reaches here the ordinary way too: the application
+  // went back to shortlisted and the old letter was withdrawn when the new
+  // programme was sent, so the same checks hold for both.
+  if (!canTransition(app.status, "completed", "ops")) return;
+  if (getOfferLetter(applicationId)) return;
 
   // Only after the learner has signed every document AND certified that the
   // details behind them are correct.
@@ -2383,7 +2419,7 @@ export async function sendOfferLetter(applicationId: number, formData: FormData)
     db.prepare(
       "UPDATE applications SET change_at = NULL, change_note = NULL, change_program_id = NULL, change_ruled_at = NULL WHERE id = ?"
     ).run(applicationId);
-  if (!changing) setStatus(applicationId, "completed");
+  setStatus(applicationId, "completed");
   logEvent(
     applicationId,
     user.id,

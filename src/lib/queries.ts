@@ -319,7 +319,8 @@ export function getDocuments(applicationId: number): Doc[] {
       `SELECT d.*, t.clause_id AS clause_id
        FROM documents d
        LEFT JOIN document_templates t ON t.id = d.template_id
-       WHERE d.application_id = ? ORDER BY d.created_at ASC`
+       WHERE d.application_id = ? AND d.retired_at IS NULL
+       ORDER BY d.created_at ASC`
     )
     .all(applicationId) as Doc[];
 }

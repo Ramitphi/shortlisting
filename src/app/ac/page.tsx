@@ -18,7 +18,9 @@ import {
   IconSparkle,
   IconUsers,
 } from "@/components/ui";
-import { getPrograms, listApplications, type Application } from "@/lib/queries";
+import { getPrograms, listApplications, type Application,
+  isReShortlisted,
+} from "@/lib/queries";
 import {
   ALL_STATUSES,
   STATUS_LABELS,
@@ -278,8 +280,8 @@ export default function AcDashboard({
                           ? a.recheck_kind === "appeal"
                             ? "Appealed by you"
                             : "Re-check"
-                          : a.change_at
-                            ? "In progress"
+                          : isReShortlisted(a)
+                            ? "Re Shortlisted"
                             : reChoose(a)
                             ? "Programme changed"
                             : null

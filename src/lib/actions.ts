@@ -1285,10 +1285,14 @@ export async function opsAddProgram(applicationId: number, formData: FormData) {
     `Ops added an eligible programme: ${item.name}`,
     item.institute
   );
-  const msg = `Ops added ${item.name} for ${app.learner_name} — eligible, ready to shortlist`;
-  const link = `/ac/application/${applicationId}`;
-  if (app.ac_id) notify(app.ac_id, msg, link);
-  else notifyRole("ac", msg, link);
+  // During a programme change the counsellor hears once, when Ops marks the
+  // change reviewed — not per programme while Ops is still working.
+  if (!changing) {
+    const msg = `Ops added ${item.name} for ${app.learner_name} — eligible, ready to shortlist`;
+    const link = `/ac/application/${applicationId}`;
+    if (app.ac_id) notify(app.ac_id, msg, link);
+    else notifyRole("ac", msg, link);
+  }
   dirty();
 }
 
@@ -1335,7 +1339,10 @@ export async function setProgramEligibility(
   // A post-offer programme change puts a fresh candidate in front of Ops on
   // an application that is already complete — the third time ruling is the
   // right move, alongside vetting and a re-check.
-  const changing = Boolean(app.change_at);
+  // Only this change's options, and only while it is still on Ops' desk.
+  const changing =
+    changeOf(app)?.state === "ops" &&
+    programId >= (app.change_program_id ?? 0);
   if (app.status !== "under_review" && !reRuling && !changing) return;
   if (p.shortlisted && !reRuling && !changing) return;
 
@@ -1385,6 +1392,42 @@ export async function setProgramEligibility(
     else notifyRole("ac", msg, `/ac/application/${p.application_id}`);
   }
   dirty();
+}
+
+/**
+ * Ops has ruled on a programme change and hands it to the counsellor.
+ *
+ * Explicit, like the first review: a verdict alone used to pass the change
+ * on the moment it was clicked, before Ops had finished — or added the
+ * programme they would rather offer.
+ */
+export async function finishChangeReview(applicationId: number) {
+  const user = requireUser("ops");
+  const app = getApplication(applicationId);
+  if (!app || changeOf(app)?.state !== "ops") return;
+  const options = getPrograms(applicationId).filter(
+    (p) => p.id >= (app.change_program_id ?? 0)
+  );
+  // Every option ruled, and at least one the counsellor can send.
+  if (options.some((p) => p.eligibility === "pending")) return;
+  const eligible = options.filter((p) => p.eligibility === "eligible");
+  if (eligible.length === 0) return;
+
+  getDb()
+    .prepare("UPDATE applications SET change_ruled_at = datetime('now') WHERE id = ?")
+    .run(applicationId);
+  logEvent(
+    applicationId,
+    user.id,
+    "Programme change reviewed by Ops",
+    eligible.map((p) => p.name).join(", ") + " — eligible"
+  );
+  const msg = `Ops reviewed ${app.learner_name}'s programme change — ${eligible.length} eligible, ready to send`;
+  const link = `/ac/application/${applicationId}`;
+  if (app.ac_id) notify(app.ac_id, msg, link);
+  else notifyRole("ac", msg, link);
+  dirty();
+  goto("/ops?toast=reviewed");
 }
 
 /**
@@ -2171,7 +2214,8 @@ export async function requestProgrammeChange(
       );
     db.prepare(
       `UPDATE applications
-       SET change_at = datetime('now'), change_note = ?, change_program_id = ?
+       SET change_at = datetime('now'), change_note = ?, change_program_id = ?,
+           change_ruled_at = NULL
        WHERE id = ?`
     ).run(note, Number(created.lastInsertRowid), applicationId);
   });
@@ -2337,7 +2381,7 @@ export async function sendOfferLetter(applicationId: number, formData: FormData)
   );
   if (changing)
     db.prepare(
-      "UPDATE applications SET change_at = NULL, change_note = NULL, change_program_id = NULL WHERE id = ?"
+      "UPDATE applications SET change_at = NULL, change_note = NULL, change_program_id = NULL, change_ruled_at = NULL WHERE id = ?"
     ).run(applicationId);
   if (!changing) setStatus(applicationId, "completed");
   logEvent(

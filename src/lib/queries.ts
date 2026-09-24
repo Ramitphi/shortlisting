@@ -32,6 +32,8 @@ export interface Application {
   change_at?: string | null;
   change_note?: string | null;
   change_program_id?: number | null;
+  /** When Ops finished ruling on the change and handed it to the counsellor. */
+  change_ruled_at?: string | null;
   /** Whose move it is: 'ops' to re-read, 'ac' to resolve Ops' comments. */
   recheck_state: RecheckState | null;
   recheck_kind?: string | null;
@@ -342,6 +344,26 @@ export function getLearnerDocs(
   return Object.fromEntries(rows.map((r) => [r.doc_key, r]));
 }
 
+/**
+ * Whether an application has been re-shortlisted: a programme change is
+ * under way, or its offer letter has been reissued — a batch deferral or a
+ * finished programme change. Both read "Re Shortlisted" instead of the plain
+ * status, so a moved learner never looks like one who was never touched.
+ */
+export function isReShortlisted(app: {
+  id: number;
+  change_at?: string | null;
+}): boolean {
+  if (app.change_at) return true;
+  return Boolean(
+    getDb()
+      .prepare(
+        "SELECT 1 FROM offer_letters WHERE application_id = ? AND superseded_at IS NOT NULL LIMIT 1"
+      )
+      .get(app.id)
+  );
+}
+
 export function getOfferLetter(applicationId: number) {
   // The live one. Superseded letters stay in the table as a record of what
   // the learner was told at the time; they are read through getOfferHistory.
@@ -503,7 +525,12 @@ export function logEvent(applicationId: number, actorId: number, action: string,
 export function changeOf(
   app: Pick<
     Application,
-    "id" | "change_at" | "change_note" | "change_program_id" | "status"
+    | "id"
+    | "change_at"
+    | "change_note"
+    | "change_program_id"
+    | "change_ruled_at"
+    | "status"
   >
 ): { at: string; note: string | null; state: "ops" | "ac" | "learner" } | null {
   if (!app.change_at) return null;
@@ -512,16 +539,17 @@ export function changeOf(
   // eligible and never sent is a normal thing to be carrying, and reading
   // the state off "something eligible is unsent" left every change stuck
   // on the counsellor for ever.
-  const candidate = getPrograms(app.id).find(
-    (p) => p.id === app.change_program_id
+  // With Ops until they mark it reviewed. After that, with the counsellor
+  // until one of this change's options — the pick or anything Ops added
+  // beside it — is sent, then with the learner.
+  const options = getPrograms(app.id).filter(
+    (p) => p.id >= (app.change_program_id ?? 0)
   );
-  const state = !candidate
+  const state = !app.change_ruled_at
     ? "ops"
-    : candidate.eligibility === "pending"
-      ? "ops"
-      : !candidate.shortlisted
-        ? "ac"
-        : "learner";
+    : options.some((p) => p.shortlisted)
+      ? "learner"
+      : "ac";
   return { at: app.change_at, note: app.change_note ?? null, state };
 }
 

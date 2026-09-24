@@ -20,6 +20,7 @@ import {
   getPrograms,
   listApplications,
   recheckOf,
+  isReShortlisted,
 } from "@/lib/queries";
 import { learnerCanSeeApplication, learnerStatus } from "@/lib/domain";
 import { docRows } from "@/lib/documents";
@@ -85,7 +86,7 @@ export default function LearnerApplicationsList() {
             certified,
             Boolean(recheck),
             Boolean(programme),
-            Boolean(app.change_at)
+            isReShortlisted(app)
           );
 
           const toSign = docs.filter((d) => !d.signed_at).length;

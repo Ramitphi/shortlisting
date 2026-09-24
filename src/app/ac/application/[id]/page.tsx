@@ -63,6 +63,7 @@ import {
   listProgramCatalogue,
   recheckOf,
   changeOf,
+  isReShortlisted,
 } from "@/lib/queries";
 import {
   acknowledgeRemark,
@@ -479,7 +480,7 @@ export default function AcApplicationPage({
                   chip says it is moving again rather than done. */}
               <StatusBadge
                 status={app.status}
-                recheckLabel={change ? "In progress" : null}
+                recheckLabel={isReShortlisted(app) ? "Re Shortlisted" : null}
               />
               <CertifiedChip at={app.certified_at} />
             </div>
@@ -556,7 +557,7 @@ export default function AcApplicationPage({
       </div>
 
       {changeWithOps && (
-        <div className="-mt-2 mb-5 flex items-center gap-2.5 rounded-xl border border-line bg-paper px-4 py-3 text-[13.5px] text-body">
+        <div className="-mt-4 mb-5 flex items-center gap-2.5 rounded-xl border border-line bg-paper px-4 py-3 text-[13.5px] text-body">
           <IconInfo className="h-4 w-4 shrink-0 text-ink" />
           <span>
             <span className="font-semibold text-ink">Program change pending</span>

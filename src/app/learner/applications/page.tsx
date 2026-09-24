@@ -12,6 +12,7 @@ import {
   getPrograms,
   listApplications,
   recheckOf,
+  isReShortlisted,
 } from "@/lib/queries";
 import { learnerStatus } from "@/lib/domain";
 
@@ -91,7 +92,7 @@ export default function V2ApplicationsPage() {
         certified,
         Boolean(recheck),
         Boolean(programme),
-        Boolean(app.change_at)
+        isReShortlisted(app)
       )
     : null;
   const statusGood = app?.status === "completed" || certified;

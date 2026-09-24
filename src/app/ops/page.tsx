@@ -18,7 +18,9 @@ import {
   IconSend,
   IconSparkle,
 } from "@/components/ui";
-import { listApplications, type Application } from "@/lib/queries";
+import { listApplications, type Application,
+  isReShortlisted,
+} from "@/lib/queries";
 import { ALL_STATUSES, STATUS_LABELS, type AppStatus } from "@/lib/domain";
 
 
@@ -273,8 +275,8 @@ export default function OpsDashboard({
                           ? a.recheck_kind === "appeal"
                             ? "Appealed by AC"
                             : "Re-check"
-                          : a.change_at
-                            ? "In progress"
+                          : isReShortlisted(a)
+                            ? "Re Shortlisted"
                             : null
                       }
                     />

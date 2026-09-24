@@ -299,6 +299,9 @@ function migrateColumns(db: BrowserDb) {
   addColumn(db, "applications", "change_at", "TEXT");
   addColumn(db, "applications", "change_note", "TEXT");
   addColumn(db, "applications", "change_program_id", "INTEGER");
+  // Ops hands a change back explicitly — "Mark as Reviewed & Notify AC" —
+  // rather than the first verdict doing it for them mid-review.
+  addColumn(db, "applications", "change_ruled_at", "TEXT");
 }
 
 function seedCatalogues(db: BrowserDb) {

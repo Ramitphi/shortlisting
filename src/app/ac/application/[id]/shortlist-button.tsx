@@ -63,6 +63,24 @@ export function AcFlowBar({
     </button>
   ) : null;
 
+  // Held while Ops rules on a programme change: the same footer on every
+  // tab, with the send shown but closed, so the next step is always in view.
+  if (held) {
+    return (
+      <>
+        {back}
+        <button
+          type="button"
+          disabled
+          title="Waiting on Ops to rule on the programme change"
+          className="btn-primary"
+        >
+          Send Shortlist to Learner
+        </button>
+      </>
+    );
+  }
+
   if (next) {
     return (
       <>

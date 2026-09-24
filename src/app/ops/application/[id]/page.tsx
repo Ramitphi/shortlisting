@@ -30,6 +30,7 @@ import {
   ReviewGroupBlock,
   StatusBadge,
   CappedTimeline,
+  IconCalendar,
   IconCap,
   IconCheck,
   IconClock,
@@ -80,7 +81,9 @@ import {
   sendOfferLetter,
   setFieldCheck,
   setGroupReview,
+  setOpsComment,
   setProgramEligibility,
+  setProgramIntake,
   updateFieldValue,
   uploadLearnerDoc,
   verifyLearnerDoc,
@@ -107,6 +110,18 @@ import {
   pendingFor,
 } from "@/lib/domain";
 
+
+/**
+ * "May 2027" back into the "2027-05" a month input wants. The column holds
+ * the readable form — that is what the offer letter and the learner's start
+ * line print — so the picker is the one that has to convert.
+ */
+function monthValue(intake?: string | null): string {
+  if (!intake) return "";
+  const d = new Date(`1 ${intake}`);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
 
 export default function OpsApplicationPage({
   params,
@@ -185,6 +200,9 @@ export default function OpsApplicationPage({
   // during vetting, so the verdict controls open the same way — but only for
   // the candidate, never for the programme the learner currently holds.
   const rulingOnChange = change?.state === "ops";
+  // The three moments the file is on Ops' desk — the same ones that open the
+  // eligibility verdicts and the intake picker.
+  const opsCanComment = vetting || reRuling || rulingOnChange;
   const staleVerdicts = programs.filter((p) => p.eligibility_stale).length;
   // Comments raised since the learner's change — the only ones that are about
   // it. `openRemarks` is every open comment on the application, which during
@@ -848,9 +866,50 @@ export default function OpsApplicationPage({
           <ProfileSummary
             responses={responses}
             learnerName={app.learner_name}
+            comment={
+              opsCanComment ? (
+                /* The band is ~a quarter of the summary's height: enough to
+                   write a few lines in without the note out-weighing the
+                   profile it is about. It scrolls past three lines rather
+                   than growing the card. */
+                <form action={setOpsComment.bind(null, app.id)}>
+                  <textarea
+                    name="comment"
+                    rows={3}
+                    defaultValue={app.ops_comment ?? ""}
+                    placeholder="Anything the approver should know about this application…"
+                    className="input !h-auto w-full !py-2 text-[13px] leading-relaxed"
+                  />
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+                    <span className="text-[11.5px] text-caption">
+                      {app.ops_comment_at
+                        ? `Last saved ${app.ops_comment_at} UTC · the learner never sees this`
+                        : "Internal — the learner never sees this"}
+                    </span>
+                    <button className="btn-secondary !h-8 !px-3.5 !text-[12.5px]">
+                      Save comment
+                    </button>
+                  </div>
+                </form>
+              ) : app.ops_comment ? (
+                <>
+                  <p className="max-h-[132px] overflow-y-auto whitespace-pre-wrap rounded-xl bg-paper px-3.5 py-2.5 text-[13px] leading-relaxed text-body">
+                    {app.ops_comment}
+                  </p>
+                  {app.ops_comment_at && (
+                    <span className="mt-2 block text-[11.5px] text-caption">
+                      Last saved {app.ops_comment_at} UTC
+                    </span>
+                  )}
+                </>
+              ) : (
+                <p className="text-[12.5px] text-caption">
+                  No comment was left on this application.
+                </p>
+              )
+            }
           />
           )}
-
 
           {/* ── Undertaking & Acknowledgement ── */}
           {tab === "eligibility" && (
@@ -1043,7 +1102,50 @@ export default function OpsApplicationPage({
                           label="Total fee"
                         />
                       )}
+                      {/* Reads back beside duration and fee once it is set,
+                          so the batch is a fact of the programme rather than
+                          something only the form remembers. */}
+                      {p.intake && (
+                        <Meta
+                          icon={<IconCalendar className="h-3.5 w-3.5" />}
+                          value={p.intake}
+                          label="Intake"
+                        />
+                      )}
                     </div>
+
+                    {/* The batch this seat is for. Ops owns seat allocation,
+                        so it is filled here while they vet — and it stays on
+                        the programme: the offer letter names it, the learner
+                        sees "Starts …", and a deferral moves it later. */}
+                    {(vetting || reRuling || rulingOnChange) && (
+                      <form
+                        action={setProgramIntake.bind(null, p.id)}
+                        className="mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-paper px-3 py-2.5"
+                      >
+                        <label
+                          htmlFor={`intake-${p.id}`}
+                          className="text-[12px] font-medium text-body"
+                        >
+                          Intake
+                        </label>
+                        <input
+                          id={`intake-${p.id}`}
+                          type="month"
+                          name="intake"
+                          defaultValue={monthValue(p.intake)}
+                          className="input !h-8 !w-[150px] !py-0 !text-[12.5px]"
+                        />
+                        <button className="btn-secondary !h-8 !px-3 !text-[12.5px]">
+                          Save
+                        </button>
+                        <span className="text-[12px] text-caption">
+                          {p.intake
+                            ? `Saved — batch starts ${p.intake}`
+                            : "Not set yet — the offer letter names this batch"}
+                        </span>
+                      </form>
+                    )}
 
                     {/* The counsellor is pushing back on this one. It is the
                         reason the application is on the desk at all, so it

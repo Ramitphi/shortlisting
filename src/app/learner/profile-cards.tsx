@@ -11,6 +11,11 @@ import { LearnerDetailsForm } from "./details-form";
  * ONE implementation, rendered by both Profile → Personal details and the v2
  * application's Personal Details tab. The two screens show the same data with
  * the same rules; a second copy of this markup is how they'd stop doing so.
+ *
+ * `sections` narrows which cards render. Profile shows Personal details only —
+ * it is the site's personal-details page, not a dump of the whole form. The
+ * application walk passes nothing and gets all three, because there the
+ * learner is vouching for every one of them.
  */
 
 // The site's section names, mapped onto the form's sections.
@@ -26,6 +31,7 @@ export function ProfileSectionCards({
   editing,
   hrefFor,
   action,
+  sections,
 }: {
   responses: Record<string, string>;
   /** Application completed — read-only everywhere. */
@@ -36,10 +42,16 @@ export function ProfileSectionCards({
   hrefFor: (section: string | null) => string;
   /** The bound updateLearnerDetails action. */
   action: (formData: FormData) => void;
+  /** Which sections to render. Defaults to all of them. */
+  sections?: readonly string[];
 }) {
+  const shown = sections
+    ? FORM_SECTIONS.filter((s) => sections.includes(s))
+    : FORM_SECTIONS;
+
   return (
     <>
-      {FORM_SECTIONS.map((section) => {
+      {shown.map((section) => {
         // Files live in the Documents locker; Ops-derived fields render as
         // read-only rows once Ops has verified and entered them.
         const fields = FORM_FIELDS.filter(

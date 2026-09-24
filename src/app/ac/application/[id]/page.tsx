@@ -989,6 +989,23 @@ export default function AcApplicationPage({
             <ProfileSummary
               responses={responses}
               learnerName={app.learner_name}
+              comment={
+                /* Read-only here: it is Ops' note, and a second author would
+                   make "last saved" a lie about who wrote what. Rendered only
+                   when there IS one — an empty band on a card the counsellor
+                   cannot write to is furniture. */
+                app.ops_comment ? (
+                  <>
+                    <p className="max-h-[132px] overflow-y-auto whitespace-pre-wrap rounded-xl bg-paper px-3.5 py-2.5 text-[13px] leading-relaxed text-body">
+                      {app.ops_comment}
+                    </p>
+                    <span className="mt-2 block text-[11.5px] text-caption">
+                      Left by the Ops team
+                      {app.ops_comment_at ? ` · ${app.ops_comment_at} UTC` : ""}
+                    </span>
+                  </>
+                ) : undefined
+              }
             />
           )}
 

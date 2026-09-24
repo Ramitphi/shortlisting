@@ -13,9 +13,15 @@ below). The visual design is built out; this is not a wireframe.
 
 **Two design worlds, on purpose.** The counsellor, Ops and admin use the internal tool's
 own design. The learner's side is built inside **upgrad.com** — the real site's header,
-fonts (CircularXX), brand red and profile-page layout, with a **Shortlisting** entry
-added to the site's left navigation below My applications. That is the pitch: the
+fonts (CircularXX), brand red and profile-page layout, carrying the designed left
+navigation: Profile, **My application**, **Documents**, Flying journey, Centres and
+Alumni, with the counsellor's own card and support beneath it. That is the pitch: the
 learner never leaves upgrad.com.
+
+There is **one** application entry, not the site's two, because there is only ever one
+application here. **Documents** sits beside it rather than inside it: the learner's
+papers are collected before there is an application to see and asked for again after it
+closes, so they are a section in their own right.
 
 The learner experience is **v1**: a Shortlisting section in the site's own navigation,
 with a guided review walk that ends in signing and certification. (An alternative "v2"
@@ -235,7 +241,8 @@ src/
 │   │       ├── ops-field.tsx             ← a field Ops can correct in place
 │   │       └── catalogue-picker.tsx      ← programme / form library picker
 │   ├── learner/                          ← lives inside upgrad.com's design
-│   │   ├── application/[id]/page.tsx     ← v1: overview, documents, guided review walk
+│   │   ├── application/[id]/page.tsx     ← v1: the guided review walk
+│   │   ├── documents/page.tsx            ← v1: the document locker, its own site section
 │   │   ├── applications/page.tsx         ← v2: the site's My Applications list (capture code)
 │   │   ├── applications/[id]/page.tsx    ← v2: tabbed application, the site's own tab strip
 │   │   ├── applications/[id]/v2-bits.tsx ← v2: capture docs table + consent-checkbox Submit

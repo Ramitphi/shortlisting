@@ -53,9 +53,13 @@ export default function LearnerProfilePage() {
               To change anything here, speak to your academic counsellor.
             </p>
           )}
+          {/* Personal details ONLY. This is the site's personal-details page;
+              the academic and financing answers belong to the application,
+              and that is where they are read and changed. */}
           <ProfileSectionCards
             responses={responses}
             locked
+            sections={["Profile Data"]}
             hrefFor={() =>
               learnerCanSeeApplication(app.status)
                 ? `/learner/application/${app.id}`

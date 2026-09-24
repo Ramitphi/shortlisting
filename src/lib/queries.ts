@@ -35,6 +35,9 @@ export interface Application {
   /** Whose move it is: 'ops' to re-read, 'ac' to resolve Ops' comments. */
   recheck_state: RecheckState | null;
   recheck_kind?: string | null;
+  /** Ops' note for approval — see db.ts. Survives every handover. */
+  ops_comment?: string | null;
+  ops_comment_at?: string | null;
   learner_name?: string;
   learner_email?: string;
   ac_name?: string;

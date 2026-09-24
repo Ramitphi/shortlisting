@@ -281,6 +281,12 @@ function migrateColumns(db: BrowserDb) {
   // An offer letter is reissued rather than replaced: a deferral or a
   // programme change writes a new one and marks the previous superseded. The
   // learner signed against what the old one said, so it stays a record.
+  // Ops' comment for approval. It belongs to
+  // the APPLICATION, not to a review pass: the file goes back and forth
+  // between the counsellor and Ops, and a note that reset on each handover
+  // would be a note nobody bothered to write. One field, kept.
+  addColumn(db, "applications", "ops_comment", "TEXT");
+  addColumn(db, "applications", "ops_comment_at", "TEXT");
   addColumn(db, "offer_letters", "superseded_at", "TEXT");
   addColumn(db, "offer_letters", "reason", "TEXT");
 

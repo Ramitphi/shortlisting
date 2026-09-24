@@ -13,6 +13,7 @@ import {
   setProfileVariant,
   setLearnerView,
   setSessionUid,
+  setTourSeen,
   activityViewRaw,
   learnerViewRaw,
 } from "./session";
@@ -65,6 +66,8 @@ export async function resetDemoData() {
   const { seedDemo } = require("./demo-seed.js");
   seedDemo(getDb());
   setSessionUid(null);
+  // The walkthrough is part of the demo, so it comes back with the rest of it.
+  setTourSeen(false);
   // Full page load: the session just died under a mounted protected page,
   // and an SPA transition would race its own teardown (see hardGoto).
   await hardGoto("/login?toast=reset");
@@ -944,7 +947,7 @@ export async function verifyLearnerDoc(
       notify(
         app.learner_id,
         `Please re-upload your ${def.type}${reason ? ` — ${reason}` : ""}`,
-        `/learner/application/${applicationId}?tab=docs`
+        "/learner/documents"
       );
     } else if (app.ac_id) {
       notify(
@@ -1372,6 +1375,100 @@ export async function setProgramEligibility(
     if (app.ac_id) notify(app.ac_id, msg, `/ac/application/${p.application_id}`);
     else notifyRole("ac", msg, `/ac/application/${p.application_id}`);
   }
+  dirty();
+}
+
+/**
+ * Ops' comment for approval, on the application.
+ *
+ * One field, multiline, on the APPLICATION rather than on a review pass. The
+ * file bounces — Ops raise comments, the counsellor resolves them with the
+ * learner, it comes back, the learner edits something and it comes back
+ * again — and a note that emptied on each handover is a note nobody would
+ * trust enough to use. So it persists through every status change and every
+ * re-check, and each save stamps when it was last touched.
+ *
+ * Editable whenever the file is on Ops' desk: first vetting, a re-check they
+ * hold, or a post-offer programme change. It reads back at every other
+ * moment, including after the offer, so the history is never lost — only
+ * frozen. The learner never sees it; this is an internal note.
+ */
+export async function setOpsComment(applicationId: number, formData: FormData) {
+  const user = requireUser("ops");
+  const app = getApplication(applicationId);
+  if (!app) return;
+  const reRuling = Boolean(app.recheck_at) && app.recheck_state !== "ac";
+  const changing = Boolean(app.change_at);
+  if (app.status !== "under_review" && !reRuling && !changing) return;
+
+  // Trailing whitespace only differs from empty by accident, so it is not a
+  // change worth stamping a new time on.
+  const comment = String(formData.get("comment") ?? "").trim();
+  if (comment === (app.ops_comment ?? "").trim()) return;
+
+  getDb()
+    .prepare(
+      "UPDATE applications SET ops_comment = ?, ops_comment_at = datetime('now') WHERE id = ?"
+    )
+    .run(comment || null, applicationId);
+  logEvent(
+    applicationId,
+    user.id,
+    comment ? "Comment for approval updated" : "Comment for approval cleared"
+  );
+  dirty();
+}
+
+/**
+ * The batch this programme's seat is for, set by Ops while they vet.
+ *
+ * It had no owner before: `programs.intake` existed and fed the offer letter
+ * and the learner's "Starts …" line, but the only thing that ever wrote it
+ * was a deferral — AFTER the offer. So every first offer went out without a
+ * date on it. Ops holds the seat allocation, so Ops fills this, on the same
+ * card where they rule on eligibility, and it stays on the programme from
+ * there: the offer letter picks it up, and a later deferral overwrites it.
+ *
+ * Stored as "May 2027", never "2027-05". The picker speaks months and the
+ * letter speaks English, and one readable form in the column is what keeps
+ * a hand-typed Jan 2027 / January 2027 / 01/2027 from ever appearing.
+ */
+export async function setProgramIntake(programId: number, formData: FormData) {
+  const user = requireUser("ops");
+  const p = getDb()
+    .prepare("SELECT application_id, name, intake FROM programs WHERE id = ?")
+    .get(programId) as
+    | { application_id: number; name: string; intake: string | null }
+    | undefined;
+  if (!p) return;
+  const app = getApplication(p.application_id);
+  if (!app) return;
+  // The same three moments Ops is allowed to rule in — vetting, a re-check
+  // they hold, and a post-offer programme change. Once the file has left
+  // their desk the batch moves by deferral, which has its own rules.
+  const reRuling = Boolean(app.recheck_at) && app.recheck_state !== "ac";
+  const changing = Boolean(app.change_at);
+  if (app.status !== "under_review" && !reRuling && !changing) return;
+
+  const raw = String(formData.get("intake") ?? "").trim();
+  const m = /^(\d{4})-(\d{2})$/.exec(raw);
+  const d = m ? new Date(Number(m[1]), Number(m[2]) - 1, 1) : null;
+  const intake =
+    d && !Number.isNaN(d.getTime())
+      ? d.toLocaleString("en-GB", { month: "long", year: "numeric" })
+      : raw || null;
+  if (intake === (p.intake ?? null)) return;
+
+  getDb()
+    .prepare("UPDATE programs SET intake = ? WHERE id = ?")
+    .run(intake, programId);
+  logEvent(
+    p.application_id,
+    user.id,
+    intake
+      ? `Intake set to ${intake}: ${p.name}`
+      : `Intake cleared: ${p.name}`
+  );
   dirty();
 }
 

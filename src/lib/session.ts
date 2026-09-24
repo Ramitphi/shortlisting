@@ -85,6 +85,21 @@ export function setDesignMode(on: boolean): void {
   write(DESIGN_MODE_KEY, on ? "on" : null);
 }
 
+const TOUR_KEY = "shortlisting_learner_tour_seen";
+
+/**
+ * Whether the learner has been walked through their side once. The tour runs
+ * on first visit only — and "Reset demo data" clears this along with the
+ * database, so a demo can always be run again from the top.
+ */
+export function tourSeen(): boolean {
+  return read(TOUR_KEY) === "yes";
+}
+
+export function setTourSeen(seen: boolean): void {
+  write(TOUR_KEY, seen ? "yes" : null);
+}
+
 export function learnerViewRaw(): string | null {
   return read(LEARNER_VIEW_KEY);
 }

@@ -101,6 +101,19 @@ body {
   border-radius: 12px;
 }
 
+/* The site's stylesheet loads AFTER Tailwind's and ships its own `.h-7`/`.w-7`
+   at 7px — its scale, not Tailwind's 28px. Same specificity, so the site won
+   and every 28px square built by a shared component (document-table's row
+   actions, file tiles, the undertaking tick) collapsed to a speck on the
+   learner's side only. Scoping to .ug-app outranks it. The capture markup
+   uses the site's own `h-56`/`w-78` names and is untouched by this. */
+.ug-app .h-7 {
+  height: 1.75rem;
+}
+.ug-app .w-7 {
+  width: 1.75rem;
+}
+
 /* Form fields exactly as the site's Personal Details form builds them
    (lifted from the capture's own classes): 48px tall, 8px radius, grey
    #7C8698 border, 14px text, red border on focus — no focus ring. */
@@ -344,4 +357,16 @@ select.input {
   height: 12px;
   border-radius: 2px;
   animation: confetti-fall 2.6s ease-in forwards;
+}
+
+/* A pane that scrolls without saying so. The alumni wall moves under a fixed
+   header, and a track running down the middle of the page announced a frame
+   the design doesn't otherwise draw. Scrolling itself is untouched — wheel,
+   trackpad, keyboard and touch all still work, and so does the focus ring. */
+.scroll-quiet {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* old Edge */
+}
+.scroll-quiet::-webkit-scrollbar {
+  display: none; /* Safari, Chrome */
 }

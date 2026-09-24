@@ -126,9 +126,18 @@ function ViewSections({ groups, skipped }: ViewProps) {
 export function ProfileSummary({
   responses,
   learnerName,
+  comment,
 }: {
   responses: Record<string, string>;
   learnerName?: string | null;
+  /**
+   * The approval note, inside this card rather than beside it — it is written
+   * about what the card says, so it reads as the last band of the summary
+   * instead of a second opinion further down the page. Ops pass the editable
+   * form, the counsellor a read-only paragraph, and this component only
+   * decides where it sits and what it is called.
+   */
+  comment?: React.ReactNode;
 }) {
   const View = VIEWS[profileVariant()] ?? ViewSections;
   return (
@@ -145,6 +154,14 @@ export function ProfileSummary({
         narrative={summaryNarrative(responses, learnerName)}
         learnerName={learnerName}
       />
+      {comment && (
+        <div className="mt-4 border-t border-line pt-4">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.07em] text-caption">
+            Comment for approval
+          </div>
+          <div className="mt-2">{comment}</div>
+        </div>
+      )}
     </SectionCard>
   );
 }

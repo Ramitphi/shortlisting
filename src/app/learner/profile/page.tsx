@@ -1,7 +1,6 @@
 "use client";
 
 import { useDbVersion } from "@/components/db-provider";
-import Link from "next/link";
 import { requireRole } from "@/components/shell";
 import { UpgradShell } from "@/components/upgrad-shell";
 import { getFormResponses, listApplications } from "@/lib/queries";
@@ -11,20 +10,41 @@ import { ProfileSectionCards } from "../profile-cards";
 
 
 /**
- * Profile → Personal details, READ-ONLY. Editing is application-specific
- * (My applications → My details) — the PM's call: the profile page shows
- * what is on file, the application is where it changes.
+ * Profile → Personal details, edited HERE.
+ *
+ * It used to be read-only, pointing at the application for every change:
+ * "to change anything here, edit it inside your application". That made the
+ * learner's own name and phone number a thing they had to open an
+ * application to correct — and the page they landed on then asked them to
+ * re-read and re-certify a form, to fix a typo in their mobile.
+ *
+ * So the section edits in place, on the same per-section form the application
+ * uses. The consequence is unchanged and deliberate: `updateLearnerDetails`
+ * still sends the change back for a re-check, because these are the answers
+ * the undertakings certify — it does not matter which screen they were
+ * changed on.
+ *
+ * Two things still hold it shut: a completed application (nothing moves after
+ * the offer) and the period before the first shortlist, when the counsellor
+ * is collecting the details and is the route for changing them.
  */
-export default function LearnerProfilePage() {
+export default function LearnerProfilePage({
+  searchParams,
+}: {
+  searchParams: { edit?: string };
+}) {
   // Re-render on any browser-db or session change.
   useDbVersion();
   const user = requireRole("learner");
   const app = listApplications({ learnerId: user.id })[0];
   const responses = app ? getFormResponses(app.id) : {};
 
+  const visible = app ? learnerCanSeeApplication(app.status) : false;
+  const locked = !app || !visible || app.status === "completed";
+
   return (
     <UpgradShell user={user} section="profile" appId={app?.id ?? null}>
-      <h1 className="text-[28px] font-medium tracking-tight">Profile</h1>
+      <h1 className="text-[28px] font-medium tracking-tight">My profile</h1>
 
       {!app ? (
         <div className="card mt-5 px-6 py-10 text-center text-[15px] text-body">
@@ -33,24 +53,14 @@ export default function LearnerProfilePage() {
         </div>
       ) : (
         <>
-          {/* Their own details stay readable throughout — this is the
-              learner's personal data, not the application. But until the
-              application is theirs to see, there is nowhere to send them to
-              change it, so the counsellor is the route. */}
-          {learnerCanSeeApplication(app.status) ? (
+          {/* Only said when it is NOT editable — an instruction about how to
+              change something, on a page where you can just change it, is
+              noise. */}
+          {locked && (
             <p className="mt-1 text-[14px] text-body">
-              To change anything here, edit it inside{" "}
-              <Link
-                href={`/learner/application/${app.id}`}
-                className="font-medium text-accent hover:underline"
-              >
-                your application
-              </Link>
-              .
-            </p>
-          ) : (
-            <p className="mt-1 text-[14px] text-body">
-              To change anything here, speak to your academic counsellor.
+              {app.status === "completed"
+                ? "Your application is complete — these are view only."
+                : "To change anything here, speak to your academic counsellor."}
             </p>
           )}
           {/* Personal details ONLY. This is the site's personal-details page;
@@ -58,12 +68,13 @@ export default function LearnerProfilePage() {
               and that is where they are read and changed. */}
           <ProfileSectionCards
             responses={responses}
-            locked
+            locked={locked}
+            editing={locked ? undefined : searchParams.edit}
             sections={["Profile Data"]}
-            hrefFor={() =>
-              learnerCanSeeApplication(app.status)
-                ? `/learner/application/${app.id}`
-                : "/learner/application"
+            hrefFor={(sec) =>
+              sec
+                ? `/learner/profile?edit=${encodeURIComponent(sec)}`
+                : "/learner/profile"
             }
             action={updateLearnerDetails.bind(null, app.id)}
           />

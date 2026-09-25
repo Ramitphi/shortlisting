@@ -34,7 +34,7 @@ export default function LearnerDocumentsPage() {
   if (!app || !learnerCanSeeApplication(app.status)) {
     return (
       <UpgradShell user={user} section="documents" appId={app?.id ?? null}>
-        <h1 className="text-[28px] font-medium tracking-tight">Documents</h1>
+        <h1 className="text-[28px] font-medium tracking-tight">My documents</h1>
         <div className="card mt-5 px-6 py-10 text-center">
           <p className="text-[15px] text-body">
             Nothing to show here yet.
@@ -58,7 +58,7 @@ export default function LearnerDocumentsPage() {
   return (
     <UpgradShell user={user} section="documents" appId={app.id}>
       <div className="flex flex-wrap items-baseline gap-2">
-        <h1 className="text-[28px] font-medium tracking-tight">Documents</h1>
+        <h1 className="text-[28px] font-medium tracking-tight">My documents</h1>
         {missing > 0 && !locked && (
           <span className="text-[13.5px] font-medium text-accent">
             ({missing} document{missing === 1 ? "" : "s"} missing)

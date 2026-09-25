@@ -17,7 +17,8 @@ import { getApplication, getDocuments, getFormResponses, logEvent, notify } from
 export function attachRequiredForms(applicationId: number, actorId: number) {
   const app = getApplication(applicationId);
   if (!app) return;
-  if (getDocuments(applicationId).length > 0) return;
+  // Waived rows count here: they exist, so nothing should regenerate them.
+  if (getDocuments(applicationId, { includeWaived: true }).length > 0) return;
 
   const db = getDb();
   const responses = getFormResponses(applicationId);
@@ -102,7 +103,7 @@ export function attachMissingForms(applicationId: number, actorId: number) {
   const triggered = (responses.triggered_clauses ?? "").split("|").filter(Boolean);
 
   const existing = new Set(
-    getDocuments(applicationId)
+    getDocuments(applicationId, { includeWaived: true })
       .map((d) => d.template_id)
       .filter((id): id is number => id !== null)
   );
@@ -119,7 +120,7 @@ export function attachMissingForms(applicationId: number, actorId: number) {
   // an undertaking nobody could remove (Ops may only detach what Ops attached)
   // and certifying needs every document signed, so it blocked them for good.
   // Only untouched auto-generated ones go: anything signed is a record.
-  const stale = getDocuments(applicationId).filter(
+  const stale = getDocuments(applicationId, { includeWaived: true }).filter(
     (d) =>
       d.auto_generated &&
       !d.signed_at &&

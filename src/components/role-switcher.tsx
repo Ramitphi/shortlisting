@@ -50,13 +50,6 @@ const ACCOUNTS = [
     role: "Learner",
     sees: "Shortlisted, ready to sign and certify",
   },
-  {
-    key: "admin",
-    email: "admin@upgrad.com",
-    name: "Asha Sharma",
-    role: "Admin",
-    sees: "Users and role assignment",
-  },
 ];
 
 /**

@@ -14,11 +14,16 @@ import { IconCheck, IconDoc } from "./icons";
 export function UndertakingCard({
   title,
   signedAt,
+  waived = false,
+  waivedReason,
   action,
   secondaryAction,
 }: {
   title: string;
   signedAt?: string | null;
+  /** Ops set the requirement aside — the learner is never asked for it. */
+  waived?: boolean;
+  waivedReason?: string | null;
   /** The primary control, e.g. the document dialog trigger. */
   action: React.ReactNode;
   /** Optional extra control — Ops can remove what Ops attached. */
@@ -26,10 +31,18 @@ export function UndertakingCard({
 }) {
   const signed = Boolean(signedAt);
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-line bg-white px-4 py-3">
+    <div
+      className={`flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border px-4 py-3 ${
+        waived ? "border-dashed border-line-strong bg-paper" : "border-line bg-white"
+      }`}
+    >
       <span
         className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-          signed ? "bg-[#e8f2e9] text-[#3f6c45]" : "bg-cream text-caption"
+          signed
+            ? "bg-[#e8f2e9] text-[#3f6c45]"
+            : waived
+              ? "bg-muted text-caption"
+              : "bg-cream text-caption"
         }`}
       >
         {signed ? (
@@ -40,7 +53,11 @@ export function UndertakingCard({
       </span>
 
       <span className="min-w-[10rem] flex-1">
-        <span className="block truncate text-[13.5px] font-medium text-ink">
+        <span
+          className={`block truncate text-[13.5px] font-medium ${
+            waived ? "text-body line-through decoration-caption/50" : "text-ink"
+          }`}
+        >
           {title}
         </span>
         <span
@@ -48,9 +65,15 @@ export function UndertakingCard({
             signed ? "text-[#3f6c45]" : "text-caption"
           }`}
         >
-          {signed
-            ? `Signed on ${signedAt?.slice(0, 10)}`
-            : "Awaiting signature"}
+          {/* Waived wins the line: "Awaiting signature" on something nobody
+              will ever be asked to sign is the one reading that misleads. */}
+          {waived
+            ? waivedReason
+              ? `Not required — ${waivedReason}`
+              : "Not required"
+            : signed
+              ? `Signed on ${signedAt?.slice(0, 10)}`
+              : "Awaiting signature"}
         </span>
       </span>
 

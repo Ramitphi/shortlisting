@@ -24,8 +24,13 @@ type Step = { target: string; title: string; body: string };
 
 const STEPS: Step[] = [
   {
+    target: "dashboard",
+    title: "Dashboard",
+    body: "Universities worth a look, countries people go to, and learners who have already gone. Browse it while your application is with us.",
+  },
+  {
     target: "profile",
-    title: "Your profile",
+    title: "My profile",
     body: "The personal details upGrad holds for you. Read-only here — they change inside your application, so one set of answers stays true everywhere.",
   },
   {
@@ -35,12 +40,12 @@ const STEPS: Step[] = [
   },
   {
     target: "documents",
-    title: "Your documents",
+    title: "My documents",
     body: "Everything you've uploaded, and anything still missing. We check each one and let you know if we need it again.",
   },
   {
     target: "flying",
-    title: "Flying journey",
+    title: "Academic / Flying Journey",
     body: "Once you're admitted, track everything from application to visa in PRISM. Opens in a new tab.",
   },
   {
@@ -55,8 +60,8 @@ const STEPS: Step[] = [
   },
   {
     target: "support",
-    title: "Your counsellor",
-    body: "Who's looking after your application, and how to reach them. My support opens the helpline if you'd rather call us.",
+    title: "Your team",
+    body: "Everyone assigned to you — your counsellor, and your visa counsellor, buddy and loan advisor as they come on board. My support opens the helpline if you'd rather call us.",
   },
 ];
 

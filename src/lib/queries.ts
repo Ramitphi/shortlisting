@@ -139,6 +139,9 @@ export interface Doc {
   source: "auto" | "ops";
   /** The trigger clause behind this document, from its template. */
   clause_id: string | null;
+  /** Set when Ops waived the requirement — see getDocuments. */
+  waived_at: string | null;
+  waived_reason: string | null;
 }
 
 /** One filled slot in the learner's document locker. */
@@ -313,13 +316,46 @@ export function getPrograms(applicationId: number): Program[] {
     .all(applicationId) as Program[];
 }
 
-export function getDocuments(applicationId: number): Doc[] {
+/**
+ * A waived undertaking is excluded BY DEFAULT, and that default is the whole
+ * safety of the feature: certification, the offer release, the sign-all
+ * action and every "N left to sign" count run through here, so waiving one
+ * drops it out of all of them at once. Nothing had to be remembered.
+ *
+ * `includeWaived` is for the two jobs that must still see it: Ops' own list,
+ * and the dedupe guards that would otherwise re-attach a form somebody had
+ * just set aside.
+ */
+/** One assigned person besides the counsellor — see the assignees table. */
+export interface Assignee {
+  role: string;
+  name: string;
+  email: string | null;
+}
+
+/**
+ * Who else is looking after this learner. Only the roles actually assigned
+ * come back, in a fixed order so the card does not reshuffle between visits.
+ */
+export function getAssignees(applicationId: number): Assignee[] {
+  const rows = getDb()
+    .prepare("SELECT role, name, email FROM assignees WHERE application_id = ?")
+    .all(applicationId) as Assignee[];
+  const order = ["visa", "buddy", "loan"];
+  return rows.sort((a, b) => order.indexOf(a.role) - order.indexOf(b.role));
+}
+
+export function getDocuments(
+  applicationId: number,
+  opts: { includeWaived?: boolean } = {}
+): Doc[] {
+  const where = opts.includeWaived ? "" : " AND d.waived_at IS NULL";
   return getDb()
     .prepare(
       `SELECT d.*, t.clause_id AS clause_id
        FROM documents d
        LEFT JOIN document_templates t ON t.id = d.template_id
-       WHERE d.application_id = ? AND d.retired_at IS NULL
+       WHERE d.application_id = ? AND d.retired_at IS NULL${where}
        ORDER BY d.created_at ASC`
     )
     .all(applicationId) as Doc[];

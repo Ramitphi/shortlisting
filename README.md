@@ -11,7 +11,7 @@ the browser's own storage: there is no backend, no server state, and nothing to
 provision. That is deliberate — it deploys to Vercel as-is (see **Deploying it**,
 below). The visual design is built out; this is not a wireframe.
 
-**Two design worlds, on purpose.** The counsellor, Ops and admin use the internal tool's
+**Two design worlds, on purpose.** The counsellor and Ops use the internal tool's
 own design. The learner's side is built inside **upgrad.com** — the real site's header,
 fonts (CircularXX), brand red and profile-page layout, carrying the designed left
 navigation: Profile, **My application**, **Documents**, Flying journey, Centres and
@@ -99,7 +99,6 @@ the bottom-right corner switches account instantly, and tells you what each one 
 | Academic Counsellor | Arjun Mehta | All seven learners, one per state |
 | Ops Team | Omar Khan | The vetting pipeline |
 | Learner | Neha Gupta | Inside upgrad.com — review, sign and certify |
-| Admin | Asha Sharma | Users and role assignment |
 
 The same menu holds one button and one switch:
 
@@ -111,8 +110,8 @@ The same menu holds one button and one switch:
   behind a **Check activity** button beside the learner's name, which fans out from the
   right edge. Off is the alternative under discussion, not the default.
 
-(Signing in manually also works: the four accounts above at `academic@` / `ops@` /
-`learner@` / `admin@upgrad.com`, password **12345**.)
+(Signing in manually also works: the three accounts above at `academic@` / `ops@` /
+`learner@upgrad.com`, password **12345**.)
 
 ---
 
@@ -254,11 +253,10 @@ src/
 │   │   ├── details-form.tsx              ← the edit form, in the capture's own field classes
 │   │   ├── detail-rows.tsx               ← the upGrad label/value row, shared
 │   │   └── certify-block.tsx             ← the closing certification dialogue
-│   ├── admin/page.tsx                    ← user list and role assignment
 │   └── updates/page.tsx                  ← notifications, shared by every role
 ├── components/
 │   ├── db-provider.tsx                   ← opens the browser database, gates the app on it
-│   ├── shell.tsx                         ← internal-tool frame (counsellor, Ops, admin)
+│   ├── shell.tsx                         ← internal-tool frame (counsellor, Ops)
 │   ├── upgrad-shell.tsx                  ← upgrad.com frame for the learner: header,
 │   │                                        breadcrumb, left nav — and the ONLY place
 │   │                                        that loads /upgrad/site.css
@@ -310,8 +308,8 @@ of it.
   and all. Tab selection is driven by `data-headlessui-state="selected"`, exactly how
   the site itself does it. **Do not "improve" these class strings into our own
   components** — matching the site is the requirement.
-- **Only `upgrad-shell.tsx` loads site.css**, so the internal tool (counsellor / Ops /
-  admin) never sees it. Keep it that way — the two design worlds must not bleed into
+- **Only `upgrad-shell.tsx` loads site.css**, so the internal tool (counsellor and Ops)
+  never sees it. Keep it that way — the two design worlds must not bleed into
   each other.
 - **Three landmines in that stylesheet are already defused in our copy; don't undo
   them.** (1) It ships two-letter country-flag sprite classes — `.ug` is *Uganda's

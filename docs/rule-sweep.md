@@ -16,10 +16,10 @@ because a UI-only rule is not a rule once there's an API.
 
 | # | Rule | Where |
 |---|---|---|
-| A1 | Four roles: learner, counsellor (`ac`), Ops, admin. | `domain.ts` |
+| A1 | Three roles: learner, counsellor (`ac`), Ops. The admin role was removed — see A3. | `domain.ts` |
 | A2 | One application per learner. The counsellor is assigned when the application is created; the Ops owner on first open. **Both are write-once — neither can be changed afterwards.** See Q1. | schema, `claimApplication` |
-| A3 | Admin can create users and change any user's role. Admin sees aggregate counts but cannot open an individual application. Single role per user; no permissions, scopes, teams or hierarchy. See Q2. | `setUserRole`, `createUser` |
-| A7 | 🔶 Creating a learner auto-creates a draft application and assigns it to a **randomly chosen** counsellor (`ORDER BY RANDOM()`). No territory, capacity or round-robin logic. | `createUser` |
+| A3 | ⚠️ **Nothing in the product creates users or changes a role.** The admin screen was the only surface for either, and it has been removed along with `setUserRole` and `createUser`; the User Hubs are read-only directories. Users exist because the seed made them. Single role per user; no permissions, scopes, teams or hierarchy. See Q2. | — |
+| A7 | A learner without an application gets a draft one on the next reset, assigned to the seeded counsellor. The random-counsellor assignment went with `createUser`. | `demo-seed.js` |
 | A4 | The first Ops user to **open** an unassigned application under vetting is assigned it. Opening *is* claiming — there is no confirm step. | `claimApplication` |
 | A5 | A counsellor can only act on applications where they are the assigned counsellor. | every `ac` action |
 | A6 | 🔶 **Any Ops user can act on any application, including one already claimed by another Ops user.** No Ops action checks `ops_id`. | all `ops` actions |

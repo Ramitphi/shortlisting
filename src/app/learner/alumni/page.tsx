@@ -5,6 +5,7 @@ import { requireRole } from "@/components/shell";
 import { UpgradShell } from "@/components/upgrad-shell";
 import { instituteInitials } from "@/components/ui";
 import { listApplications } from "@/lib/queries";
+import { ALUMNI } from "@/lib/showcase";
 
 /**
  * Alumni — the repository, as a grid.
@@ -14,36 +15,15 @@ import { listApplications } from "@/lib/queries";
  * level. This is that, rebuilt in this side's design so it sits inside the
  * shell rather than throwing the learner out to the marketing site.
  *
- * These are demo records, like the seeded learners. Nobody here is real, and
- * the LinkedIn mark is a badge on the card, not a link to an account. The real
- * repository is a page on the main site, and the header's CTA goes there.
+ * The records live in lib/showcase.ts — the dashboard shows the first few of
+ * them, and two copies of the same list is how they drift apart. The LinkedIn
+ * mark is a badge on the card, not a link to an account. The real repository
+ * is a page on the main site, and the header's CTA goes there.
  */
 
 /** The live alumni repository on upgrad.com. */
 const ALUMNI_URL = "https://www.upgrad.com/study-abroad/alumni-connect/";
 
-type Alum = {
-  name: string;
-  programme: string;
-  university: string;
-  country: string;
-  degree: string;
-};
-
-const ALUMNI: Alum[] = [
-  { name: "Swapnil Mule", programme: "Master Degree in Data Science", university: "IU Germany", country: "Germany", degree: "Masters" },
-  { name: "Vinay Baja", programme: "MS in Information Technology", university: "Clark University", country: "USA", degree: "Masters" },
-  { name: "Vimal Kaur", programme: "Master Degree in Data Science", university: "IU Germany", country: "Germany", degree: "Masters" },
-  { name: "Vikas Yadav", programme: "Master of Business Administration (90 ECTS)", university: "IU Germany", country: "Germany", degree: "Masters" },
-  { name: "Varsha Soni", programme: "Master of Business Administration (90 ECTS)", university: "IU Germany", country: "Germany", degree: "Masters" },
-  { name: "Triveni Nikam", programme: "Master of Business Administration (90 ECTS)", university: "IU Germany", country: "Germany", degree: "Masters" },
-  { name: "Thimmayya Pudiyokkada", programme: "Master Degree in Data Science", university: "IU Germany", country: "Germany", degree: "Masters" },
-  { name: "Thejas M N", programme: "Master in Computer Science (120 ECTS)", university: "IU Germany", country: "Germany", degree: "Masters" },
-  { name: "Sneha Rajagopal", programme: "MSc in Business Analytics", university: "Deakin University", country: "Australia", degree: "Masters" },
-  { name: "Rahul Bhatt", programme: "MS in Computer Science", university: "Clark University", country: "USA", degree: "Masters" },
-  { name: "Priya Menon", programme: "MSc in International Management", university: "IU Germany", country: "Germany", degree: "Masters" },
-  { name: "Karan Oberoi", programme: "Bachelor of Business Administration", university: "Deakin University", country: "Australia", degree: "Bachelors" },
-];
 
 /** The site's badge: a circle of initials, LinkedIn mark clipped to its edge. */
 function Avatar({ name }: { name: string }) {
@@ -99,10 +79,6 @@ export default function LearnerAlumniPage() {
         what you are about to read, where you are about to read it.
       </p>
 
-      <p className="mt-5 text-[14px] text-body">
-        {ALUMNI.length} results found
-      </p>
-
       {/* An auto-fill track, NOT `grid-cols-1 sm:grid-cols-2`. The site's own
           stylesheet loads after Tailwind's and defines a bare `.grid-cols-1`,
           which beats `sm:grid-cols-2` on equal specificity — every card ended
@@ -112,7 +88,7 @@ export default function LearnerAlumniPage() {
           CTA stay put while the wall moves under them. The scrollbar itself
           is hidden (see .scroll-quiet) — the half-row showing at the bottom
           edge is what says there is more. */}
-      <div className="scroll-quiet mt-4 max-h-[620px] overflow-y-auto">
+      <div className="scroll-quiet mt-6 max-h-[620px] overflow-y-auto">
         <div className="grid gap-5 grid-cols-[repeat(auto-fill,minmax(200px,1fr))]">
           {ALUMNI.map((a) => (
             <div

@@ -114,7 +114,6 @@ export const DEMO_ACCOUNTS: Record<string, string> = {
   "learner@upgrad.com": "neha.learner@example.com",
   "ops@upgrad.com": "omar.ops@example.com",
   "academic@upgrad.com": "arjun.ac@example.com",
-  "admin@upgrad.com": "asha.admin@example.com",
 };
 
 export async function login(formData: FormData) {
@@ -981,7 +980,14 @@ export async function addDocument(applicationId: number, formData: FormData) {
     | { id: number; type: string; title: string; content: string }
     | undefined;
   if (!tpl) return;
-  if (getDocuments(applicationId).some((d) => d.template_id === tpl.id)) return;
+  // Including waived ones: a form somebody set aside must not silently
+  // reappear because the picker no longer sees it.
+  if (
+    getDocuments(applicationId, { includeWaived: true }).some(
+      (d) => d.template_id === tpl.id
+    )
+  )
+    return;
 
   const app = getApplication(applicationId);
   const responses = getFormResponses(applicationId);
@@ -1400,6 +1406,69 @@ export async function setProgramEligibility(
 }
 
 /**
+ * Ops waives a required undertaking — or puts it back.
+ *
+ * Until now Ops could only delete what Ops had attached; anything the form
+ * library generated was permanent, tooltip and all ("Required document —
+ * cannot be deleted"). That is right for deletion and wrong for reality: a
+ * declaration triggered by an answer is sometimes genuinely not needed, and
+ * with certification gated on every document being signed, an undertaking
+ * nobody could remove was an application nobody could finish.
+ *
+ * So it is waived, not deleted. The row stays with who set it aside and why,
+ * the learner stops being asked for it, and it stops gating certification and
+ * the offer — because `getDocuments` hides waived rows from everything except
+ * Ops' own list. Reversible: waiving is a judgement, and judgements change.
+ *
+ * A SIGNED undertaking cannot be waived. Once the learner has put their name
+ * to it, it is a record of something they promised, not a requirement pending.
+ */
+export async function setDocumentWaived(docId: number, formData: FormData) {
+  const user = requireUser("ops");
+  const d = getDb()
+    .prepare(
+      "SELECT application_id, title, signed_at, waived_at FROM documents WHERE id = ?"
+    )
+    .get(docId) as
+    | {
+        application_id: number;
+        title: string;
+        signed_at: string | null;
+        waived_at: string | null;
+      }
+    | undefined;
+  if (!d || d.signed_at) return;
+  const app = getApplication(d.application_id);
+  if (!app) return;
+  // The same three moments Ops is allowed to act in.
+  const reRuling = Boolean(app.recheck_at) && app.recheck_state !== "ac";
+  const changing = Boolean(app.change_at);
+  if (app.status !== "under_review" && !reRuling && !changing) return;
+
+  const waive = String(formData.get("waive") ?? "") === "yes";
+  if (waive === Boolean(d.waived_at)) return;
+  const reason = String(formData.get("reason") ?? "").trim();
+
+  getDb()
+    .prepare(
+      waive
+        ? "UPDATE documents SET waived_at = datetime('now'), waived_reason = ? WHERE id = ?"
+        : "UPDATE documents SET waived_at = NULL, waived_reason = NULL WHERE id = ?"
+    )
+    .run(...(waive ? [reason || null, docId] : [docId]));
+
+  logEvent(
+    d.application_id,
+    user.id,
+    waive
+      ? `Undertaking no longer required: ${d.title}`
+      : `Undertaking required again: ${d.title}`,
+    waive ? reason || undefined : undefined
+  );
+  dirty();
+}
+
+/**
  * Ops has ruled on a programme change and hands it to the counsellor.
  *
  * Explicit, like the first review: a verdict alone used to pass the change
@@ -1486,9 +1555,9 @@ export async function setOpsComment(applicationId: number, formData: FormData) {
  * card where they rule on eligibility, and it stays on the programme from
  * there: the offer letter picks it up, and a later deferral overwrites it.
  *
- * Stored as "May 2027", never "2027-05". The picker speaks months and the
- * letter speaks English, and one readable form in the column is what keeps
- * a hand-typed Jan 2027 / January 2027 / 01/2027 from ever appearing.
+ * Picked on the same calendar a deferral uses, and stored the way that one
+ * stores it — "2 April 2027". A batch starts on a day; the two places a date
+ * is set must not disagree about what a batch is.
  */
 export async function setProgramIntake(programId: number, formData: FormData) {
   const user = requireUser("ops");
@@ -1507,13 +1576,9 @@ export async function setProgramIntake(programId: number, formData: FormData) {
   const changing = Boolean(app.change_at);
   if (app.status !== "under_review" && !reRuling && !changing) return;
 
-  const raw = String(formData.get("intake") ?? "").trim();
-  const m = /^(\d{4})-(\d{2})$/.exec(raw);
-  const d = m ? new Date(Number(m[1]), Number(m[2]) - 1, 1) : null;
-  const intake =
-    d && !Number.isNaN(d.getTime())
-      ? d.toLocaleString("en-GB", { month: "long", year: "numeric" })
-      : raw || null;
+  // The picker formats it — "2 April 2027" — the same way the deferral
+  // dialog does, so one readable form reaches the column from both places.
+  const intake = String(formData.get("intake") ?? "").trim() || null;
   if (intake === (p.intake ?? null)) return;
 
   getDb()
@@ -2435,43 +2500,6 @@ export async function sendOfferLetter(applicationId: number, formData: FormData)
   // would hide the very state the toast is announcing.
   goto(`/ops/application/${applicationId}?tab=eligibility&toast=offer`);
 }
-
-// ---------- Admin ----------
-
-export async function setUserRole(userId: number, formData: FormData) {
-  requireUser("admin");
-  const role = String(formData.get("role"));
-  if (!["learner", "ac", "ops", "admin"].includes(role)) return;
-  getDb().prepare("UPDATE users SET role = ? WHERE id = ?").run(role, userId);
-  dirty();
-}
-
-export async function createUser(formData: FormData) {
-  requireUser("admin");
-  const name = String(formData.get("name") ?? "").trim();
-  const email = String(formData.get("email") ?? "").trim().toLowerCase();
-  const role = String(formData.get("role"));
-  if (!name || !email || !["learner", "ac", "ops", "admin"].includes(role)) return;
-  try {
-    const res = getDb()
-      .prepare("INSERT INTO users (name, email, role) VALUES (?, ?, ?)")
-      .run(name, email, role);
-    if (role === "learner") {
-      // A learner always has exactly one eligibility application; assign round-robin to an AC.
-      const ac = getDb()
-        .prepare("SELECT id FROM users WHERE role = 'ac' ORDER BY RANDOM() LIMIT 1")
-        .get() as { id: number } | undefined;
-      getDb()
-        .prepare("INSERT INTO applications (learner_id, ac_id, status) VALUES (?, ?, 'draft')")
-        .run(res.lastInsertRowid, ac?.id ?? null);
-    }
-  } catch {
-    return; // duplicate email — ignore for prototype
-  }
-  dirty();
-}
-
-// ---------- notifications ----------
 
 export async function markAllRead() {
   const user = requireUser();

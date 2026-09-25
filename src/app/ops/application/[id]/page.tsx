@@ -83,6 +83,7 @@ import {
   sendOfferLetter,
   setFieldCheck,
   setGroupReview,
+  setDocumentWaived,
   setOpsComment,
   setProgramEligibility,
   setProgramIntake,
@@ -98,6 +99,7 @@ import { CataloguePicker, type PickerItem } from "./catalogue-picker";
 import { OpsField } from "./ops-field";
 import { SendOfferDialog } from "./send-offer-dialog";
 import { DeferBatchDialog } from "./defer-batch-dialog";
+import { IntakePicker } from "./intake-picker";
 import {
   parseRecheckChanges,
   CLAUSES,
@@ -112,18 +114,6 @@ import {
   pendingFor,
 } from "@/lib/domain";
 
-
-/**
- * "May 2027" back into the "2027-05" a month input wants. The column holds
- * the readable form — that is what the offer letter and the learner's start
- * line print — so the picker is the one that has to convert.
- */
-function monthValue(intake?: string | null): string {
-  if (!intake) return "";
-  const d = new Date(`1 ${intake}`);
-  if (Number.isNaN(d.getTime())) return "";
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
 
 export default function OpsApplicationPage({
   params,
@@ -144,7 +134,8 @@ export default function OpsApplicationPage({
   const responses = getFormResponses(app.id);
   const remarks = getRemarks(app.id);
   const programs = getPrograms(app.id);
-  const docs = getDocuments(app.id);
+  // The only list that shows waived undertakings — see getDocuments.
+  const docs = getDocuments(app.id, { includeWaived: true });
   const events = getEvents(app.id);
   const offer = getOfferLetter(app.id);
   const locker = docRows(getLearnerDocs(app.id));
@@ -242,8 +233,14 @@ export default function OpsApplicationPage({
   ).length;
   const certified = Boolean(app.certified_at);
   const shortlistedPrograms = programs.filter((p) => p.shortlisted);
-  const allSigned = docs.length > 0 && docs.every((d) => d.signed_at);
-  const signedCount = docs.filter((d) => d.signed_at).length;
+  // Ops' list shows waived undertakings; every count that means "still to
+  // sign" must not. `docs.every(signed)` was false FOR EVER once anything was
+  // waived — a waived undertaking is never signed — which held the offer
+  // letter shut on exactly the applications waiving was meant to free.
+  const signableDocs = docs.filter((d) => !d.waived_at);
+  const allSigned =
+    signableDocs.length > 0 && signableDocs.every((d) => d.signed_at);
+  const signedCount = signableDocs.filter((d) => d.signed_at).length;
   // Normally: an application that has got this far and has no letter yet.
   // During a programme change there IS a letter — it names the programme the
   // learner is leaving — and the last step is replacing it, so that counts
@@ -943,24 +940,46 @@ export default function OpsApplicationPage({
                       key={d.id}
                       title={d.title}
                       signedAt={d.signed_at}
+                      waived={Boolean(d.waived_at)}
+                      waivedReason={d.waived_reason}
                       secondaryAction={
                         vetting ? (
                           d.source === "ops" && !d.signed_at ? (
+                            /* Ops attached it, so Ops can take it away. */
                             <form action={removeDocument.bind(null, d.id)}>
                               <button className="btn-secondary w-full !h-9">
                                 Delete
                               </button>
                             </form>
-                          ) : (
-                            <button
-                              type="button"
-                              disabled
-                              title="Required document — cannot be deleted"
-                              className="btn-secondary w-full !h-9"
-                            >
-                              Delete
-                            </button>
-                          )
+                          ) : !d.signed_at ? (
+                            /* A required one is waived, not deleted: the row
+                               stays as a record, the learner stops being asked
+                               for it, and it stops gating certification. */
+                            <form action={setDocumentWaived.bind(null, d.id)}>
+                              <input
+                                type="hidden"
+                                name="waive"
+                                value={d.waived_at ? "no" : "yes"}
+                              />
+                              {!d.waived_at && (
+                                <input
+                                  name="reason"
+                                  placeholder="Why (optional)…"
+                                  className="input mb-2 !h-9 w-full !py-0 !text-[12.5px]"
+                                />
+                              )}
+                              <button
+                                className="btn-secondary w-full !h-9"
+                                title={
+                                  d.waived_at
+                                    ? "Require this undertaking again"
+                                    : "The learner will not be asked to sign this"
+                                }
+                              >
+                                {d.waived_at ? "Require again" : "Not required"}
+                              </button>
+                            </form>
+                          ) : null
                         ) : null
                       }
                       action={
@@ -1138,36 +1157,16 @@ export default function OpsApplicationPage({
                     </div>
 
                     {/* The batch this seat is for. Ops owns seat allocation,
-                        so it is filled here while they vet — and it stays on
-                        the programme: the offer letter names it, the learner
-                        sees "Starts …", and a deferral moves it later. */}
+                        so it is filled here while they vet — on the same
+                        calendar a deferral uses, because setting the batch
+                        and moving it later are the same act at different
+                        moments. It stays on the programme from there: the
+                        offer letter names it, and the learner sees it. */}
                     {(vetting || reRuling || rulingOnChange) && (
-                      <form
+                      <IntakePicker
+                        intake={p.intake}
                         action={setProgramIntake.bind(null, p.id)}
-                        className="mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-paper px-3 py-2.5"
-                      >
-                        <label
-                          htmlFor={`intake-${p.id}`}
-                          className="text-[12px] font-medium text-body"
-                        >
-                          Intake
-                        </label>
-                        <input
-                          id={`intake-${p.id}`}
-                          type="month"
-                          name="intake"
-                          defaultValue={monthValue(p.intake)}
-                          className="input !h-8 !w-[150px] !py-0 !text-[12.5px]"
-                        />
-                        <button className="btn-secondary !h-8 !px-3 !text-[12.5px]">
-                          Save
-                        </button>
-                        <span className="text-[12px] text-caption">
-                          {p.intake
-                            ? `Saved — batch starts ${p.intake}`
-                            : "Not set yet — the offer letter names this batch"}
-                        </span>
-                      </form>
+                      />
                     )}
 
                     {/* The counsellor is pushing back on this one. It is the
@@ -1364,7 +1363,7 @@ export default function OpsApplicationPage({
                 ) : (
                 <span className="text-xs text-caption">
                   {onLastTab
-                    ? `${eligibleCount} of ${programs.length} programme(s) eligible · ${docs.length} undertaking(s)${
+                    ? `${eligibleCount} of ${programs.length} programme(s) eligible · ${signableDocs.length} undertaking(s)${
                         openRemarks > 0 ? ` · ${openRemarks} open comment(s)` : ""
                       } · ready to send`
                     : "Comment on the counsellor's answers, fill the ops fields — changes save as you go"}

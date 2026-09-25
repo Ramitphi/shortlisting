@@ -26,7 +26,6 @@ const DEMO_ACCOUNTS = [
   { role: "Academic Counsellor", email: "academic@upgrad.com" },
   { role: "Ops Team", email: "ops@upgrad.com" },
   { role: "Learner", email: "learner@upgrad.com" },
-  { role: "Admin", email: "admin@upgrad.com" },
 ];
 
 const DARK_FIELD =

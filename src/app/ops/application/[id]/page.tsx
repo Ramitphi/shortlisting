@@ -64,6 +64,7 @@ import {
   changeOf,
   listDocTemplates,
   listProgramCatalogue,
+  isReShortlisted,
 } from "@/lib/queries";
 import {
   addRemark,
@@ -73,6 +74,7 @@ import {
   raiseRecheckRemarks,
   removeDocument,
   markReviewed,
+  finishChangeReview,
   openApplication,
   opsAddProgram,
   removeLearnerDoc,
@@ -257,7 +259,12 @@ export default function OpsApplicationPage({
   // counsellor recommended with, so both sides argue from the same number.
   const catalogue = listProgramCatalogue();
   const templates = listDocTemplates();
-  const scored = programs.map((p) => {
+  // During a programme change the card is about the change: the counsellor's
+  // pick and anything Ops has added beside it since. The older programmes
+  // (including the one the learner holds) are history, not options.
+  const scored = programs
+    .filter((p) => !change || p.id >= (app.change_program_id ?? 0))
+    .map((p) => {
     const cat = catalogue.find((c) => c.id === p.catalogue_id);
     return {
       ...p,
@@ -365,6 +372,10 @@ export default function OpsApplicationPage({
     (r) => r.filename && r.verification === "pending"
   ).length;
 
+  // The change's own options — what the review bar counts during a change.
+  const changePending = scored.filter((p) => p.eligibility === "pending").length;
+  const changeEligible = scored.filter((p) => p.eligibility === "eligible").length;
+
   const eligibleCount = programs.filter(
     (p) => p.eligibility === "eligible"
   ).length;
@@ -454,7 +465,10 @@ export default function OpsApplicationPage({
                   }
                 />
               </span>
-              <StatusBadge status={app.status} />
+              <StatusBadge
+                status={app.status}
+                recheckLabel={isReShortlisted(app) ? "Re Shortlisted" : null}
+              />
               <CertifiedChip at={app.certified_at} />
             </div>
             <p className="mt-1 text-[14.5px] text-body">
@@ -555,7 +569,7 @@ export default function OpsApplicationPage({
       {/* A completed application with a fresh candidate on it makes no sense
           on its own. This is the sentence that explains it. */}
       {change && (
-        <div className="mt-4 rounded-2xl border border-[#d3e0f0] bg-[#e7eef8] px-4 py-3.5">
+        <div className="-mt-4 mb-5 rounded-2xl border border-[#d3e0f0] bg-[#e7eef8] px-4 py-3.5">
           <p className="text-[13.5px] font-medium text-[#2b4a72]">
             Programme change — {app.learner_name} asked to move to a different
             programme.
@@ -1062,6 +1076,15 @@ export default function OpsApplicationPage({
               }
             >
               <div className="space-y-3">
+                {change && (
+                  <div className="flex items-center gap-2.5 rounded-xl border border-line bg-white px-4 py-3 text-[13.5px] text-ink">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-ink text-[11px] font-semibold text-white">
+                      i
+                    </span>
+                    AC has requested for the learner to be reshortlisted to the
+                    following program.
+                  </div>
+                )}
                 {scored.length === 0 && (
                   <EmptyState text="The counsellor hasn't recommended any programmes yet." />
                 )}
@@ -1272,13 +1295,16 @@ export default function OpsApplicationPage({
               {/* The cap is on how many LIVE options a learner is offered. With
                   nothing eligible there are none, and this picker is the only
                   way back — so the cap does not apply in that state. */}
-              {(vetting || reRuling) &&
+              {((vetting || reRuling) &&
                 (programs.length < MAX_RECOMMENDED_PROGRAMS ||
-                  eligibleCount === 0) && (
+                  eligibleCount === 0)) ||
+              (rulingOnChange && scored.length < MAX_RECOMMENDED_PROGRAMS) ? (
                   <div className="mt-4">
                     <CataloguePicker
                       label={
-                        eligibleCount === 0
+                        rulingOnChange
+                          ? "Add another programme from the catalogue"
+                          : eligibleCount === 0
                           ? "Nothing is eligible — add a programme that is"
                           : "Add a programme from the catalogue"
                       }
@@ -1293,7 +1319,7 @@ export default function OpsApplicationPage({
                       addedLabel="Programme"
                     />
                   </div>
-                )}
+                ) : null}
             </SectionCard>
           )}
         </div>
@@ -1312,7 +1338,10 @@ export default function OpsApplicationPage({
       </div>
 
       {/* Sticky action bar — mirrors the counsellor's wizard footer */}
-      {(vetting || reRuling || (awaitingOffer && allSigned && certified)) && (
+      {(vetting ||
+        reRuling ||
+        rulingOnChange ||
+        (awaitingOffer && allSigned && certified)) && (
         <div className="sticky bottom-0 z-20 mt-auto py-3.5">
           <div className="pointer-events-none absolute inset-y-0 left-1/2 w-screen -translate-x-1/2 border-t border-line bg-white/90 backdrop-blur-md" />
           <div className="relative flex flex-wrap items-center gap-3">
@@ -1404,6 +1433,68 @@ export default function OpsApplicationPage({
                       Next
                     </Link>
                   )}
+                </div>
+              </>
+            ) : rulingOnChange && !reRuling ? (
+              /* A programme change on Ops' desk: rule on the options, then
+                 hand it back — the same bar and the same button as the
+                 first review, so it reads as the same act. */
+              <>
+                <span className="flex flex-wrap items-center gap-2">
+                  {changePending > 0 ? (
+                    <CardChip tone="muted">
+                      <IconAlert className="h-3 w-3" />
+                      {changePending} programme{changePending === 1 ? "" : "s"} to rule on
+                    </CardChip>
+                  ) : changeEligible === 0 ? (
+                    <CardChip tone="muted">
+                      <IconAlert className="h-3 w-3" />
+                      No programme marked eligible
+                    </CardChip>
+                  ) : (
+                    <span className="text-xs text-caption">
+                      {changeEligible} of {scored.length} programme(s) eligible · ready to send back
+                    </span>
+                  )}
+                  {lockerUnchecked > 0 && (
+                    <CardChip tone="muted">
+                      {lockerUnchecked} document{lockerUnchecked === 1 ? "" : "s"} unchecked
+                    </CardChip>
+                  )}
+                </span>
+                <div className="ml-auto flex items-center gap-2">
+                  {tab === "eligibility" ? (
+                    <Link
+                      href={`/ops/application/${app.id}?tab=profile`}
+                      scroll={false}
+                      className="btn-secondary"
+                    >
+                      Back
+                    </Link>
+                  ) : (
+                    <Link
+                      href={`/ops/application/${app.id}?tab=eligibility`}
+                      scroll={false}
+                      className="btn-secondary"
+                    >
+                      Requested Programs
+                    </Link>
+                  )}
+                  <form action={finishChangeReview.bind(null, app.id)}>
+                    <button
+                      className="btn-success"
+                      disabled={changePending > 0 || changeEligible === 0}
+                      title={
+                        changePending > 0
+                          ? "Rule on every programme first"
+                          : changeEligible === 0
+                            ? "Mark at least one programme eligible, or add one that is"
+                            : ""
+                      }
+                    >
+                      Mark as Reviewed &amp; Notify AC
+                    </button>
+                  </form>
                 </div>
               </>
             ) : reRuling ? (

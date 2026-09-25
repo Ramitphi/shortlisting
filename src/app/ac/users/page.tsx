@@ -13,7 +13,9 @@ import {
   IconSend,
   IconUsers,
 } from "@/components/ui";
-import { getPrograms, listApplications } from "@/lib/queries";
+import { getPrograms, listApplications,
+  isReShortlisted,
+} from "@/lib/queries";
 import {
   acNeedsAction,
   ALL_STATUSES,
@@ -223,7 +225,9 @@ export default function AcUsersPage({
                           ? a.recheck_kind === "appeal"
                             ? "Appealed by you"
                             : "Re-check"
-                          : a.status === "shortlisted" &&
+                          : isReShortlisted(a)
+                            ? "Re Shortlisted"
+                            : a.status === "shortlisted" &&
                               !getPrograms(a.id).some((p) => p.shortlisted)
                             ? "Programme changed"
                             : null

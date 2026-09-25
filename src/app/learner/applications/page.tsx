@@ -12,6 +12,7 @@ import {
   getPrograms,
   listApplications,
   recheckOf,
+  isReShortlisted,
 } from "@/lib/queries";
 import { learnerStatus } from "@/lib/domain";
 
@@ -86,7 +87,13 @@ export default function V2ApplicationsPage() {
   // Appeals are internal — the learner's card must not react to one.
   const recheck = rawRecheck?.kind === "appeal" ? null : rawRecheck;
   const status = app
-    ? learnerStatus(app.status, certified, Boolean(recheck), Boolean(programme))
+    ? learnerStatus(
+        app.status,
+        certified,
+        Boolean(recheck),
+        Boolean(programme),
+        isReShortlisted(app)
+      )
     : null;
   const statusGood = app?.status === "completed" || certified;
   const docStatus = !app

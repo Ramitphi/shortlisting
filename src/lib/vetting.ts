@@ -1,6 +1,8 @@
 import { getDb } from "./db";
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { fillPlaceholders } = require("./clause-text.js");
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { triggeredClausesFor } = require("./clause-triggers.js");
 import { getApplication, getDocuments, getFormResponses, logEvent, notify } from "./queries";
 
 /**
@@ -189,4 +191,81 @@ export function attachMissingForms(applicationId: number, actorId: number) {
       "/learner"
     );
   }
+}
+
+/**
+ * A programme change starts the signing over, the same as a first shortlist.
+ *
+ * What was signed for the old programme is retired — kept as a record, no
+ * longer owed — and the set for the new one attaches unsigned: the base
+ * forms, whatever the learner's answers trigger read against the NEW
+ * programme's country and degree (Germany brings the APS acknowledgements,
+ * a profile-building track its own), and the declaration that the move was
+ * the learner's.
+ */
+export function attachChangeForms(
+  applicationId: number,
+  actorId: number,
+  from: { name: string; institute: string } | null,
+  to: { name: string; institute: string; country?: string | null; degree_level?: string | null }
+) {
+  const app = getApplication(applicationId);
+  if (!app) return;
+  const db = getDb();
+
+  db.prepare(
+    "UPDATE documents SET retired_at = datetime('now') WHERE application_id = ? AND retired_at IS NULL"
+  ).run(applicationId);
+
+  const answers = getFormResponses(applicationId);
+  const responses = {
+    ...answers,
+    ...(to.country ? { countries: to.country } : {}),
+    ...(to.degree_level ? { degree_level: to.degree_level } : {}),
+  };
+  const learner = answers.full_name || app.learner_name || "the learner";
+  const triggered: string[] = [
+    ...triggeredClausesFor(responses),
+    "UT-Programme Change-01",
+  ];
+  const templates = db.prepare("SELECT * FROM document_templates").all() as {
+    id: number;
+    type: string;
+    title: string;
+    content: string;
+    clause_id: string | null;
+    always_required: number;
+  }[];
+  const needed = templates.filter(
+    (t) => t.always_required === 1 || (t.clause_id && triggered.includes(t.clause_id))
+  );
+  const oldName = from ? `${from.name} at ${from.institute}` : "my current programme";
+  const newName = `${to.name} at ${to.institute}`;
+  const insert = db.prepare(
+    `INSERT INTO documents
+     (application_id, type, title, content, auto_generated, template_id, source)
+     VALUES (?, ?, ?, ?, 1, ?, 'auto')`
+  );
+  for (const t of needed) {
+    const declarant =
+      t.clause_id === "CON-Parents-01"
+        ? answers.guardian_name || "the parent or legal guardian"
+        : learner;
+    const content = t.content
+      .replace(/<OLD_PROGRAMME>/g, oldName)
+      .replace(/<NEW_PROGRAMME>/g, newName);
+    insert.run(
+      applicationId,
+      t.type,
+      t.title,
+      `I, ${declarant}, ${fillPlaceholders(content, responses).replace(/^I /, "")}`,
+      t.id
+    );
+  }
+  logEvent(
+    applicationId,
+    actorId,
+    "Undertakings reissued for the new programme",
+    `${needed.length} to sign, including the programme change declaration`
+  );
 }

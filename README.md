@@ -242,6 +242,9 @@ src/
 │   ├── learner/                          ← lives inside upgrad.com's design
 │   │   ├── application/[id]/page.tsx     ← v1: the guided review walk
 │   │   ├── documents/page.tsx            ← v1: the document locker, its own site section
+│   │   ├── centres/page.tsx              ← walk-in offices, nearest first (asks for
+│   │   │                                    location; `?at=lat,lng` pins one for demos)
+│   │   ├── alumni/page.tsx               ← the alumni grid (demo records)
 │   │   ├── applications/page.tsx         ← v2: the site's My Applications list (capture code)
 │   │   ├── applications/[id]/page.tsx    ← v2: tabbed application, the site's own tab strip
 │   │   ├── applications/[id]/v2-bits.tsx ← v2: capture docs table + consent-checkbox Submit
@@ -259,6 +262,8 @@ src/
 │   │                                        that loads /upgrad/site.css
 │   ├── ug-body.tsx                       ← puts the learner theme class on <body> so
 │   │                                        portalled dialogs/toasts wear it too
+│   ├── learner-tour.tsx                  ← the learner's first-visit walkthrough, anchored
+│   │                                        by `data-tour`; Reset demo data replays it
 │   ├── role-switcher.tsx                 ← the round button, bottom right
 │   ├── open-application.tsx              ← records a visit / claims for Ops (see below)
 │   └── ui/                               ← the component library — one file per concern

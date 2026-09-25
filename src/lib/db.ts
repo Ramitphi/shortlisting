@@ -319,6 +319,12 @@ function migrateColumns(db: BrowserDb) {
   addColumn(db, "applications", "change_at", "TEXT");
   addColumn(db, "applications", "change_note", "TEXT");
   addColumn(db, "applications", "change_program_id", "INTEGER");
+  // Ops hands a change back explicitly — "Mark as Reviewed & Notify AC" —
+  // rather than the first verdict doing it for them mid-review.
+  addColumn(db, "applications", "change_ruled_at", "TEXT");
+  // A programme change retires the documents signed for the old programme:
+  // kept as a record of what was signed, no longer the set the learner owes.
+  addColumn(db, "documents", "retired_at", "TEXT");
 }
 
 function seedCatalogues(db: BrowserDb) {
@@ -359,7 +365,7 @@ function seedCatalogues(db: BrowserDb) {
   db.exec(
     "CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT)"
   );
-  const CATALOGUE_VERSION = "2026-09-07-brd-clause-3.0-acks";
+  const CATALOGUE_VERSION = "2026-09-25-programme-change-declaration";
   const storedVersion = (
     db
       .prepare("SELECT value FROM app_meta WHERE key = 'doc_templates'")
@@ -394,6 +400,7 @@ function seedCatalogues(db: BrowserDb) {
       ["acknowledgement", "Self-Funding Acknowledgement", "I hereby confirm that I will independently fund all expenses related to my on-campus studies without availing any loan. I undertake to arrange and maintain the necessary financial resources at my end.", "ACK-Self Funding-01", 0],
       ["acknowledgement", "Profile-Building Programme Acknowledgement", "I acknowledge that the profile-building programme is a profile enhancement program and is neither a degree program nor a proof of admission into any university — public or private. I further acknowledge that any program fee paid towards it is solely for the content of the program, and no part of the program fee is applicable towards the tuition fee of any public or private university.", "ACK-YLP-01", 0],
       ["acknowledgement", "APS & dMAT Acknowledgement", "I acknowledge that I have understood the APS requirements, including dMAT requirements, where applicable.", "ACK-Others/Exams-01", 0],
+      ["undertaking", "Programme Change Declaration", "I certify that I have asked to move from <OLD_PROGRAMME> to <NEW_PROGRAMME>, and that this change is made at my own request.\n\nI understand that the offer letter issued for <OLD_PROGRAMME> is withdrawn, that the undertakings I signed for it no longer apply, and that a new offer letter for <NEW_PROGRAMME> will be issued only once I have signed the undertakings for it and certified my details.", "UT-Programme Change-01", 0],
       ["acknowledgement", "APS & TestAS Acknowledgement", "I acknowledge that I have understood the APS requirements, including TestAS requirements, where applicable.", "ACK-Others/Exams-02", 0],
     ];
     const tx = db.transaction(() => { for (const r of rows) ins.run(...r); });

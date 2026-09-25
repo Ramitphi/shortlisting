@@ -13,7 +13,9 @@ import {
   IconLayers,
   IconSend,
 } from "@/components/ui";
-import { listApplications, type Application } from "@/lib/queries";
+import { listApplications, type Application,
+  isReShortlisted,
+} from "@/lib/queries";
 import {
   ALL_STATUSES,
   opsNeedsAction,
@@ -252,7 +254,9 @@ export default function OpsUsersPage({
                           ? a.recheck_kind === "appeal"
                             ? "Appealed by AC"
                             : "Re-check"
-                          : null
+                          : isReShortlisted(a)
+                            ? "Re Shortlisted"
+                            : null
                       }
                     />
                   </td>

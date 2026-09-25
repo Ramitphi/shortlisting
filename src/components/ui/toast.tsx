@@ -88,6 +88,8 @@ const MESSAGES: Record<string, string> = {
   offer: "Offer letter sent to the learner",
   vetting: "Vetting started",
   signed: "Document signed",
+  change: "Programme change sent to Ops for review",
+  deferred: "Batch moved — the updated offer letter is with the learner",
 };
 
 export function ToastFromParams() {

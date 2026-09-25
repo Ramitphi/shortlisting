@@ -32,6 +32,7 @@ import {
   IconCheck,
   IconClock,
   IconDoc,
+  IconInfo,
   IconRefresh,
   IconShield,
   IconSparkle,
@@ -62,6 +63,7 @@ import {
   listProgramCatalogue,
   recheckOf,
   changeOf,
+  isReShortlisted,
 } from "@/lib/queries";
 import {
   acknowledgeRemark,
@@ -80,7 +82,6 @@ import {
   updateFieldValue,
   uploadLearnerDoc,
   verifyLearnerDoc,
-  deferBatch,
   requestProgrammeChange,
 } from "@/lib/actions";
 import {
@@ -108,7 +109,6 @@ import {
 import { OpsField } from "@/app/ops/application/[id]/ops-field";
 import { AiAdd, PickRemove } from "./ai-add";
 import { CallForm, type StepRemark } from "./call-form";
-import { DeferBatchDialog } from "@/app/ops/application/[id]/defer-batch-dialog";
 import { ChangeProgrammeDialog } from "./change-programme-dialog";
 import { AppealDialog } from "./appeal-dialog";
 import { AcFlowBar } from "./shortlist-button";
@@ -183,13 +183,19 @@ export default function AcApplicationPage({
   // while Ops is still ruling on a different one.
   // A post-offer programme change is the third way in: the application is
   // complete, but Ops has ruled a replacement eligible and it is the
-  // counsellor's to send. Declared below `change` is computed, so it is read
-  // through a function rather than the value.
+  // counsellor's to send. Only then — while Ops is still ruling, the
+  // counsellor has nothing to pick and nothing to edit.
+  const change = changeOf(app);
+  const changeOpen = Boolean(change);
   const canShortlist =
     (app.status === "reviewed" ||
       shortlistWithdrawn ||
-      Boolean(app.change_at)) &&
+      change?.state === "ac") &&
     !recheck;
+  // Sent to Ops and not yet ruled on: the footer stays where it will be,
+  // with the send held, so the counsellor can see what comes next.
+  const changeWithOps = change?.state === "ops" && !recheck;
+  const showFooter = canShortlist || changeWithOps;
   // "Open" means someone is waiting on the counsellor. Info remarks are Ops
   // thinking out loud — they stay visible on the field but never gate a CTA
   // or inflate a badge, otherwise "3 comments" would mean nothing.
@@ -357,7 +363,13 @@ export default function AcApplicationPage({
   // The pick travels in the URL so it survives the tab walk.
   const selected = Number(searchParams.sel) || null;
   // Ops ruled; the shortlist radio only offers what survived.
-  const eligiblePrograms = programs.filter((p) => p.eligibility === "eligible");
+  // During a programme change, only this change's options — never the
+  // programme the learner already holds or older recommendations.
+  const eligiblePrograms = programs.filter(
+    (p) =>
+      p.eligibility === "eligible" &&
+      (!change || p.id >= (app.change_program_id ?? 0))
+  );
 
   // The engine's view of the catalogue for THIS learner: every entry scored,
   // sorted best-first. The counsellor recommends from here on the call; the
@@ -366,8 +378,6 @@ export default function AcApplicationPage({
   // A post-offer programme change: whose move it is now, and what the
   // counsellor can offer. Same scored catalogue as the first shortlist —
   // the learner has not changed, so neither has the matching.
-  const change = changeOf(app);
-  const changeOpen = Boolean(change);
   const changeCandidates = catalogue
     .filter((c) => !programs.some((p) => p.catalogue_id === c.id))
     .map((c) => ({
@@ -466,35 +476,27 @@ export default function AcApplicationPage({
                   }
                 />
               </span>
-              <StatusBadge status={app.status} />
+              {/* A programme change rides on a finished application — the
+                  chip says it is moving again rather than done. */}
+              <StatusBadge
+                status={app.status}
+                recheckLabel={isReShortlisted(app) ? "Re Shortlisted" : null}
+              />
               <CertifiedChip at={app.certified_at} />
             </div>
             <p className="mt-1 text-[14.5px] text-body">{app.learner_email}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {/* Same programme, later batch: the learner asks on a call, so
-                the counsellor moves it. Nothing is re-checked and nothing is
-                re-signed — so it lives in the header, not in the flow. */}
-            {/* Both post-offer moves live here: same programme later, or a
-                different programme entirely. One is a date, the other
-                restarts the programme loop. */}
+            {/* The one post-offer move the counsellor makes: a different
+                programme, which restarts the programme loop. A later batch
+                is Ops' to make, on Phoenix — the counsellor passes the
+                learner's ask along rather than moving the date here. */}
             {offer && sentProgramme && !changeOpen && (
               <ChangeProgrammeDialog
                 learnerName={responses.full_name || app.learner_name || "the learner"}
                 currentProgramme={`${sentProgramme.name} · ${sentProgramme.institute}`}
                 candidates={changeCandidates}
                 action={requestProgrammeChange.bind(null, app.id)}
-              />
-            )}
-            {offer && sentProgramme && (
-              <DeferBatchDialog
-                learnerName={responses.full_name || app.learner_name || "the learner"}
-                programme={{
-                  name: sentProgramme.name,
-                  institute: sentProgramme.institute,
-                }}
-                currentIntake={offer.intake}
-                action={deferBatch.bind(null, app.id)}
               />
             )}
             {/* The locker is reference material, not a stage of the journey —
@@ -553,6 +555,17 @@ export default function AcApplicationPage({
           </div>
         </div>
       </div>
+
+      {changeWithOps && (
+        <div className="-mt-4 mb-5 flex items-center gap-2.5 rounded-xl border border-line bg-paper px-4 py-3 text-[13.5px] text-body">
+          <IconInfo className="h-4 w-4 shrink-0 text-ink" />
+          <span>
+            <span className="font-semibold text-ink">Program change pending</span>
+            <span className="mx-2 text-caption">•</span>
+            Sent to ops team for review. They will get back to you shortly.
+          </span>
+        </div>
+      )}
 
       {recheck && (
         <RecheckNotice
@@ -772,7 +785,7 @@ export default function AcApplicationPage({
         <>
         <div
           className={`${
-            canShortlist ? "-mb-12 flex min-h-[calc(100dvh-13.5rem)] flex-col" : ""
+            showFooter ? "-mb-12 flex min-h-[calc(100dvh-13.5rem)] flex-col" : ""
           }`}
         >
         {/* Content left, Activity in the right rail — unless the timeline is
@@ -1346,7 +1359,7 @@ export default function AcApplicationPage({
 
         {/* Persistent while the counsellor holds it — the shortlist action
             shouldn't be buried inside one tab. */}
-        {canShortlist && (
+        {showFooter && (
           <div className="sticky bottom-0 z-20 mt-auto py-3.5">
             <div className="pointer-events-none absolute inset-y-0 left-1/2 w-screen -translate-x-1/2 border-t border-line bg-white/90 backdrop-blur-md" />
             <div className="relative flex flex-wrap items-center gap-3">
@@ -1355,7 +1368,9 @@ export default function AcApplicationPage({
                     server cannot know whether one has been made — the line
                     stays true either way rather than claiming "ready to
                     send" or contradicting an enabled button. */}
-                {programs.length === 0
+                {changeWithOps
+                  ? "Ops is reviewing the programme change — you can send once they rule on it"
+                  : programs.length === 0
                   ? "No eligible programmes — speak to the Ops team"
                   : tab === "profile"
                     ? openRemarks.length > 0
@@ -1372,6 +1387,7 @@ export default function AcApplicationPage({
                   tab={tab}
                   selected={selected}
                   hasPrograms={eligiblePrograms.length > 0}
+                  held={changeWithOps}
                   action={shortlistProgram.bind(null, app.id)}
                 />
               </div>

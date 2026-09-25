@@ -99,6 +99,7 @@ import { CataloguePicker, type PickerItem } from "./catalogue-picker";
 import { OpsField } from "./ops-field";
 import { SendOfferDialog } from "./send-offer-dialog";
 import { DeferBatchDialog } from "./defer-batch-dialog";
+import { IntakePicker } from "./intake-picker";
 import {
   parseRecheckChanges,
   CLAUSES,
@@ -113,18 +114,6 @@ import {
   pendingFor,
 } from "@/lib/domain";
 
-
-/**
- * "May 2027" back into the "2027-05" a month input wants. The column holds
- * the readable form — that is what the offer letter and the learner's start
- * line print — so the picker is the one that has to convert.
- */
-function monthValue(intake?: string | null): string {
-  if (!intake) return "";
-  const d = new Date(`1 ${intake}`);
-  if (Number.isNaN(d.getTime())) return "";
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
 
 export default function OpsApplicationPage({
   params,
@@ -1162,36 +1151,16 @@ export default function OpsApplicationPage({
                     </div>
 
                     {/* The batch this seat is for. Ops owns seat allocation,
-                        so it is filled here while they vet — and it stays on
-                        the programme: the offer letter names it, the learner
-                        sees "Starts …", and a deferral moves it later. */}
+                        so it is filled here while they vet — on the same
+                        calendar a deferral uses, because setting the batch
+                        and moving it later are the same act at different
+                        moments. It stays on the programme from there: the
+                        offer letter names it, and the learner sees it. */}
                     {(vetting || reRuling || rulingOnChange) && (
-                      <form
+                      <IntakePicker
+                        intake={p.intake}
                         action={setProgramIntake.bind(null, p.id)}
-                        className="mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-paper px-3 py-2.5"
-                      >
-                        <label
-                          htmlFor={`intake-${p.id}`}
-                          className="text-[12px] font-medium text-body"
-                        >
-                          Intake
-                        </label>
-                        <input
-                          id={`intake-${p.id}`}
-                          type="month"
-                          name="intake"
-                          defaultValue={monthValue(p.intake)}
-                          className="input !h-8 !w-[150px] !py-0 !text-[12.5px]"
-                        />
-                        <button className="btn-secondary !h-8 !px-3 !text-[12.5px]">
-                          Save
-                        </button>
-                        <span className="text-[12px] text-caption">
-                          {p.intake
-                            ? `Saved — batch starts ${p.intake}`
-                            : "Not set yet — the offer letter names this batch"}
-                        </span>
-                      </form>
+                      />
                     )}
 
                     {/* The counsellor is pushing back on this one. It is the

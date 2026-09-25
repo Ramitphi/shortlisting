@@ -1406,7 +1406,6 @@ export async function setProgramEligibility(
 }
 
 /**
-<<<<<<< HEAD
  * Ops waives a required undertaking — or puts it back.
  *
  * Until now Ops could only delete what Ops had attached; anything the form
@@ -1467,7 +1466,9 @@ export async function setDocumentWaived(docId: number, formData: FormData) {
     waive ? reason || undefined : undefined
   );
   dirty();
-=======
+}
+
+/**
  * Ops has ruled on a programme change and hands it to the counsellor.
  *
  * Explicit, like the first review: a verdict alone used to pass the change
@@ -1501,7 +1502,6 @@ export async function finishChangeReview(applicationId: number) {
   else notifyRole("ac", msg, link);
   dirty();
   goto("/ops?toast=reviewed");
->>>>>>> 92c954812bfd64c9cabba724a4ee80d6baebfe17
 }
 
 /**
@@ -1555,9 +1555,9 @@ export async function setOpsComment(applicationId: number, formData: FormData) {
  * card where they rule on eligibility, and it stays on the programme from
  * there: the offer letter picks it up, and a later deferral overwrites it.
  *
- * Stored as "May 2027", never "2027-05". The picker speaks months and the
- * letter speaks English, and one readable form in the column is what keeps
- * a hand-typed Jan 2027 / January 2027 / 01/2027 from ever appearing.
+ * Picked on the same calendar a deferral uses, and stored the way that one
+ * stores it — "2 April 2027". A batch starts on a day; the two places a date
+ * is set must not disagree about what a batch is.
  */
 export async function setProgramIntake(programId: number, formData: FormData) {
   const user = requireUser("ops");
@@ -1576,13 +1576,9 @@ export async function setProgramIntake(programId: number, formData: FormData) {
   const changing = Boolean(app.change_at);
   if (app.status !== "under_review" && !reRuling && !changing) return;
 
-  const raw = String(formData.get("intake") ?? "").trim();
-  const m = /^(\d{4})-(\d{2})$/.exec(raw);
-  const d = m ? new Date(Number(m[1]), Number(m[2]) - 1, 1) : null;
-  const intake =
-    d && !Number.isNaN(d.getTime())
-      ? d.toLocaleString("en-GB", { month: "long", year: "numeric" })
-      : raw || null;
+  // The picker formats it — "2 April 2027" — the same way the deferral
+  // dialog does, so one readable form reaches the column from both places.
+  const intake = String(formData.get("intake") ?? "").trim() || null;
   if (intake === (p.intake ?? null)) return;
 
   getDb()

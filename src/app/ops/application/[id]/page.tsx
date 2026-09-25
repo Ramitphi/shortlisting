@@ -233,8 +233,14 @@ export default function OpsApplicationPage({
   ).length;
   const certified = Boolean(app.certified_at);
   const shortlistedPrograms = programs.filter((p) => p.shortlisted);
-  const allSigned = docs.length > 0 && docs.every((d) => d.signed_at);
-  const signedCount = docs.filter((d) => d.signed_at).length;
+  // Ops' list shows waived undertakings; every count that means "still to
+  // sign" must not. `docs.every(signed)` was false FOR EVER once anything was
+  // waived — a waived undertaking is never signed — which held the offer
+  // letter shut on exactly the applications waiving was meant to free.
+  const signableDocs = docs.filter((d) => !d.waived_at);
+  const allSigned =
+    signableDocs.length > 0 && signableDocs.every((d) => d.signed_at);
+  const signedCount = signableDocs.filter((d) => d.signed_at).length;
   // Normally: an application that has got this far and has no letter yet.
   // During a programme change there IS a letter — it names the programme the
   // learner is leaving — and the last step is replacing it, so that counts
@@ -1357,7 +1363,7 @@ export default function OpsApplicationPage({
                 ) : (
                 <span className="text-xs text-caption">
                   {onLastTab
-                    ? `${eligibleCount} of ${programs.length} programme(s) eligible · ${docs.length} undertaking(s)${
+                    ? `${eligibleCount} of ${programs.length} programme(s) eligible · ${signableDocs.length} undertaking(s)${
                         openRemarks > 0 ? ` · ${openRemarks} open comment(s)` : ""
                       } · ready to send`
                     : "Comment on the counsellor's answers, fill the ops fields — changes save as you go"}

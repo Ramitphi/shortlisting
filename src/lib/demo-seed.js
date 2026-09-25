@@ -32,10 +32,15 @@ function seedDemo(db) {
   ];
 
   // Make them exist, and make them learners. Insert-or-ignore alone was not
-  // enough: the admin screen can change anyone's role, and a demoted learner
-  // left the count short — which used to throw AFTER the wipe and brick the
-  // demo with no way back from inside the app. Reset has to be the thing
-  // that always works, so it repairs rather than refuses.
+  // enough: a role could be changed under the demo's feet, and a demoted
+  // learner left the count short — which used to throw AFTER the wipe and
+  // brick the demo with no way back from inside the app. Reset has to be the
+  // thing that always works, so it repairs rather than refuses.
+  // There is no admin role any more. An older database still holds the user
+  // it was seeded with, and a role no screen can render is a row that only
+  // shows up as a blank in the User Hub — so Reset clears them out.
+  db.exec("DELETE FROM users WHERE role = 'admin'");
+
   const ensureLearner = db.prepare(
     `INSERT OR IGNORE INTO users (name, email, role) VALUES (?, ?, 'learner')`
   );
@@ -71,9 +76,10 @@ function seedDemo(db) {
     DELETE FROM group_checks;
     DELETE FROM field_checks;
     DELETE FROM form_responses;
+    DELETE FROM assignees;
     DELETE FROM applications;
     DELETE FROM sqlite_sequence
-      WHERE name IN ('applications','remarks','programs','documents','learner_documents','notifications','events','offer_letters');
+      WHERE name IN ('applications','remarks','programs','documents','learner_documents','notifications','events','offer_letters','assignees');
   `);
 
   const insertApp = db.prepare(
@@ -191,6 +197,7 @@ function seedDemo(db) {
   function fillForm(appId, learner, overrides = {}) {
     const values = {
       full_name: learner.name,
+      email: learner.email,
       mobile: "+91 98765 43210",
       gender: "Female",
       dob: "1998-04-12",
@@ -612,6 +619,27 @@ function seedDemo(db) {
     );
     insertNotif.run(deferred.id, "Your batch has moved to July 2027. Your updated offer letter is ready.", "/learner", 0);
 
+    // The support team fills in as the learner moves: a visa counsellor once
+    // there is a programme to get a visa for, a buddy and a loan advisor
+    // later still. Seeded UNEVENLY on purpose — the card shows only who has
+    // actually been assigned, and a demo where everyone has everyone never
+    // exercises that.
+    const assign = db.prepare(
+      "INSERT OR IGNORE INTO assignees (application_id, role, name, email) VALUES (?, ?, ?, ?)"
+    );
+    const TEAM = {
+      visa: ["Rhea Kapoor", "rhea.visa@example.com"],
+      buddy: ["Aditya Rao", "aditya.buddy@example.com"],
+      loan: ["Sanjana Iyer", "sanjana.loan@example.com"],
+    };
+    const give = (appId, roles) => {
+      for (const r of roles) assign.run(appId, r, TEAM[r][0], TEAM[r][1]);
+    };
+    // Nothing for draft/submitted/vetting — nobody is assigned that early.
+    give(reviewedId, ["visa"]);
+    give(shortlistedId, ["visa", "loan"]);
+    give(completedId, ["visa", "buddy", "loan"]);
+
     return { draft, submitted, vetting, flagged, reviewed, shortlisted, completed, holding, deferred };
   });
 
@@ -621,10 +649,9 @@ function seedDemo(db) {
   db.exec(
     "UPDATE programs SET catalogue_id = (SELECT id FROM program_catalogue c WHERE c.name = programs.name AND c.institute = programs.institute) WHERE catalogue_id IS NULL"
   );
-  // Learners added from the admin screen get a draft on creation, and the
-  // wipe above takes it away — the seed only rebuilds the seven it knows.
-  // Give every learner without an application one back, which is the same
-  // rule createUser applies.
+  // Any learner beyond the seven the seed knows about still needs an
+  // application: the wipe above takes theirs away, and a learner without one
+  // is a broken screen rather than an empty one.
   db.exec(
     `INSERT INTO applications (learner_id, ac_id, status)
      SELECT u.id, 2, 'draft' FROM users u

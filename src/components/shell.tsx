@@ -72,9 +72,6 @@ const NAV_BY_ROLE: Record<Role, NavItem[]> = {
       icon: <IconRoute />,
     },
   ],
-  admin: [
-    { key: "home", href: "/admin", label: "Users & Roles", icon: <IconUsers /> },
-  ],
 };
 
 const STATUS_DOTS: Record<AppStatus, string> = {

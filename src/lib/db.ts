@@ -42,7 +42,7 @@ function migrate(db: BrowserDb) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       email TEXT NOT NULL UNIQUE,
-      role TEXT NOT NULL CHECK (role IN ('learner','ac','ops','admin')),
+      role TEXT NOT NULL CHECK (role IN ('learner','ac','ops')),
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -71,6 +71,20 @@ function migrate(db: BrowserDb) {
       text TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','resolved')),
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- The people assigned to a learner besides their counsellor: the visa
+    -- counsellor, the buddy, the loan advisor. A table rather than columns on
+    -- applications because the set grows — PRISM already names more of these
+    -- than this prototype shows — and because an unassigned role should be an
+    -- absent row, not a NULL that every screen has to remember to test.
+    CREATE TABLE IF NOT EXISTS assignees (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      application_id INTEGER NOT NULL REFERENCES applications(id),
+      role TEXT NOT NULL,
+      name TEXT NOT NULL,
+      email TEXT,
+      UNIQUE (application_id, role)
     );
 
     CREATE TABLE IF NOT EXISTS programs (
@@ -285,6 +299,12 @@ function migrateColumns(db: BrowserDb) {
   // the APPLICATION, not to a review pass: the file goes back and forth
   // between the counsellor and Ops, and a note that reset on each handover
   // would be a note nobody bothered to write. One field, kept.
+  // Ops can waive a required undertaking: the learner stops being asked to
+  // sign it and it stops gating certification, but the row stays — with who
+  // waived it and why — because an undertaking that was once required is part
+  // of the record even after it is set aside. Deleting would lose that.
+  addColumn(db, "documents", "waived_at", "TEXT");
+  addColumn(db, "documents", "waived_reason", "TEXT");
   addColumn(db, "applications", "ops_comment", "TEXT");
   addColumn(db, "applications", "ops_comment_at", "TEXT");
   addColumn(db, "offer_letters", "superseded_at", "TEXT");
@@ -389,7 +409,6 @@ function seed(db: BrowserDb) {
     "INSERT INTO users (name, email, role) VALUES (?, ?, ?)"
   );
   const users: [string, string, string][] = [
-    ["Asha Sharma", "asha.admin@example.com", "admin"],
     ["Arjun Mehta", "arjun.ac@example.com", "ac"],
     ["Anita Rao", "anita.ac@example.com", "ac"],
     ["Omar Khan", "omar.ops@example.com", "ops"],

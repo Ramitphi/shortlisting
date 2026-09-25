@@ -1,16 +1,15 @@
 // Central domain definitions: roles, application state machine, form fields, doc types.
 
-export type Role = "learner" | "ac" | "ops" | "admin";
+export type Role = "learner" | "ac" | "ops";
 
 export function roleHome(role: Role): string {
-  return { learner: "/learner", ac: "/ac", ops: "/ops", admin: "/admin" }[role];
+  return { learner: "/learner", ac: "/ac", ops: "/ops" }[role];
 }
 
 export const ROLE_LABELS: Record<Role, string> = {
   learner: "Learner",
   ac: "Academic Counsellor",
   ops: "Ops Team",
-  admin: "Admin",
 };
 
 // Application (eligibility form) state machine.
@@ -322,6 +321,10 @@ export const CLAUSES: Record<string, ClauseDef> = {
 export const FORM_FIELDS: FieldDef[] = [
   // ── Section A — Profile Data ─────────────────────────────────────────────
   { key: "full_name", label: "Name", type: "text", section: "Profile Data", required: true },
+  // Their own address, beside their own name — it is how every notification
+  // and the offer letter reaches them, so it belongs on the profile rather
+  // than only on the user record nobody on this side can see.
+  { key: "email", label: "Email", type: "email", section: "Profile Data", required: true },
   { key: "mobile", label: "Mobile number", type: "tel", section: "Profile Data", required: true },
   { key: "gender", label: "Gender", type: "select", section: "Profile Data", options: ["Male", "Female", "Others"], required: true },
   { key: "dob", label: "Date of birth", type: "date", section: "Profile Data", required: true },

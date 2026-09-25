@@ -81,6 +81,7 @@ import {
   sendOfferLetter,
   setFieldCheck,
   setGroupReview,
+  setDocumentWaived,
   setOpsComment,
   setProgramEligibility,
   setProgramIntake,
@@ -142,7 +143,8 @@ export default function OpsApplicationPage({
   const responses = getFormResponses(app.id);
   const remarks = getRemarks(app.id);
   const programs = getPrograms(app.id);
-  const docs = getDocuments(app.id);
+  // The only list that shows waived undertakings — see getDocuments.
+  const docs = getDocuments(app.id, { includeWaived: true });
   const events = getEvents(app.id);
   const offer = getOfferLetter(app.id);
   const locker = docRows(getLearnerDocs(app.id));
@@ -929,24 +931,46 @@ export default function OpsApplicationPage({
                       key={d.id}
                       title={d.title}
                       signedAt={d.signed_at}
+                      waived={Boolean(d.waived_at)}
+                      waivedReason={d.waived_reason}
                       secondaryAction={
                         vetting ? (
                           d.source === "ops" && !d.signed_at ? (
+                            /* Ops attached it, so Ops can take it away. */
                             <form action={removeDocument.bind(null, d.id)}>
                               <button className="btn-secondary w-full !h-9">
                                 Delete
                               </button>
                             </form>
-                          ) : (
-                            <button
-                              type="button"
-                              disabled
-                              title="Required document — cannot be deleted"
-                              className="btn-secondary w-full !h-9"
-                            >
-                              Delete
-                            </button>
-                          )
+                          ) : !d.signed_at ? (
+                            /* A required one is waived, not deleted: the row
+                               stays as a record, the learner stops being asked
+                               for it, and it stops gating certification. */
+                            <form action={setDocumentWaived.bind(null, d.id)}>
+                              <input
+                                type="hidden"
+                                name="waive"
+                                value={d.waived_at ? "no" : "yes"}
+                              />
+                              {!d.waived_at && (
+                                <input
+                                  name="reason"
+                                  placeholder="Why (optional)…"
+                                  className="input mb-2 !h-9 w-full !py-0 !text-[12.5px]"
+                                />
+                              )}
+                              <button
+                                className="btn-secondary w-full !h-9"
+                                title={
+                                  d.waived_at
+                                    ? "Require this undertaking again"
+                                    : "The learner will not be asked to sign this"
+                                }
+                              >
+                                {d.waived_at ? "Require again" : "Not required"}
+                              </button>
+                            </form>
+                          ) : null
                         ) : null
                       }
                       action={

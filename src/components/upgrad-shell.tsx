@@ -7,10 +7,11 @@ import { RoleSwitcher } from "./role-switcher";
 import { UgBody } from "./ug-body";
 import { activityInline, learnerView, type User } from "@/lib/auth";
 import { logout } from "@/lib/actions";
-import { getApplication } from "@/lib/queries";
+import { getApplication, getAssignees, type Assignee } from "@/lib/queries";
 import { learnerCanSeeApplication } from "@/lib/domain";
 import {
   IconBuilding,
+  IconHome,
   IconCap,
   IconDoc,
   IconInbox,
@@ -47,6 +48,7 @@ const SUPPORT_EMAIL = "contactus@upgrad.com";
  * the site's current My Applications pages.
  */
 export type UgSection =
+  | "dashboard"
   | "profile"
   | "application"
   | "documents"
@@ -153,27 +155,6 @@ function NavRow({
   );
 }
 
-function SubRow({
-  label,
-  href,
-  active = false,
-}: {
-  label: string;
-  href?: string;
-  active?: boolean;
-}) {
-  const cls = `block py-2 pl-[52px] pr-4 text-[14px] transition-colors ${
-    active ? "font-medium text-accent" : "text-body hover:text-ink"
-  }`;
-  return href ? (
-    <Link href={href} className={cls}>
-      {label}
-    </Link>
-  ) : (
-    <span className={`${cls} cursor-default`}>{label}</span>
-  );
-}
-
 /**
  * Flying journey promises something its label doesn't say, so the row says it
  * on hover — the tooltip from the design: the site's own card, the brand's
@@ -186,7 +167,7 @@ function FlyingJourneyRow() {
       <span className="text-body">
         <IconSend className="h-5 w-5" />
       </span>
-      Flying journey
+      Academic / Flying Journey
     </>
   );
   const cls =
@@ -230,18 +211,63 @@ function FlyingJourneyRow() {
   );
 }
 
+/** The label each assigned role wears on the learner's side. */
+const TEAM_LABELS: Record<string, string> = {
+  visa: "Visa counsellor",
+  buddy: "Buddy",
+  loan: "Loan advisor",
+};
+
+function TeamMember({
+  role,
+  name,
+  email,
+}: {
+  role: string;
+  name: string;
+  email?: string | null;
+}) {
+  return (
+    <div>
+      <div className="text-[11px] font-semibold uppercase tracking-[0.07em] text-caption">
+        {role}
+      </div>
+      <div className="mt-0.5 text-[14.5px] font-medium text-ink">{name}</div>
+      {email && (
+        <a
+          href={`mailto:${email}?subject=${encodeURIComponent(
+            "Question about my application"
+          )}`}
+          className="block truncate text-[13px] text-accent hover:underline"
+        >
+          {email}
+        </a>
+      )}
+    </div>
+  );
+}
+
 /**
- * The counsellor's own card, under the nav: who is looking after this
- * learner, and the one button that reaches everyone else. Support is folded
- * away until asked for — it is a fallback, not a call to action, and the
- * named counsellor above it is the better first move.
+ * The people looking after this learner, under the nav — and the one button
+ * that reaches everyone else.
+ *
+ * The counsellor is the constant; the visa counsellor, buddy and loan advisor
+ * are assigned as the application moves, so the card lists WHOEVER IS
+ * ACTUALLY ASSIGNED rather than four slots with three of them empty. An
+ * unassigned role is an absent row, not a blank one — a learner reading
+ * "Buddy: —" learns nothing except that something is missing.
+ *
+ * Support stays folded away: it is a fallback, and the named people above it
+ * are the better first move.
  */
 function CounsellorCard({
   name,
   email,
+  team = [],
 }: {
   name?: string | null;
   email?: string | null;
+  team?: Assignee[];
 }) {
   const [helpOpen, setHelpOpen] = useState(false);
 
@@ -250,19 +276,19 @@ function CounsellorCard({
       {name ? (
         <>
           <div className="text-[12px] font-medium uppercase tracking-wide text-caption">
-            Counsellor details
+            Your team
           </div>
-          <div className="mt-2 text-[15px] font-medium text-ink">{name}</div>
-          {email && (
-            <a
-              href={`mailto:${email}?subject=${encodeURIComponent(
-                "Question about my application"
-              )}`}
-              className="text-[13.5px] text-accent hover:underline"
-            >
-              {email}
-            </a>
-          )}
+          <div className="mt-3 space-y-3.5">
+            <TeamMember role="Counsellor" name={name} email={email} />
+            {team.map((m) => (
+              <TeamMember
+                key={m.role}
+                role={TEAM_LABELS[m.role] ?? m.role}
+                name={m.name}
+                email={m.email}
+              />
+            ))}
+          </div>
         </>
       ) : (
         // No counsellor on the card before the first shortlist — the whole
@@ -402,15 +428,17 @@ export function UpgradShell({
           </Link>
           <span className="text-caption">›</span>
           <span className="font-medium text-ink">
-            {onProfile
-              ? "Profile"
-              : section === "documents"
-                ? "Documents"
-                : section === "alumni"
-                  ? "Alumni"
-                  : section === "centres"
-                    ? "Centres"
-                    : "My application"}
+            {section === "dashboard"
+              ? "Dashboard"
+              : onProfile
+                ? "My profile"
+                : section === "documents"
+                  ? "My documents"
+                  : section === "alumni"
+                    ? "Alumni"
+                    : section === "centres"
+                      ? "Centres"
+                      : "My application"}
           </span>
         </div>
       </div>
@@ -433,24 +461,27 @@ export function UpgradShell({
             <div className="mx-5 border-t border-line" />
 
             <nav className="py-2">
-              {/* Profile expands exactly like the live site; only Personal
-                  details is live — it holds the learner's real data. */}
+              {/* The browsing half of their side: universities, destinations
+                  and alumni. First, because it is the one page here that is
+                  not about the state of their own application. */}
+              <NavRow
+                icon={<IconHome className="h-5 w-5" />}
+                label="Dashboard"
+                href="/learner/dashboard"
+                active={section === "dashboard"}
+                tour="dashboard"
+              />
+
+              {/* No disclosure under Profile any more: the page is one
+                  section — personal details — so a sub-row naming it was a
+                  link from a page to itself. */}
               <NavRow
                 icon={<IconUsers className="h-5 w-5" />}
-                label="Profile"
+                label="My profile"
                 href="/learner/profile"
                 active={onProfile}
                 tour="profile"
               />
-              {/* One sub-row, because the page has one section. The site's
-                  other three led nowhere, and with the academic and
-                  financing cards gone they would point at nothing at all. */}
-              {onProfile && (
-                <div className="pb-2">
-                  <SubRow label="Personal details" href="/learner/profile" active />
-                </div>
-              )}
-
               {/* ONE application row, not two. The site separates the
                   admission application from the post-enrolment one; here there
                   is only ever the shortlisting application, so a second tab
@@ -469,7 +500,7 @@ export function UpgradShell({
                   still there after one closes. */}
               <NavRow
                 icon={<IconDoc className="h-5 w-5" />}
-                label="Documents"
+                label="My documents"
                 href="/learner/documents"
                 active={section === "documents"}
                 tour="documents"
@@ -513,6 +544,7 @@ export function UpgradShell({
           <CounsellorCard
             name={appVisible ? shellApp?.ac_name : null}
             email={appVisible ? shellApp?.ac_email : null}
+            team={appVisible && appId ? getAssignees(appId) : []}
           />
         </div>
 

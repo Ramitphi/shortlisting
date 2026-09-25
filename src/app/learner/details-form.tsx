@@ -45,6 +45,7 @@ export function LearnerDetailsForm({
   lockedReason,
   action,
   only,
+  onlyKeys,
   hideFiles = false,
   doneHref,
 }: {
@@ -59,6 +60,14 @@ export function LearnerDetailsForm({
    * submitting one section never clears another.
    */
   only?: string;
+  /**
+   * Narrow the form to these field keys. The profile page opens only email
+   * and phone: the rest of what is on file was established on the call and
+   * checked against documents, so it changes through the counsellor, not
+   * behind their back. Untouched fields still ride along as hidden inputs,
+   * so saving two of them does not clear the other seven.
+   */
+  onlyKeys?: string[];
   /** Uploads live in the Documents locker now — hide the in-form file tiles. */
   hideFiles?: boolean;
   /**
@@ -205,6 +214,7 @@ export function LearnerDetailsForm({
         const fields = FORM_FIELDS.filter(
           (f) =>
             f.section === section &&
+            (!onlyKeys || onlyKeys.includes(f.key)) &&
             (f.filledBy !== "ops" || Boolean((v[f.key] ?? "").trim()))
         );
         const uploads = hideFiles ? [] : fields.filter((f) => f.type === "file");

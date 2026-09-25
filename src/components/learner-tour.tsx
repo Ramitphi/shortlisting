@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { setTourSeen, tourSeen } from "@/lib/session";
 
 /**
@@ -68,8 +68,6 @@ const STEPS: Step[] = [
 const PLACARD_W = 320;
 const GAP = 14;
 
-type Box = { top: number; left: number; width: number; height: number };
-
 function Chevron({ dir }: { dir: "left" | "right" }) {
   return (
     <svg
@@ -90,43 +88,111 @@ function Chevron({ dir }: { dir: "left" | "right" }) {
 export function LearnerTour() {
   const [steps, setSteps] = useState<Step[] | null>(null);
   const [i, setI] = useState(0);
-  const [box, setBox] = useState<Box | null>(null);
 
   // Decide whether to run at all — after mount, because localStorage and the
   // DOM targets only exist on the client.
+  //
+  // It WAITS for the anchors rather than checking once. The database opens on
+  // the client and the shell renders its loading state first, so this effect
+  // fires before a single nav row exists; a one-shot check found nothing,
+  // dropped every step and silently never ran the tour again for that page
+  // load. Whether a first-time learner got introduced to their side came down
+  // to a race, and on a cold start the nav can be seconds away — a timeout
+  // only moved the race rather than ending it.
   useEffect(() => {
     if (tourSeen()) return;
-    const present = STEPS.filter((s) =>
-      document.querySelector(`[data-tour="${s.target}"]`)
-    );
-    if (present.length) setSteps(present);
+    const look = () => {
+      const present = STEPS.filter((s) =>
+        document.querySelector(`[data-tour="${s.target}"]`)
+      );
+      if (!present.length) return false;
+      setSteps(present);
+      return true;
+    };
+    if (look()) return;
+    const mo = new MutationObserver(() => {
+      if (look()) mo.disconnect();
+    });
+    mo.observe(document.body, { childList: true, subtree: true });
+    return () => mo.disconnect();
   }, []);
 
   const step = steps?.[i];
 
-  const measure = useCallback(() => {
-    if (!step) return;
-    const el = document.querySelector(`[data-tour="${step.target}"]`);
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    setBox({ top: r.top, left: r.left, width: r.width, height: r.height });
-  }, [step]);
-
-  // Measured before paint so the placard never shows at the previous step's
-  // position for a frame.
-  useLayoutEffect(() => {
-    measure();
-  }, [measure]);
+  /**
+   * The spotlight and placard are positioned by hand, not from state.
+   *
+   * Holding the rect in state went wrong three separate ways — measured once
+   * and left stale when the page grew under it, rebuilt per step so a timer
+   * kept a closure over the step before, and driven by requestAnimationFrame,
+   * which does not fire in a hidden tab. Each bug wore the same face: a ring
+   * sitting confidently on the row above the one being described.
+   *
+   * Writing straight to the nodes ends the whole class of it. There is no
+   * second copy of the position to go stale, the loop reads whichever step is
+   * showing now, and a plain timer runs whether or not anyone is watching.
+   */
+  const rootRef = useRef<HTMLDivElement>(null);
+  const spotRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const targetRef = useRef<string | null>(null);
+  targetRef.current = step?.target ?? null;
 
   useEffect(() => {
-    if (!step) return;
-    window.addEventListener("resize", measure);
-    window.addEventListener("scroll", measure, true);
-    return () => {
-      window.removeEventListener("resize", measure);
-      window.removeEventListener("scroll", measure, true);
+    const place = () => {
+      const name = targetRef.current;
+      const root = rootRef.current;
+      const spot = spotRef.current;
+      const card = cardRef.current;
+      if (!name || !root || !spot || !card) return;
+      const el = document.querySelector(`[data-tour="${name}"]`);
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+
+      // Coordinates are relative to THIS overlay, not the viewport. The
+      // learner shell has a transformed ancestor, and a transform makes its
+      // subtree the containing block for `fixed` — so an overlay that looks
+      // pinned to the viewport is actually pinned to that element, and
+      // viewport numbers written into it land a constant offset away. That
+      // offset was the whole bug: the ring sat a few rows up from whatever it
+      // was meant to be circling. Measuring the overlay itself makes this
+      // correct whether an ancestor is transformed or not.
+      const base = root.getBoundingClientRect();
+
+      spot.style.top = `${r.top - base.top - 4}px`;
+      spot.style.left = `${r.left - base.left - 4}px`;
+      spot.style.width = `${r.width + 8}px`;
+      spot.style.height = `${r.height + 8}px`;
+
+      // Beside the target by default; under it when the viewport is too narrow
+      // to fit a placard to the right, and always held on screen.
+      const beside = window.innerWidth - (r.right + GAP * 2) >= PLACARD_W;
+      const left = beside
+        ? r.right + GAP
+        : Math.max(GAP, Math.min(r.left, window.innerWidth - PLACARD_W - GAP));
+      const top = beside
+        ? Math.max(GAP, Math.min(r.top - 8, window.innerHeight - 260))
+        : r.bottom + GAP;
+      card.style.left = `${left - base.left}px`;
+      card.style.top = `${top - base.top}px`;
+      // Hidden until it has somewhere real to be, so nothing flashes at 0,0.
+      spot.style.opacity = "1";
+      card.style.opacity = "1";
     };
-  }, [step, measure]);
+
+    place();
+    const id = window.setInterval(place, 200);
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    const ro = new ResizeObserver(place);
+    ro.observe(document.body);
+    return () => {
+      window.clearInterval(id);
+      ro.disconnect();
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [steps]);
 
   const finish = useCallback(() => {
     setTourSeen(true);
@@ -145,40 +211,26 @@ export function LearnerTour() {
     return () => window.removeEventListener("keydown", onKey);
   }, [step, steps, finish]);
 
-  if (!steps || !step || !box) return null;
+  if (!steps || !step) return null;
 
   const last = i === steps.length - 1;
-  // Beside the target by default; flipped under it if the viewport is too
-  // narrow to fit a placard to the right, and always held on screen.
-  const room = window.innerWidth - (box.left + box.width) - GAP * 2;
-  const beside = room >= PLACARD_W;
-  const left = beside
-    ? box.left + box.width + GAP
-    : Math.max(GAP, Math.min(box.left, window.innerWidth - PLACARD_W - GAP));
-  const top = beside
-    ? Math.max(GAP, Math.min(box.top - 8, window.innerHeight - 260))
-    : box.top + box.height + GAP;
 
   return (
-    <div className="fixed inset-0 z-[80]" role="dialog" aria-modal="true">
+    <div ref={rootRef} className="fixed inset-0 z-[80]" role="dialog" aria-modal="true">
       {/* The dim is the spotlight's own shadow, so the cut-out can never drift
           out of register with it. Clicks land on the backdrop, not the page
           beneath — a half-guided page is worse than a guided one. */}
       <div
-        className="pointer-events-auto absolute rounded-xl ring-2 ring-white/70 transition-all duration-200"
-        style={{
-          top: box.top - 4,
-          left: box.left - 4,
-          width: box.width + 8,
-          height: box.height + 8,
-          boxShadow: "0 0 0 9999px rgba(16, 17, 20, 0.55)",
-        }}
+        ref={spotRef}
+        style={{ opacity: 0, boxShadow: "0 0 0 9999px rgba(16, 17, 20, 0.55)" }}
+        className="pointer-events-auto absolute rounded-xl ring-2 ring-white/70 transition-[top,left,width,height] duration-200"
         onClick={finish}
       />
 
       <div
-        className="pointer-events-auto absolute rounded-xl border-l-[3px] border-accent bg-white p-4 shadow-[0_8px_30px_rgba(0,0,0,0.18)] transition-all duration-200"
-        style={{ top, left, width: PLACARD_W }}
+        ref={cardRef}
+        style={{ opacity: 0, width: PLACARD_W }}
+        className="pointer-events-auto absolute rounded-xl border-l-[3px] border-accent bg-white p-4 shadow-[0_8px_30px_rgba(0,0,0,0.18)] transition-[top,left] duration-200"
       >
         <button
           type="button"

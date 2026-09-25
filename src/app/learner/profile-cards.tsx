@@ -32,6 +32,7 @@ export function ProfileSectionCards({
   hrefFor,
   action,
   sections,
+  editableKeys,
 }: {
   responses: Record<string, string>;
   /** Application completed — read-only everywhere. */
@@ -44,6 +45,12 @@ export function ProfileSectionCards({
   action: (formData: FormData) => void;
   /** Which sections to render. Defaults to all of them. */
   sections?: readonly string[];
+  /**
+   * Which fields Edit may actually change. Unset means all of them — the
+   * application walk, where the learner is vouching for every answer. The
+   * profile page passes the two that are theirs to correct.
+   */
+  editableKeys?: string[];
 }) {
   const shown = sections
     ? FORM_SECTIONS.filter((s) => sections.includes(s))
@@ -113,6 +120,7 @@ export function ProfileSectionCards({
                   lockedReason=""
                   action={action}
                   only={section}
+                  onlyKeys={editableKeys}
                   hideFiles
                   doneHref={hrefFor(null)}
                 />
@@ -138,12 +146,6 @@ export function ProfileSectionCards({
           </div>
         );
       })}
-      {!locked && (
-        <p className="mt-4 text-[12.5px] text-caption">
-          Changing a detail after certifying withdraws the certification — it
-          will need to be given again.
-        </p>
-      )}
     </>
   );
 }

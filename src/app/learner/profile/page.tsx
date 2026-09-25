@@ -71,6 +71,12 @@ export default function LearnerProfilePage({
             locked={locked}
             editing={locked ? undefined : searchParams.edit}
             sections={["Profile Data"]}
+            /* Only what is theirs to correct. Name, date of birth, degree and
+               countries were established on the call and checked against
+               documents; those move through the counsellor, not quietly from
+               here. Email and phone are contact details — if they change, the
+               learner is the one who knows. */
+            editableKeys={["email", "mobile"]}
             hrefFor={(sec) =>
               sec
                 ? `/learner/profile?edit=${encodeURIComponent(sec)}`
